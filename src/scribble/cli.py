@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-from scribble.import_data import run_import
 
 def main():
     parser = argparse.ArgumentParser(prog="scribble")
@@ -16,7 +15,7 @@ def main():
 
     # ---------- ROUTING ----------
     if args.command == "import":
-        from import_data import run_import
+        from scribble.import_data import run_import
         run_import(args)
 
 

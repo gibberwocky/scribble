@@ -1,0 +1,12 @@
+LICENSE
+README.md
+pyproject.toml
+src/scribble/__init__.py
+src/scribble/cli.py
+src/scribble/import_data.py
+src/scribble.egg-info/PKG-INFO
+src/scribble.egg-info/SOURCES.txt
+src/scribble.egg-info/dependency_links.txt
+src/scribble.egg-info/entry_points.txt
+src/scribble.egg-info/requires.txt
+src/scribble.egg-info/top_level.txt

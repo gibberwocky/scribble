@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: scribble
+Version: 0.1.0
+Summary: Single-cell RNA-seq analysis pipeline
+Author: David Wragg
+Requires-Python: >=3.9
+License-File: LICENSE
+Requires-Dist: scanpy
+Requires-Dist: scvelo
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Dynamic: license-file

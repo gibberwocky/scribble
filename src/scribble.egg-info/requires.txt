@@ -1,0 +1,6 @@
+scanpy
+scvelo
+pandas
+numpy
+scipy
+matplotlib

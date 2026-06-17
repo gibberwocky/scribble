@@ -1,0 +1,2 @@
+[console_scripts]
+scribble = scribble.cli:main
