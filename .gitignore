@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+
+# AnnData / single-cell
+*.h5ad
+*.loom
+*.mtx
+
+# data + outputs
+data/
+*.csv
+*.tsv
+*.xlsx
+*.png
+*.pdf
+
+# environments
+.env
+.conda/
+
+# notebooks
+.ipynb_checkpoints/
+
+
