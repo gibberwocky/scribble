@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-
-import argparse
 from pathlib import Path
 import scanpy as sc
 import scvelo as scv
@@ -8,7 +6,6 @@ import numpy as np
 import pandas as pd
 import random
 import scipy.sparse as sp
-import matplotlib.pyplot as plt
 
 
 # ---------- Environment setup ----------
@@ -30,55 +27,29 @@ def get_samples(velo_dir):
         raise RuntimeError("No sample folders found in velocyto directory")
     return samples
 
-# ---------- Sample metadata -----------
+
+# ---------- Metadata ----------
 def add_metadata(adata, metadata_file):
     print(f"Reading metadata: {metadata_file}")
 
     meta = pd.read_excel(metadata_file)
 
-    # ---------- validation ----------
     if "sample" not in meta.columns:
-        raise ValueError("Metadata file must contain a 'sample' column")
+        raise ValueError("Metadata must contain a 'sample' column")
 
     meta = meta.set_index("sample")
 
-    # check overlap
-    adata_samples = set(adata.obs["sample"].unique())
-    meta_samples = set(meta.index)
-
-    missing = adata_samples - meta_samples
-    if len(missing) > 0:
-        raise ValueError(f"Metadata missing samples: {missing}")
-
-    extra = meta_samples - adata_samples
-    if extra:
-        print(f"Warning: metadata contains unused samples: {extra}")
-
-    # ---------- join ----------
     adata.obs = adata.obs.join(meta, on="sample")
 
-    # ---------- type inference ----------
+    # type inference
     for col in meta.columns:
-        # skip sample column (already handled)
-        if col == "sample":
-            continue
-
         series = adata.obs[col]
-
-        # try numeric conversion
         numeric = pd.to_numeric(series, errors="coerce")
-
-        # heuristic: if most values convert → treat as numeric
-        frac_numeric = numeric.notna().mean()
-
-        if frac_numeric > 0.9:
+        if numeric.notna().mean() > 0.9:
             adata.obs[col] = numeric
-            print(f"{col}: numeric")
         else:
             adata.obs[col] = series.astype("string").astype("category")
-            print(f"{col}: categorical")
 
-    # ensure sample is categorical
     adata.obs["sample"] = adata.obs["sample"].astype("category")
 
     return adata
@@ -97,55 +68,34 @@ def clean_barcodes(idx, sample):
 
 # ---------- Process one sample ----------
 def process_sample(sample, cellranger_dir, velo_dir):
-    print(f"\nProcessing {sample}")
+    print(f"Processing {sample}")
 
-    sample_dir = velo_dir / sample
-
-    loom_files = list(sample_dir.glob("*.loom"))
-    if len(loom_files) != 1:
-        raise RuntimeError(f"{sample}: Expected 1 loom file, found {len(loom_files)}")
-
-    loom_file = loom_files[0]
-    print(f"Using loom file: {loom_file}")
-
-    # Load loom
-    adata = sc.read(loom_file, cache=True)
+    loom_file = list((velo_dir / sample).glob("*.loom"))[0]
+    adata = sc.read(loom_file)
     adata.obs_names = clean_barcodes(adata.obs_names, sample)
 
-    # Load 10X
     adata_10X = sc.read_10x_mtx(
         cellranger_dir / sample / "outs/filtered_feature_bc_matrix"
     )
     adata_10X.obs_names = clean_barcodes(adata_10X.obs_names, sample)
 
-    # QC metrics
+    # MT + QC
     adata_10X.var["mt"] = adata_10X.var_names.str.contains("^MT-|^mt-")
     sc.pp.calculate_qc_metrics(adata_10X, qc_vars=["mt"], inplace=True)
 
-    # Consistency check
-    missing = set(adata.obs_names) - set(adata_10X.obs_names)
-    if len(missing) > 0:
-        raise ValueError(f"{sample}: {len(missing)} barcodes missing from 10X data")
-
-    # Fix var names
-    adata.var_names = adata.var.index
-    adata.var_names_make_unique()
-
-    # Extract layers
+    # Layers
     spliced = sp.csr_matrix(adata.layers["spliced"], dtype=np.float32)
     unspliced = sp.csr_matrix(adata.layers["unspliced"], dtype=np.float32)
-
     counts = spliced + unspliced
 
     # Scrublet
     adata_counts = sc.AnnData(X=counts.copy())
-    adata_counts.obs_names = adata.obs_names.copy()
-    adata_counts.var_names = adata.var_names.copy()
+    adata_counts.obs_names = adata.obs_names
+    adata_counts.var_names = adata.var_names
 
-    print(f"Running Scrublet for {sample}")
     sc.external.pp.scrublet(adata_counts, threshold=0.25)
 
-    # Build clean object
+    # Build final object
     adata_clean = sc.AnnData(
         X=counts,
         obs=adata.obs.copy(),
@@ -155,24 +105,21 @@ def process_sample(sample, cellranger_dir, velo_dir):
     adata_clean.layers["spliced"] = spliced
     adata_clean.layers["unspliced"] = unspliced
 
-    # Transfer QC metrics
-    adata_clean.obs["doublet_score"] = adata_counts.obs["doublet_score"].values
-    adata_clean.obs["predicted_doublet"] = adata_counts.obs["predicted_doublet"].values
+    adata_clean.obs["doublet_score"] = adata_counts.obs["doublet_score"]
+    adata_clean.obs["predicted_doublet"] = adata_counts.obs["predicted_doublet"]
 
     meta_10X = adata_10X.obs.loc[adata_clean.obs_names]
 
-    adata_clean.obs["pct_counts_mt"] = meta_10X["pct_counts_mt"].values
-    adata_clean.obs["total_counts"] = meta_10X["total_counts"].values
-    adata_clean.obs["n_genes_by_counts"] = meta_10X["n_genes_by_counts"].values
+    adata_clean.obs["pct_counts_mt"] = meta_10X["pct_counts_mt"]
+    adata_clean.obs["total_counts"] = meta_10X["total_counts"]
+    adata_clean.obs["n_genes_by_counts"] = meta_10X["n_genes_by_counts"]
 
     return adata_clean
 
-# ---------- Main ----------
-def run_import(args):
-    from pathlib import Path
 
+# ---------- MAIN ENTRY ----------
+def run_import(args):
     PROJECT_DIR = Path(args.project_dir)
-    metadata_file = args.metadata_file
 
     CELLRANGER_DIR = PROJECT_DIR / "cellranger"
     VELO_DIR = PROJECT_DIR / "velocyto"
@@ -190,20 +137,16 @@ def run_import(args):
     adatas = []
 
     for sample in samples:
-        adata_clean = process_sample(sample, CELLRANGER_DIR, VELO_DIR)
-        adata_clean.obs["sample"] = sample
+        ad = process_sample(sample, CELLRANGER_DIR, VELO_DIR)
+        ad.obs["sample"] = sample
+        adatas.append(ad)
 
-        adatas.append(adata_clean)
-
-    print("\nConcatenating samples...")
+    print("Concatenating...")
     adata = sc.concat(adatas, label="sample", keys=samples)
 
-    # ---------- ADD METADATA ----------
-    print("\nAppending metadata...")
     adata = add_metadata(adata, args.metadata_file)
 
-    out_file = ADATA_DIR / "raw.h5ad"
-    print(f"Saving: {out_file}")
+    out_file = ADATA_DIR / "combined.h5ad"
+    print(f"Saving to {out_file}")
 
     adata.write(out_file)
-

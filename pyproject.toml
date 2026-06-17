@@ -1,0 +1,18 @@
+[project]
+name = "scribble"
+version = "0.1.0"
+description = "Single-cell RNA-seq analysis pipeline"
+authors = [{name = "David Wragg"}]
+requires-python = ">=3.9"
+
+dependencies = [
+    "scanpy",
+    "scvelo",
+    "pandas",
+    "numpy",
+    "scipy",
+    "matplotlib"
+]
+
+[project.scripts]
+scribble = "scribble.cli:main"
