@@ -13,6 +13,7 @@ def main():
 
     # ------------- MT QC ------------
     mt_parser = subparsers.add_parser("mt")
+    mt_parser.add_argument("--project_dir", required=True)
     mt_parser.add_argument("--input", required=True)
     mt_parser.add_argument("--nmads", type=float, default=3)
 

@@ -60,8 +60,38 @@ def clean_barcodes(idx, sample):
     )
 
 
+# --------- Knee plot data frame ---------
+def get_knee_df(adata):
+    X = adata.layers["spliced"] + adata.layers["unspliced"]
+    if sp.issparse(X):
+        total = np.array(X.sum(axis=1)).flatten()
+    else:
+        total = X.sum(axis=1)
+    df = pd.DataFrame({"total": total})
+    df = df[df["total"] > 0]
+    df = df.sort_values("total", ascending=False).reset_index(drop=True)
+    df["rank"] = np.arange(1, len(df) + 1)
+    return df
+
+# ----------- Inflection point -----------
+def get_inflection(df, lower=100):
+    df_fit = df[df["total"] >= lower].copy()
+    # log-transform
+    log_total = np.log10(df_fit["total"].values)
+    log_rank = np.log10(df_fit["rank"].values)
+    # first derivative
+    d1n = np.diff(log_total) / np.diff(log_rank)
+    # locate minimum slope
+    right_edge = np.argmin(d1n)
+    inflection = 10 ** log_total[right_edge]
+    return inflection
+
+
 # ---------- Process one sample ----------
-def process_sample(sc, sp, np, sample, cellranger_dir, velo_dir):
+def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
+    from scribble.plots import qc_hexbin_ax, knee_plot_ax
+    import matplotlib.pyplot as plt
+
     print(f"Processing {sample}")
 
     loom_file = list((velo_dir / sample).glob("*.loom"))[0]
@@ -77,6 +107,10 @@ def process_sample(sc, sp, np, sample, cellranger_dir, velo_dir):
     adata_10X.var["mt"] = adata_10X.var_names.str.contains("^MT-|^mt-")
     sc.pp.calculate_qc_metrics(adata_10X, qc_vars=["mt"], inplace=True)
 
+    # Use gene symbol for name and ensure unique
+    adata.var_names = adata.var.index
+    adata.var_names_make_unique()
+
     # Layers
     spliced = sp.csr_matrix(adata.layers["spliced"], dtype=np.float32)
     unspliced = sp.csr_matrix(adata.layers["unspliced"], dtype=np.float32)
@@ -84,29 +118,97 @@ def process_sample(sc, sp, np, sample, cellranger_dir, velo_dir):
 
     # Scrublet
     adata_counts = sc.AnnData(X=counts.copy())
-    adata_counts.obs_names = adata.obs_names
-    adata_counts.var_names = adata.var_names
+    adata_counts.obs_names = adata.obs_names.copy()
+    adata_counts.var_names = adata.var_names.copy()
 
     sc.external.pp.scrublet(adata_counts, threshold=0.25)
 
     # Build final object
     adata_clean = sc.AnnData(
-        X=counts,
+        X=counts.copy(),
         obs=adata.obs.copy(),
         var=adata.var.copy()
     )
-
     adata_clean.layers["spliced"] = spliced
     adata_clean.layers["unspliced"] = unspliced
 
-    adata_clean.obs["doublet_score"] = adata_counts.obs["doublet_score"]
-    adata_clean.obs["predicted_doublet"] = adata_counts.obs["predicted_doublet"]
+    # Transfer Scrublet results
+    adata_clean.obs["doublet_score"] = adata_counts.obs["doublet_score"].values
+    adata_clean.obs["predicted_doublet"] = adata_counts.obs["predicted_doublet"].values
 
+    # Transfer MT metrics from adta_10X to adata
     meta_10X = adata_10X.obs.loc[adata_clean.obs_names]
+    adata_clean.obs["pct_counts_mt"] = meta_10X["pct_counts_mt"].values
+    adata_clean.obs["total_counts"] = meta_10X["total_counts"].values
+    adata_clean.obs["n_genes_by_counts"] = meta_10X["n_genes_by_counts"].values
 
-    adata_clean.obs["pct_counts_mt"] = meta_10X["pct_counts_mt"]
-    adata_clean.obs["total_counts"] = meta_10X["total_counts"]
-    adata_clean.obs["n_genes_by_counts"] = meta_10X["n_genes_by_counts"]
+    # Data for knee plot and inflection point
+    knee_df = pd.DataFrame({
+        "total": adata_clean.obs["total_counts"]
+    }).sort_values("total", ascending=False).reset_index(drop=True)
+    knee_df["rank"] = np.arange(1, len(knee_df) + 1)
+    inflection = get_inflection(knee_df, lower=100)
+
+    # Multi-panel QC figure
+    fig, axes = plt.subplots(2, 2, figsize=(12,10))
+    axes = axes.flatten()
+
+    # ---------- 1. counts vs genes ----------
+    hb1 = qc_hexbin_ax(
+        axes[0],
+        x=adata_clean.obs["total_counts"].values,
+        y=adata_clean.obs["n_genes_by_counts"].values,
+        xlabel="Total counts (log scale)",
+        ylabel="Number of genes (log scale)",
+        log_x=True,
+        log_y=True
+    )
+    axes[0].set_title("Library complexity")
+
+    # ---------- 2. knee plot ----------
+    knee_plot_ax(axes[1], knee_df, inflection)
+
+    # ---------- 3. counts vs MT ----------
+    hb3 = qc_hexbin_ax(
+        axes[2],
+        x=adata_clean.obs["total_counts"].values,
+        y=adata_clean.obs["pct_counts_mt"].values,
+        xlabel="Total counts (log scale)",
+        ylabel="% mitochondrial counts",
+        log_x=True,
+        log_y=False
+    )
+    axes[2].set_title("MT content")
+
+    # ---------- 4. counts vs doublet ----------
+    hb4 = qc_hexbin_ax(
+        axes[3],
+        x=adata_clean.obs["total_counts"].values,
+        y=adata_clean.obs["doublet_score"].values,
+        xlabel="Total counts (log scale)",
+        ylabel="Doublet score",
+        log_x=True,
+        log_y=False
+    )
+    axes[3].set_title("Doublets")
+
+    # ---------- shared colorbar ----------
+    cbar = fig.colorbar(
+        hb1,
+        ax=axes,
+        location="right",
+        fraction=0.05,
+        pad=0.04
+    )
+    cbar.set_label("log10(cell density)")
+
+    # ---------- layout fix ----------
+    plt.tight_layout(rect=[0, 0, 0.93, 1])
+    plt.savefig(plot_dir / f"{sample}_qc_panel.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+    # Filter cells above inflection point
+    adata_clean = adata_clean[adata_clean.obs["total_counts"] > inflection].copy()
 
     return adata_clean
 
