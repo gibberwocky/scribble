@@ -115,8 +115,8 @@ def run_mt_qc(args):
     import scanpy as sc
 
     input_file = Path(args.input)
-    output_file = input.replace(".h5ad", "_mtqc.h5ad")
-    plot_file = input.replace(".h5ad", "_mtqc.png")
+    output_file = input.replace(".h5ad", f"_mtqc_nMADs-{args.nmads}.h5ad")
+    plot_file = input.replace(".h5ad", f"_mtqc_nMADs-{args.nmads}.png")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
