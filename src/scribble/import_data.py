@@ -3,9 +3,9 @@ from pathlib import Path
 
 
 # ---------- Environment setup ----------
-def setup_environment(plot_dir):
+def setup_environment(sc, np, random, plot_dir):
     sc.settings.verbosity = 3
-    scv.settings.verbosity = 3
+    #scv.settings.verbosity = 3
     sc.logging.print_versions()
     sc.settings.figdir = plot_dir
     sc.set_figure_params(dpi=100, facecolor="white")
@@ -23,7 +23,7 @@ def get_samples(velo_dir):
 
 
 # ---------- Metadata ----------
-def add_metadata(adata, metadata_file):
+def add_metadata(pd, adata, metadata_file):
     print(f"Reading metadata: {metadata_file}")
 
     meta = pd.read_excel(metadata_file)
@@ -61,7 +61,7 @@ def clean_barcodes(idx, sample):
 
 
 # ---------- Process one sample ----------
-def process_sample(sample, cellranger_dir, velo_dir):
+def process_sample(sc, sp, np, sample, cellranger_dir, velo_dir):
     print(f"Processing {sample}")
 
     loom_file = list((velo_dir / sample).glob("*.loom"))[0]
@@ -129,7 +129,7 @@ def run_import(args):
     PLOT_DIR.mkdir(exist_ok=True)
     ADATA_DIR.mkdir(exist_ok=True)
 
-    setup_environment(PLOT_DIR)
+    setup_environment(sc, np, random, PLOT_DIR)
 
     samples = get_samples(VELO_DIR)
     print(f"Detected samples: {samples}")
@@ -137,14 +137,14 @@ def run_import(args):
     adatas = []
 
     for sample in samples:
-        ad = process_sample(sample, CELLRANGER_DIR, VELO_DIR)
+        ad = process_sample(sc, sp, np, sample, CELLRANGER_DIR, VELO_DIR)
         ad.obs["sample"] = sample
         adatas.append(ad)
 
     print("Concatenating...")
     adata = sc.concat(adatas, label="sample", keys=samples)
 
-    adata = add_metadata(adata, args.metadata_file)
+    adata = add_metadata(pd, adata, args.metadata_file)
 
     out_file = ADATA_DIR / "combined.h5ad"
     print(f"Saving to {out_file}")
