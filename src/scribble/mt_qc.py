@@ -56,7 +56,7 @@ def run_mt_qc(args):
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
-    output_file = input.replace(".h5ad", f"_mtqc_nMADs-{args.nmads}.h5ad")
+    output_file = input_file.replace(".h5ad", f"_mtqc_nMADs-{args.nmads}.h5ad")
     plot_file = PLOT_DIR / f"_mtqc_nMADs-{args.nmads}.png"
 
     print(f"Loading {input_file}")
