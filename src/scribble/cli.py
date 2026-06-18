@@ -117,5 +117,9 @@ GitHub: https://github.com/gibberwocky/scribble
         from scribble.preintegration import run_preintegration
         run_preintegration(args)
 
+    elif args.command == "harmony":
+        from scribble.harmony import run_harmony
+        run_harmony(args)
+
 if __name__ == "__main__":
     main()
