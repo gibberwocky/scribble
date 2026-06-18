@@ -16,7 +16,7 @@ def run_pca_qc(args):
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
-    plot_file = PLOT_DIR / f"{input_file.stem}_pca_nMADs-{args.nmads}.png"
+    plot_file = PLOT_DIR / f"{input_file.stem}_pca.png"
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
