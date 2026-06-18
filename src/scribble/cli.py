@@ -57,8 +57,8 @@ GitHub: https://github.com/gibberwocky/scribble
     filter_parser = subparsers.add_parser("filter")
     filter_parser.add_argument("--project_dir", required=True)
     filter_parser.add_argument("--input", required=True)
-    filter_parser.add_argument("--input", required=True)
     filter_parser.add_argument("--mingenes", type=int, default=200)
+    filter_parser.add_argument("--maxgenes", type=int, default=6000)
     filter_parser.add_argument("--filter_xlsx",
         help="Excel file containing filters for samples, must include worksheet 'filters' with a 'sample' column")
 
