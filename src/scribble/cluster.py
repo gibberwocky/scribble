@@ -260,10 +260,12 @@ def run_cluster(args):
         all_assignments = np.array(all_assignments, dtype=str)  # (runs, cells)
 
         # compute stability
-        stability = []
-        mode_result = mode(all_assignments, axis=0, keepdims=False)
-        stability = mode_result.count / args.n_repeats
-        adata.obs["cluster_stability"] = stability
+        stability = np.array([
+            np.unique(all_assignments[:, i], return_counts=True)[1].max() / args.n_repeats
+            for i in range(all_assignments.shape[1])
+        ])
+
+        adata.obs["cluster_stability"] = np.array(stability, dtype=float)
 
         print(f"Mean stability: {np.mean(stability):.3f}")
 
