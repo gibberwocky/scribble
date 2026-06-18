@@ -17,7 +17,7 @@ def main():
 A single cell workflow CLI based on scapy for processing 10X data. Scribble expects the project directory to include:
 - A directory containing cellranger count outputs (e.g.\033[34m <project>/cellranger/<sample>/outs/filtered_feature_bc_matrix\033[32m)
 - A directory containing velocyto loom outputs (e.g.\033[34m <project>/velocyto/<sample>/<filename>.loom\033[32m)
-- An Excel file containing sample metadata, which must include column 'sample' with values matching the velocyto and cellranger <sample> folder names
+- An Excel file containing sample metadata, which must include worksheet 'meta' containing column 'sample' whose values match the velocyto and cellranger <sample> folder names
 \033[0m
 GitHub: https://github.com/gibberwocky/scribble
 """,
@@ -30,7 +30,7 @@ GitHub: https://github.com/gibberwocky/scribble
     import_parser.add_argument("--project_dir", required=True,
         help='Directory containing subdirectories of cellranger and velocyto outputs')
     import_parser.add_argument("--metadata_file", required=True,
-        help='Excel file containing metadata for smaples, must include sample column')
+        help="Excel file containing metadata for samples, must include worksheet 'meta' with a 'sample' column")
 
     # -------------- MT QC ---------------
     mt_parser = subparsers.add_parser("mt")

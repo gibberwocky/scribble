@@ -26,7 +26,7 @@ def get_samples(velo_dir):
 def add_metadata(pd, adata, metadata_file):
     print(f"Reading metadata: {metadata_file}")
 
-    meta = pd.read_excel(metadata_file)
+    meta = pd.read_excel(metadata_file, sheet_name="meta")
 
     if "sample" not in meta.columns:
         raise ValueError("Metadata must contain a 'sample' column")
