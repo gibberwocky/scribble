@@ -90,6 +90,19 @@ GitHub: https://github.com/gibberwocky/scribble
     harmony_parser.add_argument("--vars", nargs="+", default=["sample"],
         help="UMAP colour variable(s)")
 
+    # -------------- Cluster -------------
+    cluster_parser = subparsers.add_parser("cluster")
+    cluster_parser.add_argument("--project_dir", required=True)
+    cluster_parser.add_argument("--input", required=True)
+    cluster_parser.add_argument("--embedding", default="X_pca",
+        help="X_pca if no integration with Harmomy, otherwise X_pca_harmony")
+    cluster_parser.add_argument("--resolution", type=float, default=1.0)
+    cluster_parser.add_argument("--neighbors", type=int, default=15)
+    cluster_parser.add_argument("--vars", nargs="+", default=["sample"],
+        help="UMAP colour variable(s) to include in addition to Leiden cluster")
+    cluster_parser.add_argument("--n_repeats", type=int, default=10)
+
+
     args = parser.parse_args()
 
     # ---------- ROUTING ----------
@@ -120,6 +133,10 @@ GitHub: https://github.com/gibberwocky/scribble
     elif args.command == "harmony":
         from scribble.harmony import run_harmony
         run_harmony(args)
+
+    elif args.command == "cluster":
+        from scribble.cluster import run_cluster
+        run_cluster(args)
 
 if __name__ == "__main__":
     main()
