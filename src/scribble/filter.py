@@ -16,6 +16,7 @@ def run_filter(args):
 
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_filtered.h5ad")
+    counts_file = input_file.with_name(f"{input_file.stem}_filtered.tsv")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -96,10 +97,12 @@ def run_filter(args):
     sample_counts_after = adata_filtered.obs["sample"].value_counts()
 
     # --------------------------------------------------
-    # Per-sample logging
+    # Per-sample logging + TSV export
     # --------------------------------------------------
     print("\nPer-sample QC summary:")
     print("-" * 50)
+
+    rows = []
 
     for sample in sample_counts_before.index:
         idx = adata.obs["sample"] == sample
@@ -107,20 +110,52 @@ def run_filter(args):
         before = sample_counts_before[sample]
         after = sample_counts_after.get(sample, 0)
 
-        # mask failures (within this sample)
         mt_fail = (~mt_mask & idx).sum()
         dbl_fail = (~dbl_mask & idx).sum()
         gene_fail = (~gene_mask & idx).sum()
 
         removed = before - after
+        retained_frac = after / before if before > 0 else 0.0
 
+        # Terminal output
         print(f"{sample}")
-        print(f"  kept:    {after}/{before} ({after/before:.1%})")
+        print(f"  kept:    {after}/{before} ({retained_frac:.1%})")
         print(f"  removed: {removed} ({removed/before:.1%})")
         print(f"    - mt_outlier:      {mt_fail}")
         print(f"    - doublet_outlier: {dbl_fail}")
         print(f"    - gene_filter:     {gene_fail}")
         print()
+
+        # Collect row for TSV
+        rows.append({
+            "sample": sample,
+            "before": before,
+            "after": after,
+            "retained_frac": retained_frac,
+            "removed": removed,
+            "mt_outlier": mt_fail,
+            "doublet_outlier": dbl_fail,
+            "gene_filter": gene_fail,
+        })
+
+    rows.append({
+        "sample": "GLOBAL",
+        "before": n_before,
+        "after": n_after,
+        "retained_frac": n_after / n_before,
+        "removed": n_before - n_after,
+        "mt_outlier": (~mt_mask).sum(),
+        "doublet_outlier": (~dbl_mask).sum(),
+        "gene_filter": (~gene_mask).sum(),
+    })
+
+    # --------------------------------------------------
+    # Write TSV file
+    # --------------------------------------------------
+    df = pd.DataFrame(rows)
+
+    print(f"Writing QC summary → {counts_file}")
+    df.to_csv(counts_file, sep="\t", index=False)
 
     # --------------------------------------------------
     # Save output
