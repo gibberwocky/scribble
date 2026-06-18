@@ -72,11 +72,23 @@ GitHub: https://github.com/gibberwocky/scribble
     preintegration_parser.add_argument("--npcs", type=int, default=30)
     preintegration_parser.add_argument("--neighbors", type=int, default=15)
     preintegration_parser.add_argument("--batch", type=str, default="sample")
-    preintegration_parser.add_argument("--vars", nargs="+", required=True)
+    preintegration_parser.add_argument("--vars", nargs="+", default=["sample"],
+        help="UMAP colour variable(s)")
     preintegration_parser.add_argument("--no-scale", action="store_true",
         help="Apply scaling before PCA (default: on)")
     preintegration_parser.add_argument("--regress", nargs="+", default=None,
         help="Variables to regress out (e.g. total_counts pct_counts_mt)")
+
+    # -------------- Harmony -------------
+    harmony_parser = subparsers.add_parser("harmony")
+    harmony_parser.add_argument("--project_dir", required=True)
+    harmony_parser.add_argument("--input", required=True)
+    harmony_parser.add_argument("--npcs", type=int, default=30)
+    harmony_parser.add_argument("--neighbors", type=int, default=15)
+    harmony_parser.add_argument("--batch", type=str, default="sample")
+    harmony_parser.add_argument("--theta", type=int, default=2)
+    harmony_parser.add_argument("--vars", nargs="+", default=["sample"],
+        help="UMAP colour variable(s)")
 
     args = parser.parse_args()
 
