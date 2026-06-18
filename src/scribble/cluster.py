@@ -79,7 +79,7 @@ def run_cluster(args):
     import pandas as pd
     import matplotlib.pyplot as plt
     from scipy.optimize import linear_sum_assignment
-    from scipy.stats import entropy
+    from scipy.stats import entropy, mode
     import random
     from scribble.import_data import setup_environment
 
@@ -191,6 +191,9 @@ def run_cluster(args):
 
         print(f"Saved optimisation plot → {plot_file}")
 
+        if "leiden_tmp" in adata.obs:
+            del adata.obs["leiden_tmp"]
+
 
     # --------------------------------------------------
     # Final clustering
@@ -234,7 +237,12 @@ def run_cluster(args):
                 for row, col in zip(row_ind, col_ind)
             }
 
-            return cur.map(mapping).values
+            aligned = cur.map(mapping)
+
+            # fallback: keep original label if not mapped
+            aligned = aligned.fillna(cur)
+
+            return aligned.values
 
         for i in range(args.n_repeats):
             sc.tl.leiden(
@@ -249,16 +257,12 @@ def run_cluster(args):
 
             all_assignments.append(aligned)
 
-        all_assignments = np.array(all_assignments)  # (runs, cells)
+        all_assignments = np.array(all_assignments, dtype=str)  # (runs, cells)
 
         # compute stability
         stability = []
-
-        for cell_idx in range(adata.n_obs):
-            assignments = all_assignments[:, cell_idx]
-            values, counts = np.unique(assignments, return_counts=True)
-            stability.append(counts.max() / args.n_repeats)
-
+        mode_result = mode(all_assignments, axis=0, keepdims=False)
+        stability = mode_result.count / args.n_repeats
         adata.obs["cluster_stability"] = stability
 
         print(f"Mean stability: {np.mean(stability):.3f}")
@@ -292,7 +296,6 @@ def run_cluster(args):
         cluster_summary["fraction"] = cluster_summary["n_cells"] / adata.n_obs
         cluster_summary.index = cluster_summary.index.astype(str)
 
-        # sample composition
         sample_counts = (
             adata.obs
             .groupby(["leiden", "sample"], observed=True)
@@ -301,15 +304,58 @@ def run_cluster(args):
         )
 
         sample_counts.index = sample_counts.index.astype(str)
+        sample_counts.columns = sample_counts.columns.astype(str)
 
-        cluster_summary = cluster_summary.join(sample_counts, how="outer").fillna(0)
+        # reset indices → convert to columns
+        cluster_summary = cluster_summary.reset_index()
+        sample_counts = sample_counts.reset_index()
 
-        # entropy (mixing metric)
-        def compute_entropy(row):
-            p = row / row.sum()
-            return entropy(p)
+        # ensure string keys
+        cluster_summary["leiden"] = cluster_summary["leiden"].astype(str)
+        sample_counts["leiden"] = sample_counts["leiden"].astype(str)
 
-        cluster_summary["sample_entropy"] = sample_counts.apply(compute_entropy, axis=1)
+        # merge
+        cluster_summary = pd.merge(
+            cluster_summary,
+            sample_counts,
+            on="leiden",
+            how="outer"
+        ).fillna(0)
+
+        cluster_summary.rename(columns={"leiden": "cluster"}, inplace=True)
+
+        # --------------------------------------------------
+        # Compute sample entropy (mixing metric)
+        # --------------------------------------------------
+
+        # Identify sample columns (all columns that came from sample_counts)
+        exclude_cols = {
+            "cluster",
+            "n_cells",
+            "mean_stability",
+            "median_stability",
+            "fraction",
+            "resolution",
+            "embedding",
+            "n_repeats",
+            "sample_entropy",
+            "low_stability",
+            "low_mixing"
+        }
+
+        sample_cols = [col for col in cluster_summary.columns if col not in exclude_cols]
+
+        def compute_entropy_row(row):
+            values = row[sample_cols].to_numpy(dtype=float)
+
+            total = values.sum()
+            if total == 0:
+                return 0.0
+
+            probs = values / total
+            return entropy(probs)
+
+        cluster_summary["sample_entropy"] = cluster_summary.apply(compute_entropy_row, axis=1)
 
         # flags
         cluster_summary["low_stability"] = cluster_summary["mean_stability"] < 0.7
@@ -320,8 +366,7 @@ def run_cluster(args):
         cluster_summary["embedding"] = args.embedding
         cluster_summary["n_repeats"] = args.n_repeats
 
-        cluster_summary.reset_index(inplace=True)
-        cluster_summary.rename(columns={"leiden": "cluster"}, inplace=True)
+        cluster_summary.reset_index(drop=True, inplace=True)
 
         cluster_summary = cluster_summary.sort_values("n_cells", ascending=False)
 
