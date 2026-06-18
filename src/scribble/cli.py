@@ -15,8 +15,8 @@ def main():
 ╰─╯╰─╴╵╰╴╵╰─╯╰─╯╰─╴╰─╴
 \033[32m
 A single cell workflow CLI based on scapy for processing 10X data. Scribble expects the project directory to include:
-- A directory containing cellranger count outputs (e.g. <project>/cellranger/<sample>/outs/filtered_feature_bc_matrix)
-- A directory containing velocyto loom outputs (e.g. <project>/velocyto/<sample>/<filename>.loom)
+- A directory containing cellranger count outputs (e.g.\033[34m <project>/cellranger/<sample>/outs/filtered_feature_bc_matrix\033[32m)
+- A directory containing velocyto loom outputs (e.g.\033[34m <project>/velocyto/<sample>/<filename>.loom\033[32m)
 - An Excel file containing sample metadata, which must include column 'sample' with values matching the velocyto and cellranger <sample> folder names
 \033[0m
 GitHub: https://github.com/gibberwocky/scribble
