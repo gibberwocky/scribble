@@ -60,21 +60,8 @@ def clean_barcodes(idx, sample):
     )
 
 
-# --------- Knee plot data frame ---------
-def get_knee_df(adata):
-    X = adata.layers["spliced"] + adata.layers["unspliced"]
-    if sp.issparse(X):
-        total = np.array(X.sum(axis=1)).flatten()
-    else:
-        total = X.sum(axis=1)
-    df = pd.DataFrame({"total": total})
-    df = df[df["total"] > 0]
-    df = df.sort_values("total", ascending=False).reset_index(drop=True)
-    df["rank"] = np.arange(1, len(df) + 1)
-    return df
-
 # ----------- Inflection point -----------
-def get_inflection(df, lower=100):
+def get_inflection(np, df, lower=100):
     df_fit = df[df["total"] >= lower].copy()
     # log-transform
     log_total = np.log10(df_fit["total"].values)
@@ -147,7 +134,7 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
         "total": adata_clean.obs["total_counts"]
     }).sort_values("total", ascending=False).reset_index(drop=True)
     knee_df["rank"] = np.arange(1, len(knee_df) + 1)
-    inflection = get_inflection(knee_df, lower=100)
+    inflection = get_inflection(np, knee_df, lower=100)
 
     # Multi-panel QC figure
     fig, axes = plt.subplots(2, 2, figsize=(12,10))
