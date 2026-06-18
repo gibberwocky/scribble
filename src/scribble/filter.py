@@ -27,7 +27,6 @@ def run_filter(args):
 
     if args.filter_xlsx:
         print(f"Loading filter definitions from {args.filter_xlsx}")
-
         filter_df = pd.read_excel(args.filter_xlsx, sheet_name="filters")
 
         required_cols = {"sample", "min_genes", "max_genes"}
@@ -43,15 +42,20 @@ def run_filter(args):
         )
 
     # --------------------------------------------------
-    # Build filtering masks
+    # Capture BEFORE counts
     # --------------------------------------------------
-    print("Applying filters...")
+    print("\nComputing pre-filter counts...")
+    sample_counts_before = adata.obs["sample"].value_counts()
 
-    base_mask = (
-        (~adata.obs["mt_outlier"]) &
-        (~adata.obs["doublet_outlier"])
-    )
+    # --------------------------------------------------
+    # Build individual masks
+    # --------------------------------------------------
+    print("Building filter masks...")
 
+    mt_mask = ~adata.obs["mt_outlier"]
+    dbl_mask = ~adata.obs["doublet_outlier"]
+
+    # gene mask (sample-aware)
     if filter_dict:
         gene_mask = np.zeros(adata.n_obs, dtype=bool)
 
@@ -63,9 +67,7 @@ def run_filter(args):
                 (adata.obs.loc[idx, "n_genes_by_counts"] < thresholds["max_genes"])
             )
 
-        # fallback for samples not listed
         unmatched = ~adata.obs["sample"].isin(filter_dict.keys())
-
         gene_mask[unmatched] = (
             (adata.obs.loc[unmatched, "n_genes_by_counts"] > args.mingenes) &
             (adata.obs.loc[unmatched, "n_genes_by_counts"] < args.maxgenes)
@@ -77,16 +79,51 @@ def run_filter(args):
             (adata.obs["n_genes_by_counts"] < args.maxgenes)
         )
 
-    final_mask = base_mask & gene_mask
+    # --------------------------------------------------
+    # Combine masks
+    # --------------------------------------------------
+    final_mask = mt_mask & dbl_mask & gene_mask
 
     # --------------------------------------------------
     # Apply filtering
     # --------------------------------------------------
     n_before = adata.n_obs
-    adata = adata[final_mask].copy()
-    n_after = adata.n_obs
+    adata_filtered = adata[final_mask].copy()
+    n_after = adata_filtered.n_obs
 
-    print(f"Retained {n_after} / {n_before} cells ({n_after/n_before:.1%})")
+    print(f"\nRetained {n_after} / {n_before} cells ({n_after/n_before:.1%})")
 
+    sample_counts_after = adata_filtered.obs["sample"].value_counts()
+
+    # --------------------------------------------------
+    # Per-sample logging
+    # --------------------------------------------------
+    print("\nPer-sample QC summary:")
+    print("-" * 50)
+
+    for sample in sample_counts_before.index:
+        idx = adata.obs["sample"] == sample
+
+        before = sample_counts_before[sample]
+        after = sample_counts_after.get(sample, 0)
+
+        # mask failures (within this sample)
+        mt_fail = (~mt_mask & idx).sum()
+        dbl_fail = (~dbl_mask & idx).sum()
+        gene_fail = (~gene_mask & idx).sum()
+
+        removed = before - after
+
+        print(f"{sample}")
+        print(f"  kept:    {after}/{before} ({after/before:.1%})")
+        print(f"  removed: {removed} ({removed/before:.1%})")
+        print(f"    - mt_outlier:      {mt_fail}")
+        print(f"    - doublet_outlier: {dbl_fail}")
+        print(f"    - gene_filter:     {gene_fail}")
+        print()
+
+    # --------------------------------------------------
+    # Save output
+    # --------------------------------------------------
     print(f"Saving updated AnnData → {output_file}")
-    adata.write(output_file)
+    adata_filtered.write(output_file)
