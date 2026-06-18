@@ -19,8 +19,8 @@ def run_dbl_qc(args):
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
-    output_file = input.replace(".h5ad", f"_dblqc_exp-{args.expected}.h5ad")
-    plot_file = PLOT_DIR / f"_dblqc_exp-{args.expected}.png"
+    output_file = input_file.with_name(f"{input_file.stem}_dblqc_exp-{args.expected}.h5ad")
+    plot_file = PLOT_DIR / f"{input_file.stem}_dblqc_exp-{args.expected}.png"
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -56,7 +56,6 @@ def run_dbl_qc(args):
     print("Generating doublet QC plot...")
     doublet_qc_panel(np, plt, 1-args.expected, adata, outfile=plot_file)
 
-
     retention_stats = {}
     for sample in adata.obs["sample"].unique():
         mask = adata.obs["sample"] == sample
@@ -85,27 +84,5 @@ def run_dbl_qc(args):
         )
     }
 
-
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file, compression="gzip")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    adata = compute_mt_outliers(np, adata, args.nmads)
-
-    print("Generating MT QC plot...")
-    mt_qc_panel(np, plt, adata, plot_file, args.nmads)
-
-    print(f"Saving updated AnnData → {output_file}")
-    adata.write(output_file)
