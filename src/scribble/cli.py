@@ -2,10 +2,7 @@
 
 __author__ = "David Wragg"
 __license__ = "GNU GPL v3.0"
-from dill.tests.test_classdef import n
 
-from posix import nice
-from . import __version__
 import argparse
 from pandas.core.arrays.base import InterpolateOptions
 
@@ -16,7 +13,6 @@ def main():
 ╭─╮╭─╴╭─╮╷╭╮ ╭╮ ╷  ╭─╴
 ╰─╮│  ├┬╯│├┴╮├┴╮│  ├╴
 ╰─╯╰─╴╵╰╴╵╰─╯╰─╯╰─╴╰─╴
-{__version__}
 \033[32m
 A single cell workflow CLI based on scapy for processing 10X data. Scribble expects the project directory to include:\n
 A directory containing cellranger count outputs (e.g. <project>/cellranger/<sample>/outs/filtered_feature_bc_matrix)\n
