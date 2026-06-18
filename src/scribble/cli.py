@@ -101,6 +101,11 @@ GitHub: https://github.com/gibberwocky/scribble
     cluster_parser.add_argument("--vars", nargs="+", default=["sample"],
         help="UMAP colour variable(s) to include in addition to Leiden cluster")
     cluster_parser.add_argument("--n_repeats", type=int, default=10)
+    cluster_parser.add_argument("--auto_resolution", action="store_true")
+    cluster_parser.add_argument("--res_min", type=float, default=0.2)
+    cluster_parser.add_argument("--res_max", type=float, default=2.0)
+    cluster_parser.add_argument("--res_steps", type=int, default=10)
+    cluster_parser.add_argument("--fine_width", type=float, default=0.3)
 
 
     args = parser.parse_args()

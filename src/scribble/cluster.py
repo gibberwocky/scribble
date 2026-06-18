@@ -2,14 +2,83 @@
 
 from pathlib import Path
 
+def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, fine_width, n_steps):
+    from sklearn.metrics import silhouette_score
+
+    # --------------------------------------------------
+    # COARSE PASS
+    # --------------------------------------------------
+    print("Running coarse resolution scan...")
+
+    coarse_resolutions = np.linspace(coarse_range[0], coarse_range[1], n_steps)
+    coarse_results = []
+
+    for res in coarse_resolutions:
+        sc.tl.leiden(adata, resolution=res, key_added="leiden_tmp")
+
+        labels = adata.obs["leiden_tmp"].astype(int)
+        n_clusters = labels.nunique()
+
+        if n_clusters < 2:
+            sil = -1
+        else:
+            sil = silhouette_score(adata.obsm[embedding], labels)
+
+        coarse_results.append({
+            "resolution": res,
+            "silhouette": sil,
+            "n_clusters": n_clusters
+        })
+
+    coarse_df = pd.DataFrame(coarse_results)
+
+    best_coarse = coarse_df.loc[coarse_df["silhouette"].idxmax(), "resolution"]
+    print(f"Best coarse resolution: {best_coarse:.3f}")
+
+    # --------------------------------------------------
+    # FINE PASS
+    # --------------------------------------------------
+    print("Running fine resolution scan...")
+
+    fine_min = max(0.01, best_coarse - fine_width)
+    fine_max = best_coarse + fine_width
+    fine_resolutions = np.linspace(fine_min, fine_max, n_steps)
+
+    fine_results = []
+
+    for res in fine_resolutions:
+        sc.tl.leiden(adata, resolution=res, key_added="leiden_tmp")
+
+        labels = adata.obs["leiden_tmp"].astype(int)
+        n_clusters = labels.nunique()
+
+        if n_clusters < 2:
+            sil = -1
+        else:
+            sil = silhouette_score(adata.obsm[embedding], labels)
+
+        fine_results.append({
+            "resolution": res,
+            "silhouette": sil,
+            "n_clusters": n_clusters
+        })
+
+    fine_df = pd.DataFrame(fine_results)
+
+    best_fine = fine_df.loc[fine_df["silhouette"].idxmax(), "resolution"]
+    print(f"Optimal resolution: {best_fine:.3f}")
+
+    return best_fine, coarse_df, fine_df
+
 
 def run_cluster(args):
     import scanpy as sc
     import numpy as np
     import pandas as pd
     import matplotlib.pyplot as plt
+    from scipy.optimize import linear_sum_assignment
+    from scipy.stats import entropy
     import random
-    from pathlib import Path
     from scribble.import_data import setup_environment
 
     PROJECT_DIR = Path(args.project_dir)
@@ -28,8 +97,11 @@ def run_cluster(args):
     if args.embedding not in adata.obsm:
         raise ValueError(f"{args.embedding} not found in adata.obsm")
 
+    if "sample" not in adata.obs.columns:
+        raise ValueError("sample column required for cluster diagnostics")
+
     # --------------------------------------------------
-    # Build neighbors graph
+    # Build neighbors
     # --------------------------------------------------
     print(f"Building neighbors (embedding={args.embedding})")
 
@@ -40,7 +112,86 @@ def run_cluster(args):
     )
 
     # --------------------------------------------------
-    # Run Leiden clustering
+    # Resolution selection
+    # --------------------------------------------------
+    if args.auto_resolution:
+        best_res, coarse_df, fine_df = optimise_resolution(
+            np, pd, sc,
+            adata,
+            args.embedding,
+            args.neighbors,
+            (args.res_min, args.res_max),
+            args.fine_width,
+            args.res_steps
+        )
+
+        args.resolution = best_res
+
+        # Save diagnostics
+        coarse_file = input_file.with_name(f"{input_file.stem}_res_coarse.tsv")
+        fine_file = input_file.with_name(f"{input_file.stem}_res_fine.tsv")
+
+        coarse_df.to_csv(coarse_file, sep="\t", index=False)
+        fine_df.to_csv(fine_file, sep="\t", index=False)
+
+        # --------------------------------------------------
+        # Plot optimisation diagnostics
+        # --------------------------------------------------
+        plot_file = PLOT_DIR / f"{input_file.stem}_resolution_optimisation.png"
+
+        fig, ax1 = plt.subplots(figsize=(7, 4))
+
+        # --- silhouette axis ---
+        ax1.set_xlabel("Resolution")
+        ax1.set_ylabel("Silhouette score")
+        ax1.plot(
+            coarse_df["resolution"],
+            coarse_df["silhouette"],
+            marker="o",
+            label="coarse (silhouette)"
+        )
+        ax1.plot(
+            fine_df["resolution"],
+            fine_df["silhouette"],
+            marker="o",
+            label="fine (silhouette)"
+        )
+
+        ax1.axvline(args.resolution, linestyle="--", label=f"selected={args.resolution:.2f}")
+        ax1.grid(alpha=0.3)
+
+        # --- cluster count axis ---
+        ax2 = ax1.twinx()
+        ax2.set_ylabel("Number of clusters")
+
+        ax2.plot(
+            coarse_df["resolution"],
+            coarse_df["n_clusters"],
+            linestyle="--",
+            label="coarse (clusters)"
+        )
+        ax2.plot(
+            fine_df["resolution"],
+            fine_df["n_clusters"],
+            linestyle="--",
+            label="fine (clusters)"
+        )
+
+        # --- legend handling ---
+        lines_1, labels_1 = ax1.get_legend_handles_labels()
+        lines_2, labels_2 = ax2.get_legend_handles_labels()
+
+        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="best")
+
+        plt.title("Leiden Resolution Optimisation")
+        plt.savefig(plot_file, dpi=300, bbox_inches="tight")
+        plt.close()
+
+        print(f"Saved optimisation plot → {plot_file}")
+
+
+    # --------------------------------------------------
+    # Final clustering
     # --------------------------------------------------
     print(f"Running Leiden clustering (resolution={args.resolution})")
 
@@ -50,15 +201,37 @@ def run_cluster(args):
         key_added="leiden"
     )
 
-    print(f"Number of clusters: {adata.obs['leiden'].nunique()}")
+    print("Cluster sizes:")
+    print(adata.obs["leiden"].value_counts())
 
     # --------------------------------------------------
-    # OPTIONAL: cluster stability (repeat runs)
+    # Stability via Hungarian alignment
     # --------------------------------------------------
     if args.n_repeats > 1:
         print(f"Computing cluster stability ({args.n_repeats} repeats)...")
 
-        cluster_matrix = np.zeros((adata.n_obs, args.n_repeats))
+        # reference clustering
+        ref_labels = adata.obs["leiden"].astype(str).values
+
+        all_assignments = []
+
+        def align_labels(reference, current):
+            ref = pd.Series(reference)
+            cur = pd.Series(current)
+
+            contingency = pd.crosstab(cur, ref)
+
+            # convert to cost matrix (maximize overlap → minimize negative)
+            cost_matrix = -contingency.values
+
+            row_ind, col_ind = linear_sum_assignment(cost_matrix)
+
+            mapping = {
+                contingency.index[row]: contingency.columns[col]
+                for row, col in zip(row_ind, col_ind)
+            }
+
+            return cur.map(mapping).values
 
         for i in range(args.n_repeats):
             sc.tl.leiden(
@@ -66,42 +239,45 @@ def run_cluster(args):
                 resolution=args.resolution,
                 key_added=f"leiden_tmp_{i}"
             )
-            cluster_matrix[:, i] = adata.obs[f"leiden_tmp_{i}"].astype(int)
 
-        # Stability = most frequent assignment frequency
+            raw_labels = adata.obs[f"leiden_tmp_{i}"].astype(str).values
+            aligned = align_labels(ref_labels, raw_labels)
+
+            all_assignments.append(aligned)
+
+        all_assignments = np.array(all_assignments)  # (runs, cells)
+
+        # compute stability
         stability = []
 
-        for row in cluster_matrix:
-            counts = np.bincount(row.astype(int))
+        for cell_idx in range(adata.n_obs):
+            assignments = all_assignments[:, cell_idx]
+            values, counts = np.unique(assignments, return_counts=True)
             stability.append(counts.max() / args.n_repeats)
 
         adata.obs["cluster_stability"] = stability
 
         print(f"Mean stability: {np.mean(stability):.3f}")
 
+        # cleanup temp columns
+        for i in range(args.n_repeats):
+            del adata.obs[f"leiden_tmp_{i}"]
+
     # --------------------------------------------------
-    # Export cluster stats (if repeats > 1)
+    # Export stats
     # --------------------------------------------------
     if args.n_repeats > 1:
 
-        stats_file = input_file.with_name(f"{input_file.stem}_cluster_stats.tsv")
+        stats_file = input_file.with_name(f"{input_file.stem}_cluster_summary.tsv")
         cell_file = input_file.with_name(f"{input_file.stem}_cluster_cells.tsv")
 
         print(f"Exporting cluster stats → {stats_file}")
-        print(f"Exporting per-cell data → {cell_file}")
 
-        # --------------------------------------------------
-        # Per-cell data
-        # --------------------------------------------------
-        cell_df = adata.obs[["leiden", "cluster_stability"]].copy()
-        cell_df.to_csv(cell_file, sep="\t")
+        adata.obs[["leiden", "cluster_stability"]].to_csv(cell_file, sep="\t")
 
-        # --------------------------------------------------
-        # Per-cluster summary
-        # --------------------------------------------------
         cluster_summary = (
             adata.obs
-            .groupby("leiden")
+            .groupby("leiden", observed=True)
             .agg(
                 n_cells=("leiden", "size"),
                 mean_stability=("cluster_stability", "mean"),
@@ -109,44 +285,57 @@ def run_cluster(args):
             )
         )
 
-        # Add sample composition
+        cluster_summary["fraction"] = cluster_summary["n_cells"] / adata.n_obs
+        cluster_summary.index = cluster_summary.index.astype(str)
+
+        # sample composition
         sample_counts = (
             adata.obs
-            .groupby(["leiden", "sample"])
+            .groupby(["leiden", "sample"], observed=True)
             .size()
             .unstack(fill_value=0)
         )
 
-        cluster_summary = cluster_summary.join(sample_counts)
+        sample_counts.index = sample_counts.index.astype(str)
 
-        # Add fraction of total cells
-        cluster_summary["fraction"] = cluster_summary["n_cells"] / adata.n_obs
+        cluster_summary = cluster_summary.join(sample_counts, how="outer").fillna(0)
 
-        # Add parameters
+        # entropy (mixing metric)
+        def compute_entropy(row):
+            p = row / row.sum()
+            return entropy(p)
+
+        cluster_summary["sample_entropy"] = sample_counts.apply(compute_entropy, axis=1)
+
+        # flags
+        cluster_summary["low_stability"] = cluster_summary["mean_stability"] < 0.7
+        cluster_summary["low_mixing"] = cluster_summary["sample_entropy"] < 0.5
+
+        # metadata
         cluster_summary["resolution"] = args.resolution
         cluster_summary["embedding"] = args.embedding
         cluster_summary["n_repeats"] = args.n_repeats
 
-        # Sort by size
+        cluster_summary.reset_index(inplace=True)
+        cluster_summary.rename(columns={"leiden": "cluster"}, inplace=True)
+
         cluster_summary = cluster_summary.sort_values("n_cells", ascending=False)
 
-        cluster_summary.to_csv(stats_file, sep="\t")
-
+        cluster_summary.to_csv(stats_file, sep="\t", index=False)
 
     # --------------------------------------------------
-    # Ensure UMAP exists
+    # UMAP
     # --------------------------------------------------
-    if "X_umap" not in adata.obsm:
-        print("UMAP not found — computing UMAP...")
-        sc.tl.umap(adata)
+    print("Computing UMAP...")
+    sc.tl.umap(adata)
 
     # --------------------------------------------------
     # Plotting
     # --------------------------------------------------
-    print("Generating clustering plots...")
+    print("Generating plots...")
 
-    # Cluster plot
     cluster_file = PLOT_DIR / f"{input_file.stem}_clusters.png"
+
     sc.pl.umap(
         adata,
         color=["leiden"] + args.vars,
@@ -156,9 +345,8 @@ def run_cluster(args):
     plt.savefig(cluster_file, dpi=300, bbox_inches="tight")
     plt.close()
 
-    # Stability plot
     if "cluster_stability" in adata.obs:
-        stability_file = PLOT_DIR / f"{input_file.stem}_cluster_stability.png"
+        stability_file = PLOT_DIR / f"{input_file.stem}_stability.png"
         sc.pl.umap(
             adata,
             color="cluster_stability",
