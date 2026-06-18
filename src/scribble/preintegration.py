@@ -43,6 +43,20 @@ def run_preintegration(args):
     print(f"Cells: {adata.n_obs}")
     print(f"HVGs: {adata.n_vars}")
 
+    # --------------------------------------------------
+    # Optional regression
+    # --------------------------------------------------
+    if args.regress:
+        missing = [v for v in args.regress if v not in adata.obs.columns]
+        if missing:
+            raise ValueError(f"Regression variables not found in adata.obs: {missing}")
+
+        print(f"Regressing out variables: {args.regress}")
+        sc.pp.regress_out(adata, args.regress)
+
+    # --------------------------------------------------
+    # Optional scaling
+    # --------------------------------------------------
     if not args.no_scale:
         sc.pp.scale(adata, max_value=10)
     else:

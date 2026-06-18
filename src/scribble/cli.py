@@ -74,8 +74,9 @@ GitHub: https://github.com/gibberwocky/scribble
     preintegration_parser.add_argument("--batch", type=str, default="sample")
     preintegration_parser.add_argument("--vars", nargs="+", required=True)
     preintegration_parser.add_argument("--no-scale", action="store_true",
-        help="Apply scaling before PCA (default: on)"
-    )
+        help="Apply scaling before PCA (default: on)")
+    preintegration_parser.add_argument("--regress", nargs="+", default=None,
+        help="Variables to regress out (e.g. total_counts pct_counts_mt)")
 
     args = parser.parse_args()
 
