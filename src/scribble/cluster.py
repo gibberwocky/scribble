@@ -14,7 +14,8 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, f
     coarse_results = []
 
     for res in coarse_resolutions:
-        sc.tl.leiden(adata, resolution=res, key_added="leiden_tmp")
+        sc.tl.leiden(adata, resolution=res, key_added="leiden_tmp",
+            flavor="igraph", directed=False, n_iterations=2)
 
         labels = adata.obs["leiden_tmp"].astype(int)
         n_clusters = labels.nunique()
@@ -47,7 +48,8 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, f
     fine_results = []
 
     for res in fine_resolutions:
-        sc.tl.leiden(adata, resolution=res, key_added="leiden_tmp")
+        sc.tl.leiden(adata, resolution=res, key_added="leiden_tmp",
+            flavor="igraph", directed=False, n_iterations=2)
 
         labels = adata.obs["leiden_tmp"].astype(int)
         n_clusters = labels.nunique()
@@ -198,7 +200,8 @@ def run_cluster(args):
     sc.tl.leiden(
         adata,
         resolution=args.resolution,
-        key_added="leiden"
+        key_added="leiden",
+        flavor="igraph", directed=False, n_iterations=2
     )
 
     print("Cluster sizes:")
@@ -237,7 +240,8 @@ def run_cluster(args):
             sc.tl.leiden(
                 adata,
                 resolution=args.resolution,
-                key_added=f"leiden_tmp_{i}"
+                key_added=f"leiden_tmp_{i}",
+                flavor="igraph", directed=False, n_iterations=2
             )
 
             raw_labels = adata.obs[f"leiden_tmp_{i}"].astype(str).values
