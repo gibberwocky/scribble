@@ -10,6 +10,7 @@ def run_dbl_qc(args):
     import scanpy as sc
     import numpy as np
     import matplotlib.pyplot as plt
+    import seaborn as sns
     import random
     from scribble.import_data import setup_environment
     from scribble.plots import doublet_qc_panel
