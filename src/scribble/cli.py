@@ -4,7 +4,7 @@ __author__ = "David Wragg"
 __license__ = "GNU GPL v3.0"
 
 import argparse
-from pandas.core.arrays.base import InterpolateOptions
+#from pandas.core.arrays.base import InterpolateOptions
 
 def main():
     parser = argparse.ArgumentParser(prog="scribble",
