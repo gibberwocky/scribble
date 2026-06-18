@@ -64,6 +64,16 @@ GitHub: https://github.com/gibberwocky/scribble
     filter_parser.add_argument("--filter_xlsx",
         help="Excel file containing filters for samples, must include worksheet 'filters' with a 'sample' column")
 
+    # ---------- Preintegration ----------
+    preintegration_parser = subparsers.add_parser("preintegration")
+    preintegration_parser.add_argument("--project_dir", required=True)
+    preintegration_parser.add_argument("--input", required=True)
+    preintegration_parser.add_argument("--hvgs", type=int, default=3000)
+    preintegration_parser.add_argument("--npcs", type=int, default=30)
+    preintegration_parser.add_argument("--neighbors", type=int, default=15)
+    preintegration_parser.add_argument("--batch", type=str, default="sample")
+    preintegration_parser.add_argument("--vars", nargs="+", required=True)
+
     args = parser.parse_args()
 
     # ---------- ROUTING ----------
@@ -86,6 +96,10 @@ GitHub: https://github.com/gibberwocky/scribble
     elif args.command == "filter":
         from scribble.filter import run_filter
         run_filter(args)
+
+    elif args.command == "preintegration":
+        from scribble.preintegration import run_preintegration
+        run_preintegration(args)
 
 if __name__ == "__main__":
     main()
