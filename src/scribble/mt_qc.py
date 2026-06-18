@@ -57,7 +57,7 @@ def run_mt_qc(args):
 
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_mtqc_nMADs-{args.nmads}.h5ad")
-    plot_file = PLOT_DIR / f"_mtqc_nMADs-{args.nmads}.png"
+    plot_file = PLOT_DIR / f"{input_file.stem}_mtqc_nMADs-{args.nmads}.png"
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
