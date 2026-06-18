@@ -53,6 +53,15 @@ GitHub: https://github.com/gibberwocky/scribble
     pca_parser.add_argument("--hvgs", type=int, default=3000)
     pca_parser.add_argument("--vmax", type=float, default=0.99)
 
+    # -------------- Filter --------------
+    filter_parser = subparsers.add_parser("filter")
+    filter_parser.add_argument("--project_dir", required=True)
+    filter_parser.add_argument("--input", required=True)
+    filter_parser.add_argument("--input", required=True)
+    filter_parser.add_argument("--mingenes", type=int, default=200)
+    filter_parser.add_argument("--filter_xlsx",
+        help="Excel file containing filters for samples, must include worksheet 'filters' with a 'sample' column")
+
     args = parser.parse_args()
 
     # ---------- ROUTING ----------
@@ -71,6 +80,10 @@ GitHub: https://github.com/gibberwocky/scribble
     elif args.command == "pca":
         from scribble.pca_qc import run_pca_qc
         run_pca_qc(args)
+
+    elif args.command == "filter":
+        from scribble.filter import run_filter
+        run_filter(args)
 
 if __name__ == "__main__":
     main()
