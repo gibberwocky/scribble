@@ -118,7 +118,7 @@ def mt_qc_panel(np, plt, adata, outfile, nmads):
 
 
 # ------------ Doublet Panel -------------
-def doublet_qc_panel(np, plt, adata, outfile, threshold=0.93):
+def doublet_qc_panel(np, plt, sns, adata, outfile, threshold=0.93):
     scores = adata.obs["doublet_score"].values
     counts = adata.obs["total_counts"].values
     outliers = adata.obs["doublet_outlier"].values

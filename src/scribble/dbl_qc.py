@@ -54,7 +54,7 @@ def run_dbl_qc(args):
     }
 
     print("Generating doublet QC plot...")
-    doublet_qc_panel(np, plt, adata, outfile=plot_file, threshold=1-args.expected)
+    doublet_qc_panel(np, plt, sns, adata, outfile=plot_file, threshold=1-args.expected)
 
     retention_stats = {}
     for sample in adata.obs["sample"].unique():
