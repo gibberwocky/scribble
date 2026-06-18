@@ -6,6 +6,7 @@ from pathlib import Path
 def run_harmony(args):
     import scanpy as sc
     import numpy as np
+    import matplotlib.pyplot as plt
     import harmonypy as hm
     import random
     from scribble.import_data import setup_environment
