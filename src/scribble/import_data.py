@@ -239,7 +239,7 @@ def run_import(args):
     adatas = []
 
     for sample in samples:
-        ad = process_sample(sc, sp, np, sample, CELLRANGER_DIR, VELO_DIR)
+        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, VELO_DIR, PLOT_DIR)
         ad.obs["sample"] = sample
         adatas.append(ad)
 
