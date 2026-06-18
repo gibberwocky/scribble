@@ -17,7 +17,6 @@ def run_preintegration(args):
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_preintegration.h5ad")
     umap_file = PLOT_DIR / f"{input_file.stem}_preintegration_umap.png"
-    pca_file = PLOT_DIR / f"{input_file.stem}_preintegration_pca.png"
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -54,6 +53,7 @@ def run_preintegration(args):
     print(adata.uns["pca"]["variance_ratio"][:10])
 
     print("Generating PCA plot(s) ...")
+    pca_file = PLOT_DIR / f"{input_file.stem}_preintegration_pca_vars.png"
     sc.pl.pca(
         adata,
         color=args.vars, # ["sample", "batchinfo", "sex"]
@@ -62,6 +62,16 @@ def run_preintegration(args):
     )
     plt.savefig(pca_file, dpi=300, bbox_inches="tight")
     plt.close()
+
+    pca_file = PLOT_DIR / f"{input_file.stem}_preintegration_pca_counts.png"
+    sc.pl.pca(adata,
+        color=["total_counts", "pct_counts_mt"],
+        wspace=0.4,
+        show=False
+    )
+    plt.savefig(pca_file, dpi=300, bbox_inches="tight")
+    plt.close()
+
 
     sc.pp.neighbors(adata, n_pcs=args.npcs, n_neighbors=args.neighbors)
     sc.tl.umap(adata)
