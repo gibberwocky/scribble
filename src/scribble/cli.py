@@ -9,15 +9,15 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(prog="scribble",
         description=f"""
-\033[38;5;202m
+\033[34m
 ╭─╮╭─╴╭─╮╷╭╮ ╭╮ ╷  ╭─╴
 ╰─╮│  ├┬╯│├┴╮├┴╮│  ├╴
 ╰─╯╰─╴╵╰╴╵╰─╯╰─╯╰─╴╰─╴
 \033[32m
-A single cell workflow CLI based on scapy for processing 10X data. Scribble expects the project directory to include:\n
-A directory containing cellranger count outputs (e.g. <project>/cellranger/<sample>/outs/filtered_feature_bc_matrix)\n
-A directory containing velocyto loom outputs (e.g. <project>/velocyto/<sample>/<filename>.loom)\n
-An Excel file containing sample metadata, which must include column 'sample' with values matching the velocyto and cellranger <sample> folder names
+A single cell workflow CLI based on scapy for processing 10X data. Scribble expects the project directory to include:
+- A directory containing cellranger count outputs (e.g. <project>/cellranger/<sample>/outs/filtered_feature_bc_matrix)
+- A directory containing velocyto loom outputs (e.g. <project>/velocyto/<sample>/<filename>.loom)
+- An Excel file containing sample metadata, which must include column 'sample' with values matching the velocyto and cellranger <sample> folder names
 \033[0m
 GitHub: https://github.com/gibberwocky/scribble
 """,
