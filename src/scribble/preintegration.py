@@ -27,11 +27,6 @@ def run_preintegration(args):
     if missing:
         raise ValueError(f"Variables not found in adata.obs: {missing}")
 
-    # Normalisation
-    sc.pp.normalize_total(adata)
-    sc.pp.log1p(adata)
-    adata.raw = adata.copy()
-
     # Highly variable genes
     sc.pp.highly_variable_genes(
         adata,
@@ -39,13 +34,22 @@ def run_preintegration(args):
         batch_key=args.batch, # "sample"
         flavor="seurat_v3"
     )
+
+    # Normalisation
+    sc.pp.normalize_total(adata)
+    sc.pp.log1p(adata)
+    adata.raw = adata.copy()
     adata = adata[:, adata.var.highly_variable].copy()
 
     print(f"Cells: {adata.n_obs}")
     print(f"HVGs: {adata.n_vars}")
 
-    sc.pp.scale(adata, max_value=10)
-    sc.tl.pca(adata, n_comps=args.npcs, use_highly_variable=True)
+    if not args.no_scale:
+        sc.pp.scale(adata, max_value=10)
+    else:
+        print("Skipping scaling...")
+
+    sc.tl.pca(adata, n_comps=args.npcs, mask_var="highly_variable")
     print("Top 10 PC variance ratios:")
     print(adata.uns["pca"]["variance_ratio"][:10])
 

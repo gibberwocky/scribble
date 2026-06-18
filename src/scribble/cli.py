@@ -73,6 +73,9 @@ GitHub: https://github.com/gibberwocky/scribble
     preintegration_parser.add_argument("--neighbors", type=int, default=15)
     preintegration_parser.add_argument("--batch", type=str, default="sample")
     preintegration_parser.add_argument("--vars", nargs="+", required=True)
+    preintegration_parser.add_argument("--no-scale", action="store_true",
+        help="Apply scaling before PCA (default: on)"
+    )
 
     args = parser.parse_args()
 
