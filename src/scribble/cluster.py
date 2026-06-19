@@ -251,7 +251,10 @@ def run_cluster(args):
                 adata,
                 resolution=args.resolution,
                 key_added=f"leiden_tmp_{i}",
-                flavor="igraph", directed=False, n_iterations=2
+                flavor="igraph",
+                directed=False,
+                n_iterations=2,
+                random_state=i
             )
 
             raw_labels = adata.obs[f"leiden_tmp_{i}"].astype(str).values
