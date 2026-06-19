@@ -16,8 +16,8 @@ def run_harmony(args):
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
-    output_file = input_file.with_name(f"{input_file.stem}_harmony.h5ad")
-    umap_file = PLOT_DIR / f"{input_file.stem}_harmony_umap.png"
+    output_file = input_file.with_name(f"{input_file.stem}_harmony_theta-{args.theta}.h5ad")
+    umap_file = PLOT_DIR / f"{input_file.stem}_harmony_theta-{args.theta}_umap.png"
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)

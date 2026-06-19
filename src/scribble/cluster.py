@@ -89,6 +89,7 @@ def run_cluster(args):
 
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_clustered.h5ad")
+    cluster_file = input_file.with_name(f"{input_file.stem}_clusters.xlsx")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -406,6 +407,81 @@ def run_cluster(args):
         )
         plt.savefig(stability_file, dpi=300, bbox_inches="tight")
         plt.close()
+
+    # --------------------------------------------------
+    # Extract marker genes
+    # --------------------------------------------------
+    print("Extracting markers...")
+    # Identify marker genes
+    sc.tl.rank_genes_groups(
+        adata,
+        "leiden",
+        method="wilcoxon",
+        use_raw=True
+    )
+
+    result = adata.uns["rank_genes_groups"]
+    clusters = result["names"].dtype.names
+
+    with pd.ExcelWriter(cluster_file, engine="openpyxl") as writer:
+        for cl in clusters:
+
+            genes = result["names"][cl]
+
+            df = pd.DataFrame({
+                "gene": genes,
+                "logfoldchange": result["logfoldchanges"][cl],
+                "score": result["scores"][cl],
+                "pvals": result["pvals"][cl],
+                "pvals_adj": result["pvals_adj"][cl],
+            })
+
+            # --------------------------------------------------
+            # Expression statistics
+            # --------------------------------------------------
+            cluster_cells = adata.obs["leiden"] == cl
+            other_cells = ~cluster_cells
+
+            # Use raw if available
+            X = adata.raw.X if adata.raw is not None else adata.X
+            var_names = adata.raw.var_names if adata.raw is not None else adata.var_names
+
+            # Convert to dense if needed
+            X = X.toarray() if hasattr(X, "toarray") else X
+
+            gene_idx = [var_names.get_loc(g) for g in genes]
+            expr = X[:, gene_idx]
+
+            # Expression fractions
+            pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
+            pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+
+            # Mean expression
+            mean_in = expr[cluster_cells.values].mean(axis=0)
+            mean_out = expr[other_cells.values].mean(axis=0)
+
+            df["pct_in"] = pct_in
+            df["pct_out"] = pct_out
+            df["pct_diff"] = pct_in - pct_out
+
+            df["mean_in"] = mean_in
+            df["mean_out"] = mean_out
+
+            # --------------------------------------------------
+            # Cluster-level metadata
+            # --------------------------------------------------
+            cluster_size = cluster_cells.sum()
+            df["cluster_size"] = cluster_size
+
+            # --------------------------------------------------
+            # Sorting (no filtering here)
+            # --------------------------------------------------
+            df = df.sort_values(
+                ["pct_diff", "logfoldchange"],
+                ascending=False
+            )
+
+            df.to_excel(writer, sheet_name=f"cluster_{cl}", index=False)
 
     # --------------------------------------------------
     # Save

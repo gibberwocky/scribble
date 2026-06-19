@@ -6,7 +6,7 @@ from pathlib import Path
 def setup_environment(sc, np, random, plot_dir):
     sc.settings.verbosity = 3
     #scv.settings.verbosity = 3
-    sc.logging.print_versions()
+    sc.logging.print_header()
     sc.settings.figdir = plot_dir
     sc.set_figure_params(dpi=100, facecolor="white")
 
