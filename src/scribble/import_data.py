@@ -137,11 +137,11 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
     inflection = get_inflection(np, knee_df, lower=100)
 
     # Multi-panel QC figure
-    fig, axes = plt.subplots(2, 2, figsize=(12,10))
+    fig, axes = plt.subplots(2, 2, figsize=(12,10), constrained_layout=True)
     axes = axes.flatten()
 
     # ---------- 1. counts vs genes ----------
-    hb1 = qc_hexbin_ax(
+    hb = qc_hexbin_ax(
         axes[0],
         x=adata_clean.obs["total_counts"].values,
         y=adata_clean.obs["n_genes_by_counts"].values,
@@ -156,7 +156,7 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
     knee_plot_ax(axes[1], knee_df, inflection)
 
     # ---------- 3. counts vs MT ----------
-    hb3 = qc_hexbin_ax(
+    qc_hexbin_ax(
         axes[2],
         x=adata_clean.obs["total_counts"].values,
         y=adata_clean.obs["pct_counts_mt"].values,
@@ -168,7 +168,7 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
     axes[2].set_title("MT content")
 
     # ---------- 4. counts vs doublet ----------
-    hb4 = qc_hexbin_ax(
+    qc_hexbin_ax(
         axes[3],
         x=adata_clean.obs["total_counts"].values,
         y=adata_clean.obs["doublet_score"].values,
@@ -181,7 +181,7 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
 
     # ---------- shared colorbar ----------
     cbar = fig.colorbar(
-        hb1,
+        hb,
         ax=axes,
         location="right",
         fraction=0.05,
@@ -190,7 +190,6 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
     cbar.set_label("log10(cell density)")
 
     # ---------- layout fix ----------
-    plt.tight_layout(rect=[0, 0, 0.93, 1])
     plt.savefig(plot_dir / f"{sample}_qc_panel.png", dpi=300, bbox_inches="tight")
     plt.close()
 
