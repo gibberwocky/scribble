@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from seaborn.relational import _Markers
 
 def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, fine_width, n_steps):
     from sklearn.metrics import silhouette_score
