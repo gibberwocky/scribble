@@ -216,9 +216,9 @@ def run_import(args):
     ADATA_DIR = PROJECT_DIR / "scribble/adata"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
 
-    PLOT_DIR.mkdir(exist_ok=True)
-    ADATA_DIR.mkdir(exist_ok=True)
-    TABLE_DIR.mkdir(exist_ok=True)
+    PLOT_DIR.mkdir(exist_ok=True, parents=True)
+    ADATA_DIR.mkdir(exist_ok=True, parents=True)
+    TABLE_DIR.mkdir(exist_ok=True, parents=True)
 
     setup_environment(sc, np, random, PLOT_DIR)
 
