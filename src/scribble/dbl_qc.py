@@ -16,7 +16,8 @@ def run_dbl_qc(args):
     from scribble.plots import doublet_qc_panel
 
     PROJECT_DIR = Path(args.project_dir)
-    PLOT_DIR = PROJECT_DIR / "sc_plots"
+    PLOT_DIR = PROJECT_DIR / "scribble/plots"
+    TABLE_DIR = PROJECT_DIR / "scribble/tables"
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)

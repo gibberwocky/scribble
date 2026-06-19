@@ -212,11 +212,13 @@ def run_import(args):
 
     CELLRANGER_DIR = PROJECT_DIR / "cellranger"
     VELO_DIR = PROJECT_DIR / "velocyto"
-    PLOT_DIR = PROJECT_DIR / "sc_plots"
-    ADATA_DIR = PROJECT_DIR / "adata"
+    PLOT_DIR = PROJECT_DIR / "scribble/plots"
+    ADATA_DIR = PROJECT_DIR / "scribble/adata"
+    TABLE_DIR = PROJECT_DIR / "scribble/tables"
 
     PLOT_DIR.mkdir(exist_ok=True)
     ADATA_DIR.mkdir(exist_ok=True)
+    TABLE_DIR.mkdir(exist_ok=True)
 
     setup_environment(sc, np, random, PLOT_DIR)
 

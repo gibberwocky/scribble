@@ -11,12 +11,13 @@ def run_filter(args):
     from scribble.import_data import setup_environment
 
     PROJECT_DIR = Path(args.project_dir)
-    PLOT_DIR = PROJECT_DIR / "sc_plots"
+    PLOT_DIR = PROJECT_DIR / "scribble/plots"
+    TABLE_DIR = PROJECT_DIR / "scribble/tables"
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_filtered.h5ad")
-    counts_file = input_file.with_name(f"{input_file.stem}_filtered.tsv")
+    counts_file = TABLE_DIR / f"{input_file.stem}_filtered.tsv"
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)

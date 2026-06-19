@@ -52,7 +52,7 @@ def run_mt_qc(args):
     from scribble.plots import mt_qc_panel
 
     PROJECT_DIR = Path(args.project_dir)
-    PLOT_DIR = PROJECT_DIR / "sc_plots"
+    PLOT_DIR = PROJECT_DIR / "scribble/plots"
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)

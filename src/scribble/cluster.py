@@ -85,12 +85,21 @@ def run_cluster(args):
     from scribble.import_data import setup_environment
 
     PROJECT_DIR = Path(args.project_dir)
-    PLOT_DIR = PROJECT_DIR / "sc_plots"
+    PLOT_DIR = PROJECT_DIR / "scribble/plots"
+    TABLE_DIR = PROJECT_DIR / "scribble/tables"
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_clustered.h5ad")
-    markers_file = input_file.with_name(f"{input_file.stem}_clusters.xlsx")
+    markers_file = TABLE_DIR / f"{input_file.stem}_clusters.xlsx"
+    coarse_file = TABLE_DIR / f"{input_file.stem}_res_coarse.tsv"
+    fine_file = TABLE_DIR / f"{input_file.stem}_res_fine.tsv"
+    stats_file = TABLE_DIR / f"{input_file.stem}_cluster_summary.tsv"
+    cell_file = TABLE_DIR / f"{input_file.stem}_cluster_cells.tsv"
+    cluster_file = PLOT_DIR / f"{input_file.stem}_clusters.png"
+    vars_file = PLOT_DIR / f"{input_file.stem}_vars.png"
+    stability_file = PLOT_DIR / f"{input_file.stem}_stability.png"
+    plot_file = PLOT_DIR / f"{input_file.stem}_resolution_optimisation.png"
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -132,17 +141,12 @@ def run_cluster(args):
         args.resolution = best_res
 
         # Save diagnostics
-        coarse_file = input_file.with_name(f"{input_file.stem}_res_coarse.tsv")
-        fine_file = input_file.with_name(f"{input_file.stem}_res_fine.tsv")
-
         coarse_df.to_csv(coarse_file, sep="\t", index=False)
         fine_df.to_csv(fine_file, sep="\t", index=False)
 
         # --------------------------------------------------
         # Plot optimisation diagnostics
         # --------------------------------------------------
-        plot_file = PLOT_DIR / f"{input_file.stem}_resolution_optimisation.png"
-
         fig, ax1 = plt.subplots(figsize=(7, 4))
 
         # --- silhouette axis ---
@@ -283,9 +287,6 @@ def run_cluster(args):
     # --------------------------------------------------
     if args.n_repeats > 1:
 
-        stats_file = input_file.with_name(f"{input_file.stem}_cluster_summary.tsv")
-        cell_file = input_file.with_name(f"{input_file.stem}_cluster_cells.tsv")
-
         print(f"Exporting cluster stats → {stats_file}")
 
         adata.obs[["leiden", "cluster_stability"]].to_csv(cell_file, sep="\t")
@@ -390,19 +391,26 @@ def run_cluster(args):
     # --------------------------------------------------
     print("Generating plots...")
 
-    cluster_file = PLOT_DIR / f"{input_file.stem}_clusters.png"
-
     sc.pl.umap(
         adata,
-        color=["leiden"] + args.vars,
-        wspace=0.4,
+        color="leiden",
+        legend_loc="on data",   # or "right margin"
+        legend_fontsize=7,
         show=False
     )
     plt.savefig(cluster_file, dpi=300, bbox_inches="tight")
     plt.close()
 
+    sc.pl.umap(
+        adata,
+        color=args.vars,
+        wspace=0.4,
+        show=False
+    )
+    plt.savefig(vars_file, dpi=300, bbox_inches="tight")
+    plt.close()
+
     if "cluster_stability" in adata.obs:
-        stability_file = PLOT_DIR / f"{input_file.stem}_stability.png"
         sc.pl.umap(
             adata,
             color="cluster_stability",

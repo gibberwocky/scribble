@@ -12,7 +12,7 @@ def run_pca_qc(args):
     from scribble.plots import pca_qc_panel
 
     PROJECT_DIR = Path(args.project_dir)
-    PLOT_DIR = PROJECT_DIR / "sc_plots"
+    PLOT_DIR = PROJECT_DIR / "plots"
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
