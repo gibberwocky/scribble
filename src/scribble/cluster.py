@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from seaborn.relational import _Markers
+
 def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, fine_width, n_steps):
     from sklearn.metrics import silhouette_score
 
@@ -89,7 +91,7 @@ def run_cluster(args):
 
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_clustered.h5ad")
-    cluster_file = input_file.with_name(f"{input_file.stem}_clusters.xlsx")
+    markers_file = input_file.with_name(f"{input_file.stem}_clusters.xlsx")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -423,7 +425,8 @@ def run_cluster(args):
     result = adata.uns["rank_genes_groups"]
     clusters = result["names"].dtype.names
 
-    with pd.ExcelWriter(cluster_file, engine="openpyxl") as writer:
+    print(f"Writing markers → {markers_file}")
+    with pd.ExcelWriter(_Markers_file, engine="openpyxl") as writer:
         for cl in clusters:
 
             genes = result["names"][cl]
