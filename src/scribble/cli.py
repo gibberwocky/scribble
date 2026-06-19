@@ -106,6 +106,7 @@ GitHub: https://github.com/gibberwocky/scribble
     cluster_parser.add_argument("--res_max", type=float, default=2.0)
     cluster_parser.add_argument("--res_steps", type=int, default=10)
     cluster_parser.add_argument("--fine_width", type=float, default=0.3)
+    cluster_parser.add_argument("--nmarkers", type=int, default=100)
 
 
     args = parser.parse_args()

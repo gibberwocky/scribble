@@ -476,12 +476,16 @@ def run_cluster(args):
             df["cluster_size"] = cluster_size
 
             # --------------------------------------------------
-            # Sorting (no filtering here)
+            # Sorting (prioritise significance + specificity)
             # --------------------------------------------------
             df = df.sort_values(
-                ["pct_diff", "logfoldchange"],
-                ascending=False
+                ["pvals_adj", "pct_diff", "logfoldchange"],
+                ascending=[True, False, False]
             )
+
+            # Keep only top 100 markers
+            df = df.head(args.nmarkers)
+
 
             df.to_excel(writer, sheet_name=f"cluster_{cl}", index=False)
 
