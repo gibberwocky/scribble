@@ -425,7 +425,7 @@ def run_cluster(args):
     clusters = result["names"].dtype.names
 
     print(f"Writing markers → {markers_file}")
-    with pd.ExcelWriter(_Markers_file, engine="openpyxl") as writer:
+    with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
         for cl in clusters:
 
             genes = result["names"][cl]
