@@ -108,6 +108,16 @@ GitHub: https://github.com/gibberwocky/scribble
     cluster_parser.add_argument("--fine_width", type=float, default=0.3)
     cluster_parser.add_argument("--nmarkers", type=int, default=100)
 
+    # -------------- Evaluate ------------
+    evaluate_parser = subparsers.add_parser("evaluate")
+    evaluate_parser.add_argument("--project_dir", required=True)
+    evaluate_parser.add_argument("--input", required=True)
+    evaluate_parser.add_argument("--min_cells", type=int, default=200)
+    evaluate_parser.add_argument("--large_cells", type=int, default=800)
+    evaluate_parser.add_argument("--low_stability", type=float, default=0.75)
+    evaluate_parser.add_argument("--high_stability", type=float, default=0.95)
+    evaluate_parser.add_argument("--low_entropy", type=float, default=0.5)
+
 
     args = parser.parse_args()
 
@@ -143,6 +153,10 @@ GitHub: https://github.com/gibberwocky/scribble
     elif args.command == "cluster":
         from scribble.cluster import run_cluster
         run_cluster(args)
+
+    elif args.command == "evaluate":
+        from scribble.evaluate import run_evaluate
+        run_evaluate(args)
 
 if __name__ == "__main__":
     main()
