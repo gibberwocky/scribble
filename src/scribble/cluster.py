@@ -80,7 +80,7 @@ def run_cluster(args):
     import pandas as pd
     import matplotlib.pyplot as plt
     from scipy.optimize import linear_sum_assignment
-    from scipy.stats import entropy, mode
+    from scipy.stats import entropy
     import random
     from scribble.import_data import setup_environment
 
