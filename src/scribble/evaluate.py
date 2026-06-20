@@ -32,6 +32,11 @@ def find_merge_candidates(decision_df, thresholds):
             if row_a["cluster"] >= row_b["cluster"]:
                 continue
 
+            if row_a["action"] != "subset":
+                continue
+            if row_b["action"] != "subset":
+                continue
+
             # Parse values from detail string
             def parse(detail, key):
                 return float(detail.split(key + "=")[1].split(";")[0])
@@ -45,10 +50,18 @@ def find_merge_candidates(decision_df, thresholds):
 
             size_ratio = max(n_a, n_b) / min(n_a, n_b)
 
+            low_entropy_cutoff = 0.5
+
             if (
-                size_ratio < thresholds["merge_size_ratio"] and
-                abs(s_a - s_b) < thresholds["merge_stability_tol"] and
-                abs(e_a - e_b) < thresholds["merge_entropy_tol"]
+                size_ratio < thresholds["merge_size_ratio"]
+                and abs(s_a - s_b) < thresholds["merge_stability_tol"]
+                and (
+                    abs(e_a - e_b) < thresholds["merge_entropy_tol"]
+                    or (
+                        (e_a < low_entropy_cutoff and e_b > low_entropy_cutoff)
+                        or (e_b < low_entropy_cutoff and e_a > low_entropy_cutoff)
+                    )
+                )
             ):
                 merge_pairs.append((row_a["cluster"], row_b["cluster"]))
 
