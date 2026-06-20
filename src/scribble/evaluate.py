@@ -81,7 +81,7 @@ def run_evaluate(args):
         "large_cells": args.large_cells,      # 800
         "low_stability": args.low_stability,  # 0.75
         "high_stability": args.high_stability,# 0.95
-        "low_entropy": args.low_entropy       # 0.5
+        "low_entropy": args.low_entropy,       # 0.5
         "merge_size_ratio": args.merge_size_ratio,
         "merge_stability_tol": args.merge_stability_tol,
         "merge_entropy_tol": args.merge_entropy_tol

@@ -117,7 +117,9 @@ GitHub: https://github.com/gibberwocky/scribble
     evaluate_parser.add_argument("--low_stability", type=float, default=0.75)
     evaluate_parser.add_argument("--high_stability", type=float, default=0.95)
     evaluate_parser.add_argument("--low_entropy", type=float, default=0.5)
-
+    evaluate_parser.add_argument("--merge_size_ratio", type=float, default=2.5)
+    evaluate_parser.add_argument("--merge_stability_tol", type=float, default=0.1)
+    evaluate_parser.add_argument("--merge_entropy_tol", type=float, default=0.2)
 
     args = parser.parse_args()
 
