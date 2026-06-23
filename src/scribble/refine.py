@@ -67,13 +67,15 @@ def run_refine(args):
 
         print(f"Cells: {adata_sub.n_obs}")
 
-        if adata_sub.n_obs < args.min_cells:
+        if adata_sub.n_obs < args.min_cells_per_group:
             print("Skipping (too few cells)")
             continue
 
         # --------------------------------------------------
         # Preprocessing
         # --------------------------------------------------
+        sc.pp.filter_genes(adata_sub, min_cells=args.min_cells_per_gene)
+
         sc.pp.highly_variable_genes(
             adata_sub,
             n_top_genes=args.hvgs,

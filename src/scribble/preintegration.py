@@ -26,6 +26,9 @@ def run_preintegration(args):
     if missing:
         raise ValueError(f"Variables not found in adata.obs: {missing}")
 
+    # Filter on min number of cells a gene must be expressed in
+    sc.pp.filter_genes(adata, min_cells=args.min_cells_per_gene)
+
     # Highly variable genes
     sc.pp.highly_variable_genes(
         adata,

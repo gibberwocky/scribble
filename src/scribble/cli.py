@@ -109,6 +109,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Disable data scaling prior to PCA (enabled by default)")
     preintegration_parser.add_argument("--regress", nargs="+", default=None,
         help="Variables to regress out (e.g. total_counts pct_counts_mt)")
+    preintegration_parser.add_argument("--min_cells_per_gene", "--min_cells", dest="min_cells_per_gene", type=int, default=3,
+        help="Minimum number of cells a gene must be expressed in")
 
     # -------------- Harmony -------------
     harmony_parser = subparsers.add_parser("harmony")
@@ -229,8 +231,11 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Number of top marker genes exported per cluster")
     refine_parser.add_argument("--n_repeats", type=int, default=10,
         help="Number of repeated clustering runs used to estimate cluster stability")
-    refine_parser.add_argument("--min_cells", type=int, default=500,
+    refine_parser.add_argument("--min_cells_per_group", type=int, default=500,
         help="Minimum number of cells required to refine a cluster group")
+    refine_parser.add_argument("--min_cells_per_gene", "--min_cells", dest="min_cells_per_gene", type=int, default=3,
+        help="Minimum number of cells a gene must be expressed in")
+
 
 
     args = parser.parse_args()
