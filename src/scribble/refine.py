@@ -271,6 +271,9 @@ def run_refine(args):
         cluster_sizes = adata_sub.obs["leiden_refined"].value_counts()
         valid_clusters = cluster_sizes[cluster_sizes >= 2].index
 
+        adata_de = None
+        result = None
+
         if len(valid_clusters) < 2:
             print("Skipping within-lineage DE: fewer than 2 valid clusters")
         else:
@@ -287,7 +290,11 @@ def run_refine(args):
 
             result = adata_de.uns["rank_genes_groups"]
 
-        result = adata_de.uns["rank_genes_groups"]
+        # ---- Safe guard ----
+        if result is None:
+            print(f"No within-lineage DE results for {group}, skipping export")
+            return
+
         marker_clusters = result["names"].dtype.names
 
         # ---- Guard against empty DE result ----
@@ -298,7 +305,7 @@ def run_refine(args):
 
             with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
 
-                if adata_sub.raw is None:
+                if adata_de.raw is None:
                     raise ValueError("Expected .raw for marker extraction")
 
                 X = adata_de.raw.X
@@ -312,12 +319,15 @@ def run_refine(args):
                     genes = result["names"][cl]
 
                     valid = [g for g in genes if g in var_names]
+                    if len(valid) == 0:
+                        continue
+
                     gene_idx = [var_names.get_loc(g) for g in valid]
 
                     expr = X[:, gene_idx]
                     expr = expr.toarray() if hasattr(expr, "toarray") else np.asarray(expr)
 
-                    cluster_cells = adata_sub.obs["leiden_refined"] == cl
+                    cluster_cells = adata_de.obs["leiden_refined"] == cl
                     other_cells = ~cluster_cells
 
                     df = pd.DataFrame({
@@ -367,6 +377,9 @@ def run_refine(args):
     cluster_sizes = adata.obs["leiden_L2"].value_counts()
     valid_clusters = cluster_sizes[cluster_sizes >= 2].index
 
+    adata_de = None
+    result = None
+
     if len(valid_clusters) < 2:
         print("Skipping global L2 DE: fewer than 2 valid clusters")
     else:
@@ -383,7 +396,11 @@ def run_refine(args):
 
         result = adata_de.uns["rank_genes_groups"]
 
-    result = adata_de.uns["rank_genes_groups"]
+    # ---- Safe guard ----
+    if result is None:
+        print("No global L2 DE results, skipping export")
+        return
+
     marker_clusters = result["names"].dtype.names
 
     # ---- Guard against empty DE result ----
@@ -405,12 +422,15 @@ def run_refine(args):
                 genes = result["names"][cl]
 
                 valid = [g for g in genes if g in var_names]
+                if len(valid) == 0:
+                    continue
+
                 gene_idx = [var_names.get_loc(g) for g in valid]
 
                 expr = X[:, gene_idx]
                 expr = expr.A if hasattr(expr, "A") else expr
 
-                cluster_cells = adata.obs["leiden_L2"] == cl
+                cluster_cells = adata_de.obs["leiden_L2"] == cl
                 other_cells = ~cluster_cells
 
                 df = pd.DataFrame({
