@@ -21,6 +21,9 @@ def run_preintegration(args):
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
 
+    if "counts" not in adata.layers:
+        adata.layers["counts"] = adata.X.copy()
+
     # Check requested args are present before proceeding
     missing = [v for v in args.vars if v not in adata.obs.columns]
     if missing:
@@ -42,6 +45,14 @@ def run_preintegration(args):
     sc.pp.log1p(adata)
     adata.raw = adata.copy()
     adata = adata[:, adata.var.highly_variable].copy()
+
+    adata.uns["data_model"] = {
+        "counts_layer": "counts",
+        "X": "log1p_normalised_HVGs",
+        "raw": "log1p_normalised_full_gene_space",
+        "HVG_selection": "seurat_v3",
+        "normalisation": "total_counts + log1p",
+    }
 
     print(f"Cells: {adata.n_obs}")
     print(f"HVGs: {adata.n_vars}")

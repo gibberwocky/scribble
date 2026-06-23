@@ -455,9 +455,12 @@ def run_cluster(args):
             cluster_cells = adata.obs["leiden"] == cl
             other_cells = ~cluster_cells
 
-            # Use raw if available
-            X = adata.raw.X if adata.raw is not None else adata.X
-            var_names = adata.raw.var_names if adata.raw is not None else adata.var_names
+            # Use log-normalised full gene space (required for marker stats)
+            if adata.raw is None:
+                raise ValueError("Expected .raw for marker extraction, but none found")
+
+            X = adata.raw.X
+            var_names = adata.raw.var_names
 
             # Convert to dense if needed
             X = X.toarray() if hasattr(X, "toarray") else X

@@ -116,6 +116,7 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
         obs=adata.obs.copy(),
         var=adata.var.copy()
     )
+    adata_clean.layers["counts"] = counts.copy()
     adata_clean.layers["spliced"] = spliced
     adata_clean.layers["unspliced"] = unspliced
 

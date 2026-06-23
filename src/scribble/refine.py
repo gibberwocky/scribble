@@ -2,6 +2,18 @@
 
 from pathlib import Path
 
+def restore_counts(adata):
+    import scanpy as sc
+
+    if "counts" not in adata.layers:
+        raise ValueError("No counts layer found in AnnData")
+
+    return sc.AnnData(
+        X=adata.layers["counts"].copy(),
+        obs=adata.obs.copy(),
+        var=adata.raw.var.copy() if adata.raw is not None else adata.var.copy()
+    )
+
 
 def run_refine(args):
     import scanpy as sc
@@ -26,6 +38,12 @@ def run_refine(args):
 
     print(f"Loading AnnData → {input_file}")
     adata = sc.read(input_file)
+
+    if "counts" not in adata.layers:
+        raise ValueError("Input AnnData must contain layers['counts']")
+
+    if adata.raw is None:
+        raise ValueError("Input AnnData must have .raw (log-normalised full matrix)")
 
     print(f"Loading decisions → {decision_file}")
     decisions = pd.read_csv(decision_file, sep="\t")
@@ -63,10 +81,16 @@ def run_refine(args):
 
         print(f"Clusters: {subset_clusters}")
 
-        adata_sub = adata[adata.obs["leiden"].isin(subset_clusters)].copy()
+        # --------------------------------------------------
+        # Subset once (clean)
+        # --------------------------------------------------
+        mask = adata.obs["leiden"].isin(subset_clusters)
+
+        adata_sub = adata[mask].copy()
 
         print(f"Cells: {adata_sub.n_obs}")
 
+        # Skip small groups
         if adata_sub.n_obs < args.min_cells_per_group:
             print("Skipping (too few cells)")
             continue
@@ -74,11 +98,17 @@ def run_refine(args):
         # --------------------------------------------------
         # Preprocessing
         # --------------------------------------------------
-        # First restore raw counts for seurat_v3 flavour HVG detection
-        adata_sub.X = adata_sub.raw.X.copy()
 
+        # Restore full gene space (raw counts)
+        # NOTE: this replaces log-normalised data with raw counts
+        adata_sub = restore_counts(adata_sub)
+        # Store counts
+        adata_sub.layers["counts"] = adata_sub.X.copy()
+
+        # Gene filtering
         sc.pp.filter_genes(adata_sub, min_cells=args.min_cells_per_gene)
 
+        # HVG identification
         sc.pp.highly_variable_genes(
             adata_sub,
             n_top_genes=args.hvgs,
@@ -86,12 +116,17 @@ def run_refine(args):
             flavor="seurat_v3"
         )
 
+        # Normalisation
         sc.pp.normalize_total(adata_sub)
         sc.pp.log1p(adata_sub)
 
+        # Store raw
         adata_sub.raw = adata_sub.copy()
+
+        # Subset on HVGs
         adata_sub = adata_sub[:, adata_sub.var.highly_variable].copy()
 
+        # Optional scaling
         if not args.no_scale:
             sc.pp.scale(adata_sub, max_value=10)
 
@@ -225,8 +260,11 @@ def run_refine(args):
 
         with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
 
-            X = adata_sub.raw.X if adata_sub.raw is not None else adata_sub.X
-            var_names = adata_sub.raw.var_names if adata_sub.raw is not None else adata_sub.var_names
+            if adata_sub.raw is None:
+                raise ValueError("Expected .raw for marker extraction")
+
+            X = adata_sub.raw.X
+            var_names = adata_sub.raw.var_names
 
             parent_series = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
             parent_label = "+".join(sorted(parent_series.unique(), key=int))
@@ -239,7 +277,7 @@ def run_refine(args):
                 gene_idx = [var_names.get_loc(g) for g in valid]
 
                 expr = X[:, gene_idx]
-                expr = expr.A if hasattr(expr, "A") else expr
+                expr = expr.toarray() if hasattr(expr, "toarray") else np.asarray(expr)
 
                 cluster_cells = adata_sub.obs["leiden_refined"] == cl
                 other_cells = ~cluster_cells
@@ -302,8 +340,11 @@ def run_refine(args):
 
     with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
 
-        X = adata.raw.X if adata.raw is not None else adata.X
-        var_names = adata.raw.var_names if adata.raw is not None else adata.var_names
+        if adata.raw is None:
+            raise ValueError("Expected .raw for marker extraction")
+
+        X = adata.raw.X
+        var_names = adata.raw.var_names
 
         for cl in marker_clusters:
 
