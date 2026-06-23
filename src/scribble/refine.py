@@ -297,7 +297,6 @@ def run_refine(args):
 
         marker_clusters = result["names"].dtype.names
 
-        # ---- Guard against empty DE result ----
         if marker_clusters is None or len(marker_clusters) == 0:
             print(f"No marker clusters found for {group}, skipping export")
         else:
@@ -314,29 +313,45 @@ def run_refine(args):
                 parent_series = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
                 parent_label = "+".join(sorted(parent_series.unique(), key=int))
 
+                sheets_written = 0
+
                 for cl in marker_clusters:
 
-                    genes = result["names"][cl]
+                    genes = np.array(result["names"][cl])
+                    logfc_all = np.array(result["logfoldchanges"][cl])
+                    scores_all = np.array(result["scores"][cl])
+                    pvals_all = np.array(result["pvals"][cl])
+                    pvals_adj_all = np.array(result["pvals_adj"][cl])
 
-                    valid = [g for g in genes if g in var_names]
-                    if len(valid) == 0:
+                    valid_mask = np.isin(genes, var_names)
+
+                    valid = genes[valid_mask]
+                    if valid.size == 0:
                         continue
+
+                    logfc = logfc_all[valid_mask]
+                    scores = scores_all[valid_mask]
+                    pvals = pvals_all[valid_mask]
+                    pvals_adj = pvals_adj_all[valid_mask]
 
                     gene_idx = [var_names.get_loc(g) for g in valid]
 
                     expr = X[:, gene_idx]
                     expr = expr.toarray() if hasattr(expr, "toarray") else np.asarray(expr)
 
+                    if expr.shape[1] != len(valid):
+                        continue
+
                     cluster_cells = adata_de.obs["leiden_refined"] == cl
                     other_cells = ~cluster_cells
 
                     df = pd.DataFrame({
                         "gene": valid,
-                        "logfoldchange": result["logfoldchanges"][cl][:len(valid)],
-                        "score": result["scores"][cl][:len(valid)],
-                        "pvals": result["pvals"][cl][:len(valid)],
-                        "pvals_adj": result["pvals_adj"][cl][:len(valid)],
-                    })
+                        "logfoldchange": logfc,
+                        "score": scores,
+                        "pvals": pvals,
+                        "pvals_adj": pvals_adj,
+                    }).reset_index(drop=True)
 
                     pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
                     pct_out = (expr[other_cells.values] > 0).mean(axis=0)
@@ -355,8 +370,15 @@ def run_refine(args):
                         ascending=[True, False, False]
                     ).head(args.nmarkers)
 
+                    if df.empty:
+                        continue
+
                     sheet_name = f"cluster_{parent_label}-{cl}"[:31]
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    sheets_written += 1
+
+                if sheets_written == 0:
+                    print(f"No valid marker sheets written for {group}, skipping file")
 
         # --------------------------------------------------
         # Map refined labels back
@@ -369,97 +391,119 @@ def run_refine(args):
 
         adata.obs.loc[adata_sub.obs_names, "leiden_L2"] = refined_labels
 
-    # --------------------------------------------------
-    # Global markers (L2)
-    # --------------------------------------------------
-    print("\nComputing global L2 markers...")
+        # --------------------------------------------------
+        # Global markers (L2)
+        # --------------------------------------------------
+        print("\nComputing global L2 markers...")
 
-    cluster_sizes = adata.obs["leiden_L2"].value_counts()
-    valid_clusters = cluster_sizes[cluster_sizes >= 2].index
+        cluster_sizes = adata.obs["leiden_L2"].value_counts()
+        valid_clusters = cluster_sizes[cluster_sizes >= 2].index
 
-    adata_de = None
-    result = None
+        adata_de = None
+        result = None
 
-    if len(valid_clusters) < 2:
-        print("Skipping global L2 DE: fewer than 2 valid clusters")
-    else:
-        adata_de = adata[
-            adata.obs["leiden_L2"].isin(valid_clusters)
-        ].copy()
+        if len(valid_clusters) < 2:
+            print("Skipping global L2 DE: fewer than 2 valid clusters")
+        else:
+            adata_de = adata[
+                adata.obs["leiden_L2"].isin(valid_clusters)
+            ].copy()
 
-        sc.tl.rank_genes_groups(
-            adata_de,
-            "leiden_L2",
-            method="wilcoxon",
-            use_raw=True
-        )
+            sc.tl.rank_genes_groups(
+                adata_de,
+                "leiden_L2",
+                method="wilcoxon",
+                use_raw=True
+            )
 
-        result = adata_de.uns["rank_genes_groups"]
+            result = adata_de.uns["rank_genes_groups"]
 
-    # ---- Safe guard ----
-    if result is None:
-        print("No global L2 DE results, skipping export")
-        return
+        # ---- Safe guard ----
+        if result is None:
+            print("No global L2 DE results, skipping export")
+            return
 
-    marker_clusters = result["names"].dtype.names
+        marker_clusters = result["names"].dtype.names
 
-    # ---- Guard against empty DE result ----
-    if marker_clusters is None or len(marker_clusters) == 0:
-        print("No global L2 marker clusters found, skipping export")
-    else:
-        markers_file = TABLE_DIR / f"{input_file.stem}_L2_markers.xlsx"
+        if marker_clusters is None or len(marker_clusters) == 0:
+            print("No global L2 marker clusters found, skipping export")
+        else:
+            markers_file = TABLE_DIR / f"{input_file.stem}_L2_markers.xlsx"
 
-        with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
+            with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
 
-            if adata.raw is None:
-                raise ValueError("Expected .raw for marker extraction")
+                if adata_de.raw is None:
+                    raise ValueError("Expected .raw for marker extraction")
 
-            X = adata_de.raw.X
-            var_names = adata_de.raw.var_names
+                X = adata_de.raw.X
+                var_names = adata_de.raw.var_names
 
-            for cl in marker_clusters:
+                sheets_written = 0
 
-                genes = result["names"][cl]
+                for cl in marker_clusters:
 
-                valid = [g for g in genes if g in var_names]
-                if len(valid) == 0:
-                    continue
+                    genes = np.array(result["names"][cl])
+                    logfc_all = np.array(result["logfoldchanges"][cl])
+                    scores_all = np.array(result["scores"][cl])
+                    pvals_all = np.array(result["pvals"][cl])
+                    pvals_adj_all = np.array(result["pvals_adj"][cl])
 
-                gene_idx = [var_names.get_loc(g) for g in valid]
+                    valid_mask = np.isin(genes, var_names)
 
-                expr = X[:, gene_idx]
-                expr = expr.A if hasattr(expr, "A") else expr
+                    valid = genes[valid_mask]
+                    if valid.size == 0:
+                        continue
 
-                cluster_cells = adata_de.obs["leiden_L2"] == cl
-                other_cells = ~cluster_cells
+                    logfc = logfc_all[valid_mask]
+                    scores = scores_all[valid_mask]
+                    pvals = pvals_all[valid_mask]
+                    pvals_adj = pvals_adj_all[valid_mask]
 
-                df = pd.DataFrame({
-                    "gene": valid,
-                    "logfoldchange": result["logfoldchanges"][cl][:len(valid)],
-                    "score": result["scores"][cl][:len(valid)],
-                    "pvals": result["pvals"][cl][:len(valid)],
-                    "pvals_adj": result["pvals_adj"][cl][:len(valid)],
-                })
+                    gene_idx = [var_names.get_loc(g) for g in valid]
 
-                pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-                pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+                    expr = X[:, gene_idx]
+                    expr = expr.toarray() if hasattr(expr, "toarray") else np.asarray(expr)
 
-                df["pct_in"] = pct_in
-                df["pct_out"] = pct_out
-                df["pct_diff"] = pct_in - pct_out
+                    if expr.shape[1] != len(valid):
+                        continue
 
-                df["mean_in"] = expr[cluster_cells.values].mean(axis=0)
-                df["mean_out"] = expr[other_cells.values].mean(axis=0)
+                    cluster_cells = adata_de.obs["leiden_L2"] == cl
+                    other_cells = ~cluster_cells
 
-                df["cluster_size"] = cluster_cells.sum()
+                    df = pd.DataFrame({
+                        "gene": valid,
+                        "logfoldchange": logfc,
+                        "score": scores,
+                        "pvals": pvals,
+                        "pvals_adj": pvals_adj,
+                    }).reset_index(drop=True)
 
-                df = df.sort_values(
-                    ["pvals_adj", "pct_diff", "logfoldchange"],
-                    ascending=[True, False, False]
-                ).head(args.nmarkers)
+                    pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
+                    pct_out = (expr[other_cells.values] > 0).mean(axis=0)
 
-                sheet_name = f"cluster_{cl}"[:31]
-                df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    df["pct_in"] = pct_in
+                    df["pct_out"] = pct_out
+                    df["pct_diff"] = pct_in - pct_out
+
+                    df["mean_in"] = expr[cluster_cells.values].mean(axis=0)
+                    df["mean_out"] = expr[other_cells.values].mean(axis=0)
+
+                    df["cluster_size"] = cluster_cells.sum()
+
+                    df = df.sort_values(
+                        ["pvals_adj", "pct_diff", "logfoldchange"],
+                        ascending=[True, False, False]
+                    ).head(args.nmarkers)
+
+                    if df.empty:
+                        continue
+
+                    sheet_name = f"cluster_{cl}"[:31]
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    sheets_written += 1
+
+                if sheets_written == 0:
+                    print("No valid marker sheets written, skipping file")
 
     # --------------------------------------------------
     # Finalise
