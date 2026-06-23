@@ -267,14 +267,27 @@ def run_refine(args):
         # --------------------------------------------------
         print(f"Computing within-lineage markers for {group}")
 
-        sc.tl.rank_genes_groups(
-            adata_sub,
-            "leiden_refined",
-            method="wilcoxon",
-            use_raw=True
-        )
+        # ---- Filter clusters for DE ----
+        cluster_sizes = adata_sub.obs["leiden_refined"].value_counts()
+        valid_clusters = cluster_sizes[cluster_sizes >= 2].index
 
-        result = adata_sub.uns["rank_genes_groups"]
+        if len(valid_clusters) < 2:
+            print("Skipping within-lineage DE: fewer than 2 valid clusters")
+        else:
+            adata_de = adata_sub[
+                adata_sub.obs["leiden_refined"].isin(valid_clusters)
+            ].copy()
+
+            sc.tl.rank_genes_groups(
+                adata_de,
+                "leiden_refined",
+                method="wilcoxon",
+                use_raw=True
+            )
+
+            result = adata_de.uns["rank_genes_groups"]
+
+        result = adata_de.uns["rank_genes_groups"]
         marker_clusters = result["names"].dtype.names
 
         markers_file = TABLE_DIR / f"{input_file.stem}_{group}_within_lineage_markers.xlsx"
@@ -284,8 +297,8 @@ def run_refine(args):
             if adata_sub.raw is None:
                 raise ValueError("Expected .raw for marker extraction")
 
-            X = adata_sub.raw.X
-            var_names = adata_sub.raw.var_names
+            X = adata_de.raw.X
+            var_names = adata_de.raw.var_names
 
             parent_series = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
             parent_label = "+".join(sorted(parent_series.unique(), key=int))
@@ -347,12 +360,24 @@ def run_refine(args):
     # --------------------------------------------------
     print("\nComputing global L2 markers...")
 
-    sc.tl.rank_genes_groups(
-        adata,
-        "leiden_L2",
-        method="wilcoxon",
-        use_raw=True
-    )
+    cluster_sizes = adata.obs["leiden_L2"].value_counts()
+    valid_clusters = cluster_sizes[cluster_sizes >= 2].index
+
+    if len(valid_clusters) < 2:
+        print("Skipping global L2 DE: fewer than 2 valid clusters")
+    else:
+        adata_de = adata[
+            adata.obs["leiden_L2"].isin(valid_clusters)
+        ].copy()
+
+        sc.tl.rank_genes_groups(
+            adata_de,
+            "leiden_L2",
+            method="wilcoxon",
+            use_raw=True
+        )
+
+        result = adata_de.uns["rank_genes_groups"]
 
     result = adata.uns["rank_genes_groups"]
     marker_clusters = result["names"].dtype.names
@@ -364,8 +389,8 @@ def run_refine(args):
         if adata.raw is None:
             raise ValueError("Expected .raw for marker extraction")
 
-        X = adata.raw.X
-        var_names = adata.raw.var_names
+        X = adata_de.raw.X
+        var_names = adata_de.raw.var_names
 
         for cl in marker_clusters:
 
