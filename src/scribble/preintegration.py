@@ -54,8 +54,17 @@ def run_preintegration(args):
     # Subset to HVGs
     adata = adata[:, adata.var.highly_variable].copy()
 
-    # Re-assign counts
-    adata.layers["counts"] = adata.uns["counts_full"][:, adata.var_names].copy()
+    # Restore counts
+    full_var_names = adata.uns["var_full"].index
+    hvg_mask = full_var_names.get_indexer(adata.var_names)
+
+    if (hvg_mask < 0).any():
+        raise ValueError("Some HVGs not found in full gene list")
+
+    # Subset counts using integer indices
+    adata.layers["counts"] = adata.uns["counts_full"][:, hvg_mask].copy()
+
+
 
     adata.uns["data_model"] = {
         "counts_layer": "counts",
