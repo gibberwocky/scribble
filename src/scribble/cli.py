@@ -135,13 +135,13 @@ GitHub: https://github.com/gibberwocky/scribble
     cluster_parser.add_argument("--input", required=True,
         help="Input AnnData (.h5ad) file (generated with scribble)")
     cluster_parser.add_argument("--embedding", default="X_pca",
-        elp="Embedding to use for clustering ('X_pca' or 'X_pca_harmony')")
+        help="Embedding to use for clustering ('X_pca' or 'X_pca_harmony')")
     cluster_parser.add_argument("--resolution", type=float, default=1.0,
         help="Leiden resolution parameter controlling cluster granularity")
     cluster_parser.add_argument("--neighbors", type=int, default=15,
         help="Number of nearest neighbours used to build the clustering graph")
     cluster_parser.add_argument("--vars", nargs="+", default=["sample"],
-        elp="Observation columns to colour UMAP plots alongside cluster labels")
+        help="Observation columns to colour UMAP plots alongside cluster labels")
     cluster_parser.add_argument("--n_repeats", type=int, default=10,
         help="Number of repeated clustering runs used to estimate cluster stability")
     cluster_parser.add_argument("--auto_resolution", action="store_true",
