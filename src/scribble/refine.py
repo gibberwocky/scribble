@@ -74,6 +74,9 @@ def run_refine(args):
         # --------------------------------------------------
         # Preprocessing
         # --------------------------------------------------
+        # First restore raw counts for seurat_v3 flavour HVG detection
+        adata_sub.X = adata_sub.raw.X.copy()
+
         sc.pp.filter_genes(adata_sub, min_cells=args.min_cells_per_gene)
 
         sc.pp.highly_variable_genes(
