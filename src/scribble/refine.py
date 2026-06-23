@@ -227,19 +227,22 @@ def run_refine(args):
                     for i in range(len(r))
                 }
 
-                return (
-                    pd.Series(current)
-                    .map(mapping)
-                    .fillna(current)
-                    .values
-                )
+                cur_series = pd.Series(current)
+
+                aligned = cur_series.map(mapping).fillna(cur_series).values
+
+                return aligned
+
 
             for i in range(args.n_repeats):
                 sc.tl.leiden(
                     adata_sub,
                     resolution=res,
                     key_added=f"tmp_{i}",
-                    random_state=i
+                    random_state=i,
+                    flavor="igraph",
+                    directed=False,
+                    n_iterations=2
                 )
 
                 raw = adata_sub.obs[f"tmp_{i}"].astype(str).values
