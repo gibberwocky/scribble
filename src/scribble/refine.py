@@ -298,56 +298,55 @@ def run_refine(args):
 
             with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
 
+                if adata_sub.raw is None:
+                    raise ValueError("Expected .raw for marker extraction")
 
-            if adata_sub.raw is None:
-                raise ValueError("Expected .raw for marker extraction")
+                X = adata_de.raw.X
+                var_names = adata_de.raw.var_names
 
-            X = adata_de.raw.X
-            var_names = adata_de.raw.var_names
+                parent_series = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
+                parent_label = "+".join(sorted(parent_series.unique(), key=int))
 
-            parent_series = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
-            parent_label = "+".join(sorted(parent_series.unique(), key=int))
+                for cl in marker_clusters:
 
-            for cl in marker_clusters:
+                    genes = result["names"][cl]
 
-                genes = result["names"][cl]
+                    valid = [g for g in genes if g in var_names]
+                    gene_idx = [var_names.get_loc(g) for g in valid]
 
-                valid = [g for g in genes if g in var_names]
-                gene_idx = [var_names.get_loc(g) for g in valid]
+                    expr = X[:, gene_idx]
+                    expr = expr.toarray() if hasattr(expr, "toarray") else np.asarray(expr)
 
-                expr = X[:, gene_idx]
-                expr = expr.toarray() if hasattr(expr, "toarray") else np.asarray(expr)
+                    cluster_cells = adata_sub.obs["leiden_refined"] == cl
+                    other_cells = ~cluster_cells
 
-                cluster_cells = adata_sub.obs["leiden_refined"] == cl
-                other_cells = ~cluster_cells
+                    df = pd.DataFrame({
+                        "gene": valid,
+                        "logfoldchange": result["logfoldchanges"][cl][:len(valid)],
+                        "score": result["scores"][cl][:len(valid)],
+                        "pvals": result["pvals"][cl][:len(valid)],
+                        "pvals_adj": result["pvals_adj"][cl][:len(valid)],
+                    })
 
-                df = pd.DataFrame({
-                    "gene": valid,
-                    "logfoldchange": result["logfoldchanges"][cl][:len(valid)],
-                    "score": result["scores"][cl][:len(valid)],
-                    "pvals": result["pvals"][cl][:len(valid)],
-                    "pvals_adj": result["pvals_adj"][cl][:len(valid)],
-                })
+                    pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
+                    pct_out = (expr[other_cells.values] > 0).mean(axis=0)
 
-                pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-                pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+                    df["pct_in"] = pct_in
+                    df["pct_out"] = pct_out
+                    df["pct_diff"] = pct_in - pct_out
 
-                df["pct_in"] = pct_in
-                df["pct_out"] = pct_out
-                df["pct_diff"] = pct_in - pct_out
+                    df["mean_in"] = expr[cluster_cells.values].mean(axis=0)
+                    df["mean_out"] = expr[other_cells.values].mean(axis=0)
 
-                df["mean_in"] = expr[cluster_cells.values].mean(axis=0)
-                df["mean_out"] = expr[other_cells.values].mean(axis=0)
+                    df["cluster_size"] = cluster_cells.sum()
 
-                df["cluster_size"] = cluster_cells.sum()
+                    df = df.sort_values(
+                        ["pvals_adj", "pct_diff", "logfoldchange"],
+                        ascending=[True, False, False]
+                    ).head(args.nmarkers)
 
-                df = df.sort_values(
-                    ["pvals_adj", "pct_diff", "logfoldchange"],
-                    ascending=[True, False, False]
-                ).head(args.nmarkers)
-
-                sheet_name = f"cluster_{parent_label}-{cl}"[:31]
-                df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    sheet_name = f"cluster_{parent_label}-{cl}"[:31]
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
 
         # --------------------------------------------------
         # Map refined labels back
@@ -395,52 +394,52 @@ def run_refine(args):
 
         with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
 
-        if adata.raw is None:
-            raise ValueError("Expected .raw for marker extraction")
+            if adata.raw is None:
+                raise ValueError("Expected .raw for marker extraction")
 
-        X = adata_de.raw.X
-        var_names = adata_de.raw.var_names
+            X = adata_de.raw.X
+            var_names = adata_de.raw.var_names
 
-        for cl in marker_clusters:
+            for cl in marker_clusters:
 
-            genes = result["names"][cl]
+                genes = result["names"][cl]
 
-            valid = [g for g in genes if g in var_names]
-            gene_idx = [var_names.get_loc(g) for g in valid]
+                valid = [g for g in genes if g in var_names]
+                gene_idx = [var_names.get_loc(g) for g in valid]
 
-            expr = X[:, gene_idx]
-            expr = expr.A if hasattr(expr, "A") else expr
+                expr = X[:, gene_idx]
+                expr = expr.A if hasattr(expr, "A") else expr
 
-            cluster_cells = adata.obs["leiden_L2"] == cl
-            other_cells = ~cluster_cells
+                cluster_cells = adata.obs["leiden_L2"] == cl
+                other_cells = ~cluster_cells
 
-            df = pd.DataFrame({
-                "gene": valid,
-                "logfoldchange": result["logfoldchanges"][cl][:len(valid)],
-                "score": result["scores"][cl][:len(valid)],
-                "pvals": result["pvals"][cl][:len(valid)],
-                "pvals_adj": result["pvals_adj"][cl][:len(valid)],
-            })
+                df = pd.DataFrame({
+                    "gene": valid,
+                    "logfoldchange": result["logfoldchanges"][cl][:len(valid)],
+                    "score": result["scores"][cl][:len(valid)],
+                    "pvals": result["pvals"][cl][:len(valid)],
+                    "pvals_adj": result["pvals_adj"][cl][:len(valid)],
+                })
 
-            pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-            pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+                pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
+                pct_out = (expr[other_cells.values] > 0).mean(axis=0)
 
-            df["pct_in"] = pct_in
-            df["pct_out"] = pct_out
-            df["pct_diff"] = pct_in - pct_out
+                df["pct_in"] = pct_in
+                df["pct_out"] = pct_out
+                df["pct_diff"] = pct_in - pct_out
 
-            df["mean_in"] = expr[cluster_cells.values].mean(axis=0)
-            df["mean_out"] = expr[other_cells.values].mean(axis=0)
+                df["mean_in"] = expr[cluster_cells.values].mean(axis=0)
+                df["mean_out"] = expr[other_cells.values].mean(axis=0)
 
-            df["cluster_size"] = cluster_cells.sum()
+                df["cluster_size"] = cluster_cells.sum()
 
-            df = df.sort_values(
-                ["pvals_adj", "pct_diff", "logfoldchange"],
-                ascending=[True, False, False]
-            ).head(args.nmarkers)
+                df = df.sort_values(
+                    ["pvals_adj", "pct_diff", "logfoldchange"],
+                    ascending=[True, False, False]
+                ).head(args.nmarkers)
 
-            sheet_name = f"cluster_{cl}"[:31]
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+                sheet_name = f"cluster_{cl}"[:31]
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
 
     # --------------------------------------------------
     # Finalise
