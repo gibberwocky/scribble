@@ -32,6 +32,10 @@ def run_preintegration(args):
     # Filter on min number of cells a gene must be expressed in
     sc.pp.filter_genes(adata, min_cells=args.min_cells_per_gene)
 
+    # Preserve counts
+    adata.uns["counts_full"] = adata.layers["counts"].copy()
+    adata.uns["var_full"] = adata.var.copy()
+
     # Highly variable genes
     sc.pp.highly_variable_genes(
         adata,
@@ -40,11 +44,18 @@ def run_preintegration(args):
         flavor="seurat_v3"
     )
 
-    # Normalisation
+    # Normalisation on full gene space
     sc.pp.normalize_total(adata)
     sc.pp.log1p(adata)
+
+    # Store full log-normalised matrix
     adata.raw = adata.copy()
+
+    # Subset to HVGs
     adata = adata[:, adata.var.highly_variable].copy()
+
+    # Re-assign counts
+    adata.layers["counts"] = adata.uns["counts_full"][:, adata.var_names].copy()
 
     adata.uns["data_model"] = {
         "counts_layer": "counts",

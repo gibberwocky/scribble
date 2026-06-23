@@ -5,13 +5,13 @@ from pathlib import Path
 def restore_counts(adata):
     import scanpy as sc
 
-    if "counts" not in adata.layers:
-        raise ValueError("No counts layer found in AnnData")
+    if "counts_full" not in adata.uns:
+        raise ValueError("Full counts not found in adata.uns")
 
     return sc.AnnData(
-        X=adata.layers["counts"].copy(),
+        X=adata.uns["counts_full"].copy(),
         obs=adata.obs.copy(),
-        var=adata.raw.var.copy() if adata.raw is not None else adata.var.copy()
+        var=adata.uns["var_full"].copy()
     )
 
 
