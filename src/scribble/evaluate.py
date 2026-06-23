@@ -78,29 +78,111 @@ def run_evaluate(args):
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
+
     setup_environment(sc, np, random, PLOT_DIR)
 
-    input_file = Path(args.input)
+    # ----------------------------
+    # Handle input(s)
+    # ----------------------------
+    input_files = args.input if isinstance(args.input, list) else [args.input]
+    input_files = [Path(f) for f in input_files]
+
+    comparison_rows = []
+
+    # ----------------------------
+    # Evaluate multiple runs
+    # ----------------------------
+    if len(input_files) > 1:
+
+        print("Evaluating multiple cluster summaries...\n")
+
+        for f in input_files:
+            df = pd.read_csv(f, sep="\t")
+
+            mean_stability = df["mean_stability"].mean()
+            mean_entropy = df["sample_entropy"].mean()
+            low_stability_frac = (df["mean_stability"] < 0.7).mean()
+            n_clusters = df.shape[0]
+
+            # ---- cluster count penalty (soft constraint) ----
+            if n_clusters < 10:
+                cluster_penalty = 10 - n_clusters
+            elif n_clusters > 30:
+                cluster_penalty = n_clusters - 30
+            else:
+                cluster_penalty = 0
+
+            score = (
+                mean_stability
+                + 0.5 * mean_entropy
+                - 2.0 * low_stability_frac
+                - 0.1 * cluster_penalty
+            )
+
+            comparison_rows.append({
+                "file": f.name,
+                "path": str(f),
+                "score": score,
+                "mean_stability": mean_stability,
+                "mean_entropy": mean_entropy,
+                "low_stability_fraction": low_stability_frac,
+                "n_clusters": n_clusters
+            })
+
+        comparison_df = pd.DataFrame(comparison_rows)
+        comparison_df = comparison_df.sort_values("score", ascending=False)
+
+        # Save comparison table
+        comparison_file = TABLE_DIR / "clustering_comparison.tsv"
+        comparison_df.to_csv(comparison_file, sep="\t", index=False)
+
+        print("Comparison summary:")
+        print(comparison_df[[
+            "file",
+            "score",
+            "mean_stability",
+            "mean_entropy",
+            "low_stability_fraction",
+            "n_clusters"
+        ]])
+
+        best_row = comparison_df.iloc[0]
+        best_file = Path(best_row["path"])
+
+        print(f"\nSelected best clustering → {best_file.name}")
+        print(f"Score: {best_row['score']:.4f}\n")
+
+        input_file = best_file
+
+    else:
+        input_file = input_files[0]
+
+    # ----------------------------
+    # Continue existing behaviour
+    # ----------------------------
     output_file = input_file.with_name(f"{input_file.stem}_decisions.tsv")
 
     print(f"Loading cluster summary: {input_file}")
+
     df = pd.read_csv(input_file, sep="\t")
 
     # ----------------------------
-    # Thresholds (configurable)
+    # Thresholds
     # ----------------------------
     thresholds = {
-        "min_cells": args.min_cells,          # 200
-        "large_cells": args.large_cells,      # 800
-        "low_stability": args.low_stability,  # 0.75
-        "high_stability": args.high_stability,# 0.95
-        "low_entropy": args.low_entropy,       # 0.5
+        "min_cells": args.min_cells,
+        "large_cells": args.large_cells,
+        "low_stability": args.low_stability,
+        "high_stability": args.high_stability,
+        "low_entropy": args.low_entropy,
         "merge_size_ratio": args.merge_size_ratio,
         "merge_stability_tol": args.merge_stability_tol,
-        "merge_entropy_tol": args.merge_entropy_tol
+        "merge_entropy_tol": args.merge_entropy_tol,
     }
 
-
+    # ----------------------------
+    # Classification
+    # ----------------------------
     decisions = []
 
     for _, row in df.iterrows():
@@ -117,14 +199,16 @@ def run_evaluate(args):
             "action": action,
             "reason": reason,
             "detail": detail,
-            "priority": priority
+            "priority": priority,
         })
 
     out_df = pd.DataFrame(decisions)
 
+    # ----------------------------
+    # Merge candidates
+    # ----------------------------
     merge_pairs = find_merge_candidates(out_df, thresholds)
 
-    # Convert to groups
     merge_groups = []
     visited = set()
 
