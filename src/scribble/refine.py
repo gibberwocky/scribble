@@ -290,9 +290,14 @@ def run_refine(args):
         result = adata_de.uns["rank_genes_groups"]
         marker_clusters = result["names"].dtype.names
 
-        markers_file = TABLE_DIR / f"{input_file.stem}_{group}_within_lineage_markers.xlsx"
+        # ---- Guard against empty DE result ----
+        if marker_clusters is None or len(marker_clusters) == 0:
+            print(f"No marker clusters found for {group}, skipping export")
+        else:
+            markers_file = TABLE_DIR / f"{input_file.stem}_{group}_within_lineage_markers.xlsx"
 
-        with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
+            with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
+
 
             if adata_sub.raw is None:
                 raise ValueError("Expected .raw for marker extraction")
@@ -379,12 +384,16 @@ def run_refine(args):
 
         result = adata_de.uns["rank_genes_groups"]
 
-    result = adata.uns["rank_genes_groups"]
+    result = adata_de.uns["rank_genes_groups"]
     marker_clusters = result["names"].dtype.names
 
-    markers_file = TABLE_DIR / f"{input_file.stem}_L2_markers.xlsx"
+    # ---- Guard against empty DE result ----
+    if marker_clusters is None or len(marker_clusters) == 0:
+        print("No global L2 marker clusters found, skipping export")
+    else:
+        markers_file = TABLE_DIR / f"{input_file.stem}_L2_markers.xlsx"
 
-    with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
+        with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
 
         if adata.raw is None:
             raise ValueError("Expected .raw for marker extraction")
