@@ -8,10 +8,28 @@ def restore_counts(adata):
     if "counts_full" not in adata.uns:
         raise ValueError("Full counts not found in adata.uns")
 
+    # Full data
+    counts_full = adata.uns["counts_full"]
+    var_full = adata.uns["var_full"]
+
+    # Map cells to indices
+    full_obs_names = adata.uns.get("obs_full_names", None)
+
+    if full_obs_names is None:
+        raise ValueError("Missing obs_full_names for restoring counts")
+
+    cell_idx = full_obs_names.get_indexer(adata.obs_names)
+
+    if (cell_idx < 0).any():
+        raise ValueError("Some cells not found in full dataset")
+
+    # Subset counts to correct cells
+    X = counts_full[cell_idx, :]
+
     return sc.AnnData(
-        X=adata.uns["counts_full"].copy(),
+        X=X,
         obs=adata.obs.copy(),
-        var=adata.uns["var_full"].copy()
+        var=var_full.copy()
     )
 
 

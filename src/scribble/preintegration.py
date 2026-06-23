@@ -21,6 +21,11 @@ def run_preintegration(args):
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
 
+    # Preserve full cell metadata for later
+    adata.uns["obs_full"] = adata.obs.copy()
+    adata.uns["obs_full_names"] = adata.obs_names.copy()
+
+    # Ensure counts layer exists
     if "counts" not in adata.layers:
         adata.layers["counts"] = adata.X.copy()
 
