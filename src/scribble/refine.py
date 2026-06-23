@@ -317,11 +317,11 @@ def run_refine(args):
 
                 for cl in marker_clusters:
 
-                    genes = np.array(result["names"][cl])
-                    logfc_all = np.array(result["logfoldchanges"][cl])
-                    scores_all = np.array(result["scores"][cl])
-                    pvals_all = np.array(result["pvals"][cl])
-                    pvals_adj_all = np.array(result["pvals_adj"][cl])
+                    genes = np.array(result["names"][cl]).ravel()
+                    logfc_all = np.array(result["logfoldchanges"][cl]).ravel()
+                    scores_all = np.array(result["scores"][cl]).ravel()
+                    pvals_all = np.array(result["pvals"][cl]).ravel()
+                    pvals_adj_all = np.array(result["pvals_adj"][cl]).ravel()
 
                     valid_mask = np.isin(genes, var_names)
 
@@ -333,6 +333,9 @@ def run_refine(args):
                     scores = scores_all[valid_mask]
                     pvals = pvals_all[valid_mask]
                     pvals_adj = pvals_adj_all[valid_mask]
+
+                    if not (len(valid) == len(logfc) == len(scores) == len(pvals) == len(pvals_adj)):
+                        continue
 
                     gene_idx = [var_names.get_loc(g) for g in valid]
 
@@ -442,11 +445,11 @@ def run_refine(args):
 
                 for cl in marker_clusters:
 
-                    genes = np.array(result["names"][cl])
-                    logfc_all = np.array(result["logfoldchanges"][cl])
-                    scores_all = np.array(result["scores"][cl])
-                    pvals_all = np.array(result["pvals"][cl])
-                    pvals_adj_all = np.array(result["pvals_adj"][cl])
+                    genes = np.array(result["names"][cl]).ravel()
+                    logfc_all = np.array(result["logfoldchanges"][cl]).ravel()
+                    scores_all = np.array(result["scores"][cl]).ravel()
+                    pvals_all = np.array(result["pvals"][cl]).ravel()
+                    pvals_adj_all = np.array(result["pvals_adj"][cl]).ravel()
 
                     valid_mask = np.isin(genes, var_names)
 
@@ -458,6 +461,9 @@ def run_refine(args):
                     scores = scores_all[valid_mask]
                     pvals = pvals_all[valid_mask]
                     pvals_adj = pvals_adj_all[valid_mask]
+
+                    if not (len(valid) == len(logfc) == len(scores) == len(pvals) == len(pvals_adj)):
+                        continue
 
                     gene_idx = [var_names.get_loc(g) for g in valid]
 
