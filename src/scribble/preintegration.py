@@ -23,7 +23,7 @@ def run_preintegration(args):
 
     # Preserve full cell metadata for later
     adata.uns["obs_full"] = adata.obs.copy()
-    adata.uns["obs_full_names"] = adata.obs_names.copy()
+    adata.uns["obs_full_names"] = adata.obs_names.tolist()
 
     # Ensure counts layer exists
     if "counts" not in adata.layers:

@@ -4,20 +4,20 @@ from pathlib import Path
 
 def restore_counts(adata):
     import scanpy as sc
+    import pandas as pd
 
     if "counts_full" not in adata.uns:
         raise ValueError("Full counts not found in adata.uns")
+
+    if "obs_full_names" not in adata.uns:
+        raise ValueError("Missing obs_full_names for restoring counts")
 
     # Full data
     counts_full = adata.uns["counts_full"]
     var_full = adata.uns["var_full"]
 
     # Map cells to indices
-    full_obs_names = adata.uns.get("obs_full_names", None)
-
-    if full_obs_names is None:
-        raise ValueError("Missing obs_full_names for restoring counts")
-
+    full_obs_names = pd.Index(adata.uns["obs_full_names"])
     cell_idx = full_obs_names.get_indexer(adata.obs_names)
 
     if (cell_idx < 0).any():
