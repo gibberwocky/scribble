@@ -75,7 +75,7 @@ def get_inflection(np, df, lower=100):
 
 
 # ---------- Process one sample ----------
-def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
+def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, inflection_lower):
     from scribble.plots import qc_hexbin_ax, knee_plot_ax
     import matplotlib.pyplot as plt
 
@@ -205,7 +205,7 @@ def run_import(args):
     adatas = []
 
     for sample in samples:
-        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, VELO_DIR, PLOT_DIR)
+        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, VELO_DIR, PLOT_DIR, args.inflection_lower)
         ad.obs["sample"] = sample
         adatas.append(ad)
 
