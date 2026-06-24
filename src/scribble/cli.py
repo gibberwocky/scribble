@@ -59,7 +59,14 @@ GitHub: https://github.com/gibberwocky/scribble
     dbl_parser.add_argument("--input", required=True,
         help="Input AnnData (.h5ad) file (generated with scribble)")
     dbl_parser.add_argument("--expected", type=float, default=0.07,
-        help="Expected doublet rate (e.g. 0.05–0.1 depending on platform)")
+        help=("Expected doublet rate (used for Scrublet prior and quantile-based thresholding). "
+              "Actual doublet fraction may differ due to hybrid thresholding."))
+    dbl_parser.add_argument("--mode", choices=["hybrid", "scrublet", "quantile"], default="hybrid",
+        help="Doublet calling strategy")
+    dbl_parser.add_argument("--normalize", action="store_true",
+        help="Apply normalization before Scrublet")
+    dbl_parser.add_argument("--min_cells", type=int, default=200,
+        help="Warn if sample has fewer cells than this for Scrublet")
 
     # -------------- PCA QC --------------
     pca_parser = subparsers.add_parser("pca")

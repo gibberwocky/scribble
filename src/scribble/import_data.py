@@ -75,7 +75,7 @@ def get_inflection(np, df, lower=100):
 
 
 # ---------- Process one sample ----------
-def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
+def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, scrublet_threshold, inflection_lower):
     from scribble.plots import qc_hexbin_ax, knee_plot_ax
     import matplotlib.pyplot as plt
 
@@ -104,11 +104,11 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
     counts = spliced + unspliced
 
     # Scrublet
-    adata_counts = sc.AnnData(X=counts.copy())
-    adata_counts.obs_names = adata.obs_names.copy()
-    adata_counts.var_names = adata.var_names.copy()
+    #adata_counts = sc.AnnData(X=counts.copy())
+    #adata_counts.obs_names = adata.obs_names.copy()
+    #adata_counts.var_names = adata.var_names.copy()
 
-    sc.external.pp.scrublet(adata_counts, threshold=0.25)
+    #sc.external.pp.scrublet(adata_counts, threshold=scrublet_threshold)
 
     # Build final object
     adata_clean = sc.AnnData(
@@ -121,8 +121,8 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
     adata_clean.layers["unspliced"] = unspliced
 
     # Transfer Scrublet results
-    adata_clean.obs["doublet_score"] = adata_counts.obs["doublet_score"].values
-    adata_clean.obs["predicted_doublet"] = adata_counts.obs["predicted_doublet"].values
+    #adata_clean.obs["doublet_score"] = adata_counts.obs["doublet_score"].values
+    #adata_clean.obs["predicted_doublet"] = adata_counts.obs["predicted_doublet"].values
 
     # Transfer MT metrics from adta_10X to adata
     meta_10X = adata_10X.obs.loc[adata_clean.obs_names]
@@ -135,10 +135,10 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
         "total": adata_clean.obs["total_counts"]
     }).sort_values("total", ascending=False).reset_index(drop=True)
     knee_df["rank"] = np.arange(1, len(knee_df) + 1)
-    inflection = get_inflection(np, knee_df, lower=100)
+    inflection = get_inflection(np, knee_df, lower=inflection_lower)
 
     # Multi-panel QC figure
-    fig, axes = plt.subplots(2, 2, figsize=(12,10), constrained_layout=True)
+    fig, axes = plt.subplots(1, 3, figsize=(15,5), constrained_layout=True)
     axes = axes.flatten()
 
     # ---------- 1. counts vs genes ----------
@@ -167,18 +167,6 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
         log_y=False
     )
     axes[2].set_title("MT content")
-
-    # ---------- 4. counts vs doublet ----------
-    qc_hexbin_ax(
-        axes[3],
-        x=adata_clean.obs["total_counts"].values,
-        y=adata_clean.obs["doublet_score"].values,
-        xlabel="Total counts (log scale)",
-        ylabel="Doublet score",
-        log_x=True,
-        log_y=False
-    )
-    axes[3].set_title("Doublets")
 
     # ---------- shared colorbar ----------
     cbar = fig.colorbar(
@@ -228,7 +216,8 @@ def run_import(args):
     adatas = []
 
     for sample in samples:
-        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, VELO_DIR, PLOT_DIR)
+        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, VELO_DIR, PLOT_DIR,
+            args.scrublet_threshold, args.inflection_lower)
         ad.obs["sample"] = sample
         adatas.append(ad)
 
