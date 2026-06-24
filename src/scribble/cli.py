@@ -42,6 +42,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help='Root project directory containing cellranger/ and velocyto/ subdirectories')
     import_parser.add_argument("--metadata_file", required=True,
         help="Excel metadata file with sheet 'meta' containing a 'sample' column matching input folder names")
+    import_parser.add_argument("--inflection_lower", type=int, default=100,
+        help="Lower bound for total cell UMIs when calculation inflection point")
 
     # -------------- MT QC ---------------
     mt_parser = subparsers.add_parser("mt")
