@@ -75,7 +75,7 @@ def get_inflection(np, df, lower=100):
 
 
 # ---------- Process one sample ----------
-def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, scrublet_threshold, inflection_lower):
+def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir):
     from scribble.plots import qc_hexbin_ax, knee_plot_ax
     import matplotlib.pyplot as plt
 
@@ -103,13 +103,6 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, s
     unspliced = sp.csr_matrix(adata.layers["unspliced"], dtype=np.float32)
     counts = spliced + unspliced
 
-    # Scrublet
-    #adata_counts = sc.AnnData(X=counts.copy())
-    #adata_counts.obs_names = adata.obs_names.copy()
-    #adata_counts.var_names = adata.var_names.copy()
-
-    #sc.external.pp.scrublet(adata_counts, threshold=scrublet_threshold)
-
     # Build final object
     adata_clean = sc.AnnData(
         X=counts.copy(),
@@ -119,10 +112,6 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, s
     adata_clean.layers["counts"] = counts.copy()
     adata_clean.layers["spliced"] = spliced
     adata_clean.layers["unspliced"] = unspliced
-
-    # Transfer Scrublet results
-    #adata_clean.obs["doublet_score"] = adata_counts.obs["doublet_score"].values
-    #adata_clean.obs["predicted_doublet"] = adata_counts.obs["predicted_doublet"].values
 
     # Transfer MT metrics from adta_10X to adata
     meta_10X = adata_10X.obs.loc[adata_clean.obs_names]
@@ -216,8 +205,7 @@ def run_import(args):
     adatas = []
 
     for sample in samples:
-        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, VELO_DIR, PLOT_DIR,
-            args.scrublet_threshold, args.inflection_lower)
+        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, VELO_DIR, PLOT_DIR)
         ad.obs["sample"] = sample
         adatas.append(ad)
 
