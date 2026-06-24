@@ -56,10 +56,11 @@ def run_dbl_qc(args):
             continue
 
         # -------- build per-sample AnnData --------
-        counts = adata.layers["counts"][mask]
+        mask_array = mask.values
+        counts = adata.layers["counts"][mask_array]
 
         ad_sample = sc.AnnData(X=counts.copy())
-        ad_sample.obs_names = adata.obs_names[mask]
+        ad_sample.obs_names = adata.obs_names[mask_array]
         ad_sample.var_names = adata.var_names
 
         # -------- normalisation for Scrublet (optional) --------
@@ -81,7 +82,7 @@ def run_dbl_qc(args):
         adata.obs.loc[mask, "doublet_score"] = scores
 
         # -------- quantile threshold --------
-        if len(scores) < 2:
+        if len(scores) < 10:
             quantile_threshold = np.nan
             quantile_mask = np.zeros_like(scores, dtype=bool)
         else:
@@ -122,12 +123,15 @@ def run_dbl_qc(args):
         # -------- diagnostic plot --------
         fig, ax = plt.subplots(figsize=(5, 4))
 
-        sns.histplot(scores, bins=50, ax=ax, color="steelblue")
+        if np.unique(scores).size > 1:
+            sns.histplot(scores, bins=50, ax=ax, color="steelblue")
+        else:
+            ax.text(0.5, 0.5, "Constant scores", ha="center")
 
         if not np.isnan(quantile_threshold):
             ax.axvline(quantile_threshold, color="red", linestyle="--", label="Quantile")
 
-        scrub_thresh = ad_sample.uns.get("scrublet", {}).get("threshold", None)
+        scrub_thresh = ad_sample.uns.get("scrublet", {}).get("threshold", np.nan)
         if scrub_thresh is not None:
             ax.axvline(scrub_thresh, color="green", linestyle=":", label="Scrublet")
 
