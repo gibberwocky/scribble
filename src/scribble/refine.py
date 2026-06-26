@@ -37,9 +37,8 @@ def run_refine(args):
     import scanpy as sc
     import pandas as pd
     import numpy as np
-    import matplotlib.pyplot as plt
     import harmonypy as hm
-    import random
+    from pathlib import Path
 
     from scribble.import_data import setup_environment
     from scribble.cluster import optimise_resolution
@@ -48,114 +47,49 @@ def run_refine(args):
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
 
-    setup_environment(sc, np, random, PLOT_DIR)
+    setup_environment(sc, np, None, PLOT_DIR)
 
     input_file = Path(args.input)
-    decision_file = Path(args.decisions)
+    decisions = pd.read_csv(args.decisions, sep="\t")
 
     print(f"Loading AnnData → {input_file}")
     adata = sc.read(input_file)
 
-    if "counts" not in adata.layers:
-        raise ValueError("Input AnnData must contain layers['counts']")
-
-    if adata.raw is None:
-        raise ValueError("Input AnnData must have .raw (log-normalised full matrix)")
-
-    print(f"Loading decisions → {decision_file}")
-    decisions = pd.read_csv(decision_file, sep="\t")
-
     # --------------------------------------------------
-    # Initialise hierarchical labels
+    # Init labels + lineage
     # --------------------------------------------------
-    print("Initialising L2 labels...")
     adata.obs["leiden_L2"] = adata.obs["leiden"].astype(str) + "-0"
 
-    # --------------------------------------------------
-    # Build refinement tasks (merge + subset)
-    # --------------------------------------------------
+    if "lineage_tree" not in adata.uns:
+        adata.uns["lineage_tree"] = {}
 
+    # --------------------------------------------------
+    # Build initial tasks
+    # --------------------------------------------------
     tasks = []
 
-    # --- MERGE GROUPS ---
-    merge_groups = [
-        g for g in decisions["merge_group"].dropna().unique()
-        if g != ""
-    ]
-
-    for group in merge_groups:
-        clusters = decisions.loc[
-            decisions["merge_group"] == group, "cluster"
-        ].astype(str).tolist()
-
-        tasks.append({
-            "type": "merge",
-            "name": f"merge_{group}",
-            "clusters": clusters
-        })
-
-    # --- SUBSET CLUSTERS ---
-    subset_cluster_list = decisions.loc[
+    subset_clusters = decisions.loc[
         decisions["action"] == "subset", "cluster"
-    ].astype(str).tolist()
+    ].astype(str)
 
-    for cl in subset_cluster_list:
+    for cl in subset_clusters:
         tasks.append({
-            "type": "subset",
-            "name": f"subset_{cl}",
-            "clusters": [cl]
+            "clusters": [cl],
+            "level": 2,
         })
 
-    # --------------------------------------------------
-    # Validate tasks
-    # --------------------------------------------------
     if len(tasks) == 0:
-        print("No refinement tasks found (no merge or subset). Nothing to refine.")
+        print("No refinement tasks.")
         return
 
-    print(f"Found {len(tasks)} refinement task(s)")
-
-
     # --------------------------------------------------
-    # Process each group
+    # INTERNAL FUNCTIONS
     # --------------------------------------------------
-    for task in tasks:
 
-        print(f"\nProcessing {task['name']} ({task['type']})")
+    def _run_clustering(adata_sub):
 
-        subset_clusters = task["clusters"]
-
-        print(f"Clusters: {subset_clusters}")
-
-
-        # --------------------------------------------------
-        # Subset once (clean)
-        # --------------------------------------------------
-        mask = adata.obs["leiden"].isin(subset_clusters)
-
-        adata_sub = adata[mask].copy()
-
-        print(f"Cells: {adata_sub.n_obs}")
-
-        # Skip small groups
-        if adata_sub.n_obs < args.min_cells_per_group:
-            print("Skipping (too few cells)")
-            continue
-
-        # --------------------------------------------------
-        # Preprocessing
-        # --------------------------------------------------
-
-        # Restore full gene space (raw counts)
-        # NOTE: this replaces log-normalised data with raw counts
-        adata_sub = restore_counts(adata_sub)
-        # Store counts
-        adata_sub.layers["counts"] = adata_sub.X.copy()
-
-        # Gene filtering
         sc.pp.filter_genes(adata_sub, min_cells=args.min_cells_per_gene)
 
-        # HVG identification
         sc.pp.highly_variable_genes(
             adata_sub,
             n_top_genes=args.hvgs,
@@ -163,26 +97,16 @@ def run_refine(args):
             flavor="seurat_v3"
         )
 
-        # Normalisation
         sc.pp.normalize_total(adata_sub)
         sc.pp.log1p(adata_sub)
 
-        # Store raw
         adata_sub.raw = adata_sub.copy()
-
-        # Subset on HVGs
         adata_sub = adata_sub[:, adata_sub.var.highly_variable].copy()
 
-        # Optional scaling
         if not args.no_scale:
             sc.pp.scale(adata_sub, max_value=10)
 
         sc.tl.pca(adata_sub, n_comps=args.npcs)
-
-        # --------------------------------------------------
-        # Harmony
-        # --------------------------------------------------
-        print(f"Running Harmony (theta={args.theta})")
 
         ho = hm.run_harmony(
             adata_sub.obsm["X_pca"],
@@ -193,394 +117,173 @@ def run_refine(args):
 
         adata_sub.obsm["X_pca_harmony"] = ho.Z_corr
 
-        # --------------------------------------------------
-        # Neighbors
-        # --------------------------------------------------
         sc.pp.neighbors(
             adata_sub,
             use_rep="X_pca_harmony",
-            n_pcs=args.npcs,
             n_neighbors=args.neighbors
         )
 
-        # --------------------------------------------------
-        # Resolution optimisation
-        # --------------------------------------------------
         if args.auto_resolution:
-
-            best_res, _, _ = optimise_resolution(
-                np, pd, sc,
-                adata_sub,
+            res, _, _ = optimise_resolution(
+                np, pd, sc, adata_sub,
                 "X_pca_harmony",
                 args.neighbors,
                 (args.res_min, args.res_max),
                 args.fine_width,
                 args.res_steps
             )
-
-            res = best_res
         else:
             res = args.resolution
 
-        print(f"Using resolution: {res}")
-
-        # --------------------------------------------------
-        # Reset neighbours before final clustering
-        # --------------------------------------------------
         sc.pp.neighbors(
             adata_sub,
             use_rep="X_pca_harmony",
-            n_pcs=args.npcs,
             n_neighbors=args.neighbors
         )
 
-        # --------------------------------------------------
-        # Clustering
-        # --------------------------------------------------
         sc.tl.leiden(
             adata_sub,
             resolution=res,
             key_added="leiden_refined",
-            flavor="igraph",
-            directed=False,
-            n_iterations=2,
             random_state=0
         )
 
-        # --------------------------------------------------
-        # Stability (fast, label-invariant)
-        # --------------------------------------------------
-        if args.n_repeats > 1:
+        return adata_sub
 
-            print(f"Computing stability ({args.n_repeats} repeats)")
 
-            assignments = []
+    def _compute_markers(adata_de, groupby):
 
-            # Collect clustering runs
-            for i in range(args.n_repeats):
-                sc.tl.leiden(
-                    adata_sub,
-                    resolution=res,
-                    key_added=f"tmp_{i}",
-                    random_state=i,
-                    flavor="igraph",
-                    directed=False,
-                    n_iterations=2
-                )
-
-                assignments.append(
-                    adata_sub.obs[f"tmp_{i}"].to_numpy(dtype=str)
-                )
-
-            assignments = np.array(assignments)
-
-            # reference for mapping
-            ref_labels = assignments[0]
-            aligned_assignments = [ref_labels]
-
-            for i in range(1, assignments.shape[0]):
-                cur = assignments[i]
-
-                contingency = pd.crosstab(cur, ref_labels)
-                mapping = contingency.idxmax(axis=1).to_dict()
-
-                cur_series = pd.Series(cur)
-                aligned = cur_series.map(mapping).fillna(cur_series).to_numpy()
-
-                aligned_assignments.append(aligned)
-
-            aligned_assignments = np.array(aligned_assignments)
-
-            # vectorised stability
-            df_assign = pd.DataFrame(aligned_assignments.T)
-
-            stability = df_assign.apply(
-                lambda row: row.value_counts().max(),
-                axis=1
-            ).values / args.n_repeats
-
-            adata_sub.obs["cluster_stability"] = stability
-
-            # cleanup
-            for i in range(args.n_repeats):
-                del adata_sub.obs[f"tmp_{i}"]
-
-        # --------------------------------------------------
-        # Within-lineage markers
-        # --------------------------------------------------
-        print(f"Computing within-lineage markers for {task['name']}")
-
-        # ---- Filter clusters for DE ----
-        cluster_sizes = adata_sub.obs["leiden_refined"].value_counts()
-        valid_clusters = cluster_sizes[cluster_sizes >= 2].index
-
-        adata_de = None
-        result = None
-
-        if len(valid_clusters) < 2:
-            print("Skipping within-lineage DE: fewer than 2 valid clusters")
-        else:
-            adata_de = adata_sub[
-                adata_sub.obs["leiden_refined"].isin(valid_clusters)
-            ].copy()
-
-            sc.tl.rank_genes_groups(
-                adata_de,
-                "leiden_refined",
-                method="wilcoxon",
-                use_raw=True
-            )
-
-            result = adata_de.uns["rank_genes_groups"]
-
-        # ---- Safe guard ----
-        if result is None:
-            print(f"No within-lineage DE results for {task['name']}, skipping export")
-            continue
-
-        marker_clusters = result["names"].dtype.names
-
-        if marker_clusters is None or len(marker_clusters) == 0:
-            print(f"No marker clusters found for {task['name']}, skipping export")
-        else:
-            markers_file = TABLE_DIR / f"{input_file.stem}_{task['name']}_within_lineage_markers.xlsx"
-
-            with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
-
-                if adata_de.raw is None:
-                    raise ValueError("Expected .raw for marker extraction")
-
-                X = adata_de.raw.X
-                var_names = adata_de.raw.var_names
-                var_index = pd.Series(range(len(var_names)), index=var_names)
-
-                parent_label = "+".join(sorted(subset_clusters, key=int))
-
-                sheets_written = 0
-
-                for cl in marker_clusters:
-
-                    genes = np.array(result["names"][cl]).ravel()
-                    logfc_all = np.array(result["logfoldchanges"][cl]).ravel()
-                    scores_all = np.array(result["scores"][cl]).ravel()
-                    pvals_all = np.array(result["pvals"][cl]).ravel()
-                    pvals_adj_all = np.array(result["pvals_adj"][cl]).ravel()
-
-                    valid_mask = np.isin(genes, var_names)
-
-                    valid = genes[valid_mask]
-                    if valid.size == 0:
-                        continue
-
-                    logfc = logfc_all[valid_mask]
-                    scores = scores_all[valid_mask]
-                    pvals = pvals_all[valid_mask]
-                    pvals_adj = pvals_adj_all[valid_mask]
-
-                    if not (len(valid) == len(logfc) == len(scores) == len(pvals) == len(pvals_adj)):
-                        continue
-
-                    gene_idx = var_index.loc[valid].values
-
-                    cluster_cells = adata_de.obs["leiden_refined"] == cl
-                    other_cells = ~cluster_cells
-
-                    expr = X[:, gene_idx]
-                    expr = expr.tocsr()
-
-                    pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-                    pct_out = (expr[other_cells.values] > 0).mean(axis=0)
-
-                    pct_in = np.asarray(pct_in).ravel()
-                    pct_out = np.asarray(pct_out).ravel()
-
-                    mean_in = expr[cluster_cells.values].mean(axis=0)
-                    mean_out = expr[other_cells.values].mean(axis=0)
-
-                    mean_in = np.asarray(mean_in).ravel()
-                    mean_out = np.asarray(mean_out).ravel()
-
-                    if expr.shape[1] != len(valid):
-                        continue
-
-                    df = pd.DataFrame({
-                        "gene": valid,
-                        "logfoldchange": logfc,
-                        "score": scores,
-                        "pvals": pvals,
-                        "pvals_adj": pvals_adj,
-                    }).reset_index(drop=True)
-
-                    df["pct_in"] = pct_in
-                    df["pct_out"] = pct_out
-                    df["pct_diff"] = pct_in - pct_out
-
-                    df["mean_in"] = mean_in
-                    df["mean_out"] = mean_out
-
-                    df["cluster_size"] = cluster_cells.sum()
-
-                    df = df.sort_values(
-                        ["pvals_adj", "pct_diff", "logfoldchange"],
-                        ascending=[True, False, False]
-                    ).head(args.nmarkers)
-
-                    if df.empty:
-                        continue
-
-                    sheet_name = f"cluster_{parent_label}-{cl}"[:31]
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
-                    sheets_written += 1
-
-                if sheets_written == 0:
-                    print(f"No valid marker sheets written for {task['name']}, skipping file")
-
-        # --------------------------------------------------
-        # Map refined labels back
-        # --------------------------------------------------
-        refined_labels = (
-            adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
-            + "-"
-            + adata_sub.obs["leiden_refined"].astype(str)
+        sc.tl.rank_genes_groups(
+            adata_de,
+            groupby,
+            method="wilcoxon",
+            use_raw=True
         )
 
-        adata.obs.loc[adata_sub.obs_names, "leiden_L2"] = refined_labels
+        result = adata_de.uns["rank_genes_groups"]
 
-        # --------------------------------------------------
-        # Global markers (L2)
-        # --------------------------------------------------
-        print("\nComputing global L2 markers...")
+        categories = adata_de.obs[groupby].astype("category").cat.categories
 
-        cluster_sizes = adata.obs["leiden_L2"].value_counts()
-        valid_clusters = cluster_sizes[cluster_sizes >= 2].index
+        marker_tables = {}
 
-        adata_de = None
-        result = None
+        for i, label in enumerate(categories):
 
-        if len(valid_clusters) < 2:
-            print("Skipping global L2 DE: fewer than 2 valid clusters")
-        else:
-            adata_de = adata[
-                adata.obs["leiden_L2"].isin(valid_clusters)
+            genes = np.array(result["names"][str(i)])
+            logfc = np.array(result["logfoldchanges"][str(i)])
+
+            df = pd.DataFrame({
+                "gene": genes,
+                "logFC": logfc
+            }).head(args.nmarkers)
+
+            marker_tables[label] = df
+
+        return marker_tables
+
+
+    def _refine_task(task):
+
+        clusters = task["clusters"]
+        level = task["level"]
+
+        mask = adata.obs["leiden"].isin(clusters)
+        adata_sub = adata[mask].copy()
+
+        if adata_sub.n_obs < args.min_cells_per_group:
+            return []
+
+        adata_sub = restore_counts(adata_sub)
+
+        adata_sub = _run_clustering(adata_sub)
+
+        # -----------------------
+        # Map refined labels
+        # -----------------------
+        refined = (
+            adata.obs.loc[adata_sub.obs_names, "leiden"]
+            + "-" +
+            adata_sub.obs["leiden_refined"].astype(str)
+        )
+
+        adata.obs.loc[adata_sub.obs_names, "leiden_L2"] = refined
+
+        # -----------------------
+        # Lineage tracking
+        # -----------------------
+        for parent in clusters:
+            children = refined.unique().tolist()
+
+            adata.uns["lineage_tree"].setdefault(parent, [])
+            adata.uns["lineage_tree"][parent].extend(children)
+
+        # -----------------------
+        # Markers
+        # -----------------------
+        cluster_sizes = adata_sub.obs["leiden_refined"].value_counts()
+        valid = cluster_sizes[cluster_sizes >= 2].index
+
+        if len(valid) >= 2:
+
+            adata_de = adata_sub[
+                adata_sub.obs["leiden_refined"].isin(valid)
             ].copy()
 
-            sc.tl.rank_genes_groups(
+            marker_tables = _compute_markers(
                 adata_de,
-                "leiden_L2",
-                method="wilcoxon",
-                use_raw=True
+                "leiden_refined"
             )
 
-            result = adata_de.uns["rank_genes_groups"]
+            out_file = TABLE_DIR / f"{task['clusters']}_markers.xlsx"
 
-        # ---- Safe guard ----
-        if result is None:
-            print("No global L2 DE results, skipping export")
-            continue
+            with pd.ExcelWriter(out_file) as writer:
+                for cl, df in marker_tables.items():
+                    df.to_excel(writer, sheet_name=str(cl), index=False)
 
-        marker_clusters = result["names"].dtype.names
+        # -----------------------
+        # Recursive refinement
+        # -----------------------
+        new_tasks = []
 
-        if marker_clusters is None or len(marker_clusters) == 0:
-            print("No global L2 marker clusters found, skipping export")
-        else:
-            markers_file = TABLE_DIR / f"{input_file.stem}_L2_markers.xlsx"
+        if level < args.max_refine_depth:
 
-            with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
+            counts = adata_sub.obs["leiden_refined"].value_counts()
 
-                if adata_de.raw is None:
-                    raise ValueError("Expected .raw for marker extraction")
+            for cl in counts.index:
+                if counts[cl] >= args.min_cells_per_group:
+                    new_tasks.append({
+                        "clusters": [f"{clusters[0]}-{cl}"],
+                        "level": level + 1
+                    })
 
-                X = adata_de.raw.X
-                var_names = adata_de.raw.var_names
-                var_index = pd.Series(range(len(var_names)), index=var_names)
+        return new_tasks
 
-                sheets_written = 0
-
-                for cl in marker_clusters:
-
-                    genes = np.array(result["names"][cl]).ravel()
-                    logfc_all = np.array(result["logfoldchanges"][cl]).ravel()
-                    scores_all = np.array(result["scores"][cl]).ravel()
-                    pvals_all = np.array(result["pvals"][cl]).ravel()
-                    pvals_adj_all = np.array(result["pvals_adj"][cl]).ravel()
-
-                    valid_mask = np.isin(genes, var_names)
-
-                    valid = genes[valid_mask]
-                    if valid.size == 0:
-                        continue
-
-                    logfc = logfc_all[valid_mask]
-                    scores = scores_all[valid_mask]
-                    pvals = pvals_all[valid_mask]
-                    pvals_adj = pvals_adj_all[valid_mask]
-
-                    if not (len(valid) == len(logfc) == len(scores) == len(pvals) == len(pvals_adj)):
-                        continue
-
-                    gene_idx = var_index.loc[valid].values
-
-                    cluster_cells = adata_de.obs["leiden_L2"] == cl
-                    other_cells = ~cluster_cells
-
-                    expr = X[:, gene_idx]
-                    expr = expr.tocsr()
-
-                    pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-                    pct_out = (expr[other_cells.values] > 0).mean(axis=0)
-
-                    pct_in = np.asarray(pct_in).ravel()
-                    pct_out = np.asarray(pct_out).ravel()
-
-                    mean_in = expr[cluster_cells.values].mean(axis=0)
-                    mean_out = expr[other_cells.values].mean(axis=0)
-
-                    mean_in = np.asarray(mean_in).ravel()
-                    mean_out = np.asarray(mean_out).ravel()
-
-                    if expr.shape[1] != len(valid):
-                        continue
-
-                    df = pd.DataFrame({
-                        "gene": valid,
-                        "logfoldchange": logfc,
-                        "score": scores,
-                        "pvals": pvals,
-                        "pvals_adj": pvals_adj,
-                    }).reset_index(drop=True)
-
-                    df["pct_in"] = pct_in
-                    df["pct_out"] = pct_out
-                    df["pct_diff"] = pct_in - pct_out
-
-                    df["mean_in"] = mean_in
-                    df["mean_out"] = mean_out
-
-                    df["cluster_size"] = cluster_cells.sum()
-
-                    df = df.sort_values(
-                        ["pvals_adj", "pct_diff", "logfoldchange"],
-                        ascending=[True, False, False]
-                    ).head(args.nmarkers)
-
-                    if df.empty:
-                        continue
-
-                    sheet_name = f"cluster_{cl}"[:31]
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
-                    sheets_written += 1
-
-                if sheets_written == 0:
-                    print("No valid marker sheets written, skipping file")
 
     # --------------------------------------------------
-    # Finalise
+    # MAIN LOOP (safe recursion)
     # --------------------------------------------------
-    adata.obs["leiden_L2_id"] = (
-        adata.obs["leiden_L2"].astype("category").cat.codes
-    )
 
-    output_file = input_file.with_name(f"{input_file.stem}_refined.h5ad")
+    i = 0
+    while i < len(tasks):
 
-    print(f"\nSaving → {output_file}")
-    adata.write(output_file)
+        new_tasks = _refine_task(tasks[i])
+        tasks.extend(new_tasks)
+
+        i += 1
+
+    # --------------------------------------------------
+    # Final global markers
+    # --------------------------------------------------
+    if len(adata.obs["leiden_L2"].unique()) > 1:
+
+        markers = _compute_markers(adata, "leiden_L2")
+
+        with pd.ExcelWriter(TABLE_DIR / "L2_markers.xlsx") as writer:
+            for cl, df in markers.items():
+                df.to_excel(writer, sheet_name=str(cl), index=False)
+
+    # --------------------------------------------------
+    # Save
+    # --------------------------------------------------
+    output = input_file.with_name(f"{input_file.stem}_refined.h5ad")
+    print(f"Saving → {output}")
+    adata.write(output)
