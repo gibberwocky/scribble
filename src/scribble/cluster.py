@@ -364,14 +364,12 @@ def run_cluster(args):
         for i in range(1, assignments.shape[0]):
             cur = assignments[i]
 
-            # Build overlap matrix
             contingency = pd.crosstab(cur, ref_labels)
-
-            # Map each cluster to best matching reference cluster
             mapping = contingency.idxmax(axis=1).to_dict()
 
-            # Apply mapping
-            aligned = pd.Series(cur).map(mapping).fillna(cur).values
+            cur_series = pd.Series(cur)
+            aligned = cur_series.map(mapping).fillna(cur_series).to_numpy()
+
             aligned_assignments.append(aligned)
 
         aligned_assignments = np.array(aligned_assignments)
