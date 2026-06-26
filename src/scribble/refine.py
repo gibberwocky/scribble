@@ -284,8 +284,9 @@ def run_refine(args):
             + adata_sub.obs["leiden_refined"].astype(str)
         )
 
-        # prepend level for clarity
-        refined = [f"L{level}_{lab}" for lab in refined]
+        # keep as pandas Series (CRITICAL)
+        refined = refined.astype(str)
+        refined = "L" + str(level) + "_" + refined
 
         adata.obs.loc[adata_sub.obs_names, "leiden_L2"] = refined
 
