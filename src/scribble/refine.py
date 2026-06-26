@@ -146,6 +146,7 @@ def run_refine(args):
             adata_sub,
             resolution=res,
             key_added="leiden_refined",
+            flavor="igraph", directed=False, n_iterations=2,
             random_state=0
         )
 
@@ -163,21 +164,39 @@ def run_refine(args):
 
         result = adata_de.uns["rank_genes_groups"]
 
+        # actual RG group labels (safe source of truth)
+        rg_groups = result["names"].dtype.names
+
+        # original category labels
         categories = adata_de.obs[groupby].astype("category").cat.categories
 
         marker_tables = {}
 
-        for i, label in enumerate(categories):
+        # iterate safely over REAL RG groups
+        for i, rg_key in enumerate(rg_groups):
 
-            genes = np.array(result["names"][str(i)])
-            logfc = np.array(result["logfoldchanges"][str(i)])
+            # map RG index → actual label
+            if i < len(categories):
+                label = categories[i]
+            else:
+                label = rg_key  # fallback
+
+            genes = np.array(result["names"][rg_key]).ravel()
+            logfc = np.array(result["logfoldchanges"][rg_key]).ravel()
 
             df = pd.DataFrame({
                 "gene": genes,
                 "logFC": logfc
             }).head(args.nmarkers)
 
-            marker_tables[label] = df
+            # always add (never skip)
+            if df.empty:
+                df = pd.DataFrame({
+                    "gene": genes[:args.nmarkers],
+                    "logFC": logfc[:args.nmarkers]
+                })
+
+            marker_tables[str(label)] = df
 
         return marker_tables
 
