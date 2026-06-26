@@ -119,7 +119,7 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
         )
 
         labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
-        n_clusters = labels.nunique()
+        n_clusters = np.unique(labels).size
 
         sil = -1 if n_clusters < 2 else fast_silhouette(X, labels)
         ent = compute_sample_entropy(labels)
@@ -158,8 +158,8 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             random_state=random_state
         )
 
-        labels = adata.obs["leiden_tmp"].astype(int)
-        n_clusters = labels.nunique()
+        labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
+        n_clusters = np.unique(labels).size
 
         sil = -1 if n_clusters < 2 else fast_silhouette(X, labels)
         ent = compute_sample_entropy(labels)
