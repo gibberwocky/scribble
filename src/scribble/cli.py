@@ -248,6 +248,10 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Maximum recusrive refinement depth")
     refine_parser.add_argument("--stability_threshold", type=float, default=0.9,
         help="Threshold for unstable clusters")
+    refine_parser.add_argument("--min_cells_per_cluster", type=int, default=50,
+        help="Minimum number of cells permitted per cluster")
+    refine_parser.add_argument("--marker_strength_threshold", type=float, default=1.0,
+        help="logFC threshold")
 
 
 

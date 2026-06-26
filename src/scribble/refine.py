@@ -155,6 +155,16 @@ def run_refine(args):
 
     def _compute_markers(adata_de, groupby):
 
+        import numpy as np
+        import pandas as pd
+
+        adata_de.obs[groupby] = adata_de.obs[groupby].astype("category")
+
+        adata_de.obs[groupby] = adata_de.obs[groupby].cat.set_categories(
+            sorted(adata_de.obs[groupby].unique()),
+            ordered=True
+        )
+
         sc.tl.rank_genes_groups(
             adata_de,
             groupby,
@@ -164,41 +174,86 @@ def run_refine(args):
 
         result = adata_de.uns["rank_genes_groups"]
 
-        # actual RG group labels (safe source of truth)
         rg_groups = result["names"].dtype.names
-
-        # original category labels
         categories = adata_de.obs[groupby].astype("category").cat.categories
+
+        X = adata_de.raw.X
+        var_names = adata_de.raw.var_names
+        var_index = pd.Series(range(len(var_names)), index=var_names)
 
         marker_tables = {}
 
-        # iterate safely over REAL RG groups
         for i, rg_key in enumerate(rg_groups):
 
-            # map RG index → actual label
-            if i < len(categories):
-                label = categories[i]
-            else:
-                label = rg_key  # fallback
+            label = categories[i] if i < len(categories) else rg_key
 
             genes = np.array(result["names"][rg_key]).ravel()
             logfc = np.array(result["logfoldchanges"][rg_key]).ravel()
+            scores = np.array(result["scores"][rg_key]).ravel()
+            pvals = np.array(result["pvals"][rg_key]).ravel()
+            pvals_adj = np.array(result["pvals_adj"][rg_key]).ravel()
+
+            # filter to genes in var
+            valid_mask = np.isin(genes, var_names)
+
+            genes = genes[valid_mask]
+            logfc = logfc[valid_mask]
+            scores = scores[valid_mask]
+            pvals = pvals[valid_mask]
+            pvals_adj = pvals_adj[valid_mask]
+
+            gene_idx = var_index.loc[genes].values
+
+            # define groups
+            cluster_cells = adata_de.obs[groupby] == label
+            other_cells = ~cluster_cells
+
+            expr = X[:, gene_idx].tocsr()
+
+            pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
+            pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+
+            pct_in = np.asarray(pct_in).ravel()
+            pct_out = np.asarray(pct_out).ravel()
+
+            mean_in = expr[cluster_cells.values].mean(axis=0)
+            mean_out = expr[other_cells.values].mean(axis=0)
+
+            mean_in = np.asarray(mean_in).ravel()
+            mean_out = np.asarray(mean_out).ravel()
 
             df = pd.DataFrame({
                 "gene": genes,
-                "logFC": logfc
-            }).head(args.nmarkers)
+                "logfoldchange": logfc,
+                "score": scores,
+                "pvals": pvals,
+                "pvals_adj": pvals_adj,
+                "pct_in": pct_in,
+                "pct_out": pct_out,
+                "pct_diff": pct_in - pct_out,
+                "mean_in": mean_in,
+                "mean_out": mean_out,
+                "cluster_size": cluster_cells.sum()
+            })
 
-            # always add (never skip)
-            if df.empty:
-                df = pd.DataFrame({
-                    "gene": genes[:args.nmarkers],
-                    "logFC": logfc[:args.nmarkers]
-                })
+            df = df.sort_values(
+                ["pvals_adj", "pct_diff", "logfoldchange"],
+                ascending=[True, False, False]
+            ).head(args.nmarkers)
 
             marker_tables[str(label)] = df
 
         return marker_tables
+
+    def _is_marker_strong(marker_df, threshold):
+        """
+        Quick proxy: are top markers clearly separable?
+        Uses logfoldchange as proxy for biological signal.
+        """
+        if marker_df is None or marker_df.empty:
+            return False
+
+        return marker_df["logfoldchange"].head(5).mean() >= threshold
 
 
     def _refine_task(task):
@@ -266,16 +321,52 @@ def run_refine(args):
         # -----------------------
         new_tasks = []
 
+        # --------------------------------------------------
+        # Adaptive recursive refinement
+        # --------------------------------------------------
+        new_tasks = []
+
         if level < args.max_refine_depth:
 
             counts = adata_sub.obs["leiden_refined"].value_counts()
 
+            # compute mean stability per cluster (if available)
+            if "cluster_stability" in adata_sub.obs:
+                stability = (
+                    adata_sub
+                    .obs
+                    .groupby("leiden_refined")["cluster_stability"]
+                    .mean()
+                )
+            else:
+                stability = {}
+
             for cl in counts.index:
-                if counts[cl] >= args.min_cells_per_group:
-                    new_tasks.append({
-                        "clusters": [f"{clusters[0]}-{cl}"],
-                        "level": level + 1
-                    })
+
+                cluster_size = counts[cl]
+                cluster_label = str(cl)
+
+                # ---- Rule 1: size filter ----
+                if cluster_size < args.min_cells_per_cluster:
+                    continue
+
+                # ---- Rule 2: stability filter ----
+                if cluster_label in stability:
+                    if stability[cluster_label] >= args.stability_threshold:
+                        continue
+
+                # ---- Rule 3: marker strength filter ----
+                marker_df = marker_tables.get(cluster_label, None)
+
+                if marker_df is not None:
+                    if _is_marker_strong(marker_df, args.marker_strength_threshold):
+                        continue
+
+                # ---- If all tests passed → refine further ----
+                new_tasks.append({
+                    "clusters": [f"{clusters[0]}-{cluster_label}"],
+                    "level": level + 1
+                })
 
         return new_tasks
 
