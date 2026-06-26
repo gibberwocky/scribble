@@ -200,10 +200,12 @@ def run_refine(args):
         # -----------------------
         # Map refined labels
         # -----------------------
+        parent_labels = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
+
         refined = (
-            adata.obs.loc[adata_sub.obs_names, "leiden"]
-            + "-" +
-            adata_sub.obs["leiden_refined"].astype(str)
+            parent_labels
+            + "-"
+            + adata_sub.obs["leiden_refined"].astype(str)
         )
 
         adata.obs.loc[adata_sub.obs_names, "leiden_L2"] = refined
