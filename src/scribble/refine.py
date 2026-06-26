@@ -43,7 +43,6 @@ def run_refine(args):
 
     from scribble.import_data import setup_environment
     from scribble.cluster import optimise_resolution
-    from scipy.optimize import linear_sum_assignment
 
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
@@ -196,6 +195,16 @@ def run_refine(args):
         print(f"Using resolution: {res}")
 
         # --------------------------------------------------
+        # Reset neighbours before final clustering
+        # --------------------------------------------------
+        sc.pp.neighbors(
+            adata_sub,
+            use_rep="X_pca_harmony",
+            n_pcs=args.npcs,
+            n_neighbors=args.neighbors
+        )
+
+        # --------------------------------------------------
         # Clustering
         # --------------------------------------------------
         sc.tl.leiden(
@@ -204,36 +213,20 @@ def run_refine(args):
             key_added="leiden_refined",
             flavor="igraph",
             directed=False,
-            n_iterations=2
+            n_iterations=2,
+            random_state=0
         )
 
         # --------------------------------------------------
-        # Stability
+        # Stability (fast, label-invariant)
         # --------------------------------------------------
         if args.n_repeats > 1:
 
             print(f"Computing stability ({args.n_repeats} repeats)")
 
-            ref = adata_sub.obs["leiden_refined"].astype(str).values
-            all_assignments = []
+            assignments = []
 
-            def align(reference, current):
-                contingency = pd.crosstab(current, reference)
-                cost = -contingency.values
-                r, c = linear_sum_assignment(cost)
-
-                mapping = {
-                    contingency.index[r[i]]: contingency.columns[c[i]]
-                    for i in range(len(r))
-                }
-
-                cur_series = pd.Series(current)
-
-                aligned = cur_series.map(mapping).fillna(cur_series).values
-
-                return aligned
-
-
+            # Collect clustering runs
             for i in range(args.n_repeats):
                 sc.tl.leiden(
                     adata_sub,
@@ -245,20 +238,40 @@ def run_refine(args):
                     n_iterations=2
                 )
 
-                raw = adata_sub.obs[f"tmp_{i}"].astype(str).values
-                aligned = align(ref, raw)
-                all_assignments.append(aligned)
+                assignments.append(
+                    adata_sub.obs[f"tmp_{i}"].to_numpy(dtype=str)
+                )
 
-            all_assignments = np.array(all_assignments)
+            assignments = np.array(assignments)
 
-            stability = np.array([
-                np.unique(all_assignments[:, i], return_counts=True)[1].max()
-                / args.n_repeats
-                for i in range(all_assignments.shape[1])
-            ])
+            # reference for mapping
+            ref_labels = assignments[0]
+            aligned_assignments = [ref_labels]
+
+            for i in range(1, assignments.shape[0]):
+                cur = assignments[i]
+
+                contingency = pd.crosstab(cur, ref_labels)
+                mapping = contingency.idxmax(axis=1).to_dict()
+
+                cur_series = pd.Series(cur)
+                aligned = cur_series.map(mapping).fillna(cur_series).to_numpy()
+
+                aligned_assignments.append(aligned)
+
+            aligned_assignments = np.array(aligned_assignments)
+
+            # vectorised stability
+            df_assign = pd.DataFrame(aligned_assignments.T)
+
+            stability = df_assign.apply(
+                lambda row: row.value_counts().max(),
+                axis=1
+            ).values / args.n_repeats
 
             adata_sub.obs["cluster_stability"] = stability
 
+            # cleanup
             for i in range(args.n_repeats):
                 del adata_sub.obs[f"tmp_{i}"]
 
@@ -293,7 +306,7 @@ def run_refine(args):
         # ---- Safe guard ----
         if result is None:
             print(f"No within-lineage DE results for {group}, skipping export")
-            return
+            continue
 
         marker_clusters = result["names"].dtype.names
 
@@ -309,6 +322,7 @@ def run_refine(args):
 
                 X = adata_de.raw.X
                 var_names = adata_de.raw.var_names
+                var_index = pd.Series(range(len(var_names)), index=var_names)
 
                 parent_series = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
                 parent_label = "+".join(sorted(parent_series.unique(), key=int))
@@ -337,16 +351,28 @@ def run_refine(args):
                     if not (len(valid) == len(logfc) == len(scores) == len(pvals) == len(pvals_adj)):
                         continue
 
-                    gene_idx = [var_names.get_loc(g) for g in valid]
-
-                    expr = X[:, gene_idx]
-                    expr = expr.toarray() if hasattr(expr, "toarray") else np.asarray(expr)
-
-                    if expr.shape[1] != len(valid):
-                        continue
+                    gene_idx = var_index.loc[valid].values
 
                     cluster_cells = adata_de.obs["leiden_refined"] == cl
                     other_cells = ~cluster_cells
+
+                    expr = X[:, gene_idx]
+                    expr = expr.tocsr()
+
+                    pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
+                    pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+
+                    pct_in = np.asarray(pct_in).ravel()
+                    pct_out = np.asarray(pct_out).ravel()
+
+                    mean_in = expr[cluster_cells.values].mean(axis=0)
+                    mean_out = expr[other_cells.values].mean(axis=0)
+
+                    mean_in = np.asarray(mean_in).ravel()
+                    mean_out = np.asarray(mean_out).ravel()
+
+                    if expr.shape[1] != len(valid):
+                        continue
 
                     df = pd.DataFrame({
                         "gene": valid,
@@ -356,15 +382,12 @@ def run_refine(args):
                         "pvals_adj": pvals_adj,
                     }).reset_index(drop=True)
 
-                    pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-                    pct_out = (expr[other_cells.values] > 0).mean(axis=0)
-
                     df["pct_in"] = pct_in
                     df["pct_out"] = pct_out
                     df["pct_diff"] = pct_in - pct_out
 
-                    df["mean_in"] = expr[cluster_cells.values].mean(axis=0)
-                    df["mean_out"] = expr[other_cells.values].mean(axis=0)
+                    df["mean_in"] = mean_in
+                    df["mean_out"] = mean_out
 
                     df["cluster_size"] = cluster_cells.sum()
 
@@ -424,7 +447,7 @@ def run_refine(args):
         # ---- Safe guard ----
         if result is None:
             print("No global L2 DE results, skipping export")
-            return
+            continue
 
         marker_clusters = result["names"].dtype.names
 
@@ -440,6 +463,7 @@ def run_refine(args):
 
                 X = adata_de.raw.X
                 var_names = adata_de.raw.var_names
+                var_index = pd.Series(range(len(var_names)), index=var_names)
 
                 sheets_written = 0
 
@@ -465,16 +489,28 @@ def run_refine(args):
                     if not (len(valid) == len(logfc) == len(scores) == len(pvals) == len(pvals_adj)):
                         continue
 
-                    gene_idx = [var_names.get_loc(g) for g in valid]
-
-                    expr = X[:, gene_idx]
-                    expr = expr.toarray() if hasattr(expr, "toarray") else np.asarray(expr)
-
-                    if expr.shape[1] != len(valid):
-                        continue
+                    gene_idx = var_index.loc[valid].values
 
                     cluster_cells = adata_de.obs["leiden_L2"] == cl
                     other_cells = ~cluster_cells
+
+                    expr = X[:, gene_idx]
+                    expr = expr.tocsr()
+
+                    pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
+                    pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+
+                    pct_in = np.asarray(pct_in).ravel()
+                    pct_out = np.asarray(pct_out).ravel()
+
+                    mean_in = expr[cluster_cells.values].mean(axis=0)
+                    mean_out = expr[other_cells.values].mean(axis=0)
+
+                    mean_in = np.asarray(mean_in).ravel()
+                    mean_out = np.asarray(mean_out).ravel()
+
+                    if expr.shape[1] != len(valid):
+                        continue
 
                     df = pd.DataFrame({
                         "gene": valid,
@@ -484,15 +520,12 @@ def run_refine(args):
                         "pvals_adj": pvals_adj,
                     }).reset_index(drop=True)
 
-                    pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-                    pct_out = (expr[other_cells.values] > 0).mean(axis=0)
-
                     df["pct_in"] = pct_in
                     df["pct_out"] = pct_out
                     df["pct_diff"] = pct_in - pct_out
 
-                    df["mean_in"] = expr[cluster_cells.values].mean(axis=0)
-                    df["mean_out"] = expr[other_cells.values].mean(axis=0)
+                    df["mean_in"] = mean_in
+                    df["mean_out"] = mean_out
 
                     df["cluster_size"] = cluster_cells.sum()
 
