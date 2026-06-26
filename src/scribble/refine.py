@@ -310,8 +310,8 @@ def run_refine(args):
                 "leiden_refined"
             )
 
-            out_file = TABLE_DIR / f"{task['clusters']}_markers.xlsx"
-
+            clusters_str = "+".join(task["clusters"])
+            out_file = TABLE_DIR / f"L{task['level']}_{clusters_str}_markers.xlsx"
             with pd.ExcelWriter(out_file) as writer:
                 for cl, df in marker_tables.items():
                     df.to_excel(writer, sheet_name=str(cl), index=False)
