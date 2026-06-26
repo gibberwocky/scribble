@@ -3,8 +3,103 @@
 from pathlib import Path
 
 
-def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, fine_width, n_steps):
+def fast_silhouette(X, labels, max_cells=20000, random_state=0):
+    import numpy as np
     from sklearn.metrics import silhouette_score
+
+    n = X.shape[0]
+    if n > max_cells:
+        idx = np.random.RandomState(random_state).choice(n, max_cells, replace=False)
+        return silhouette_score(X[idx], labels[idx])
+    else:
+        return silhouette_score(X, labels)
+
+
+def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
+                        coarse_range, fine_width, n_steps,
+                        max_cells=20000,
+                        max_dims=50,
+                        random_state=0,
+                        compute_entropy=True,
+                        compute_stability_proxy=True):
+
+    from sklearn.metrics import silhouette_score
+    from scipy.stats import entropy
+
+    # --------------------------------------------------
+    # Fast silhouette (subsampled)
+    # --------------------------------------------------
+    def fast_silhouette(X, labels, max_cells=max_cells, random_state=random_state):
+        n = X.shape[0]
+        if n > max_cells:
+            rng = np.random.RandomState(random_state)
+            idx = rng.choice(n, max_cells, replace=False)
+            return silhouette_score(X[idx], labels[idx])
+        else:
+            return silhouette_score(X, labels)
+
+    # --------------------------------------------------
+    # Use provided embedding (NOT PCA)
+    # --------------------------------------------------
+    if embedding not in adata.obsm:
+        raise ValueError(f"{embedding} not found in adata.obsm")
+
+    X = adata.obsm[embedding]
+
+    # Cap dimensionality for performance
+    if X.shape[1] > max_dims:
+        X = X[:, :max_dims]
+
+    X = X.astype(np.float32)
+
+    # --------------------------------------------------
+    # Helper: sample entropy
+    # --------------------------------------------------
+    def compute_sample_entropy(labels):
+        if not compute_entropy or "sample" not in adata.obs:
+            return np.nan
+
+        df = pd.DataFrame({
+            "cluster": labels,
+            "sample": adata.obs["sample"].values
+        })
+
+        entropies = []
+
+        for _, sub in df.groupby("cluster"):
+            counts = sub["sample"].value_counts().values
+            probs = counts / counts.sum()
+            entropies.append(entropy(probs))
+
+        return np.mean(entropies)
+
+    # --------------------------------------------------
+    # Helper: cheap stability proxy
+    # --------------------------------------------------
+    def stability_proxy(res):
+        if not compute_stability_proxy:
+            return np.nan
+
+        sc.tl.leiden(
+            adata,
+            resolution=res,
+            key_added="leiden_tmp_s1",
+            random_state=random_state,
+            flavor="igraph", directed=False, n_iterations=2
+        )
+
+        sc.tl.leiden(
+            adata,
+            resolution=res,
+            key_added="leiden_tmp_s2",
+            random_state=random_state + 1,
+            flavor="igraph", directed=False, n_iterations=2
+        )
+
+        l1 = adata.obs["leiden_tmp_s1"].values
+        l2 = adata.obs["leiden_tmp_s2"].values
+
+        return (l1 == l2).mean()
 
     # --------------------------------------------------
     # COARSE PASS
@@ -15,21 +110,27 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, f
     coarse_results = []
 
     for res in coarse_resolutions:
-        sc.tl.leiden(adata, resolution=res, key_added="leiden_tmp",
-            flavor="igraph", directed=False, n_iterations=2)
+        sc.tl.leiden(
+            adata,
+            resolution=res,
+            key_added="leiden_tmp",
+            flavor="igraph", directed=False, n_iterations=2,
+            random_state=random_state
+        )
 
         labels = adata.obs["leiden_tmp"].astype(int)
         n_clusters = labels.nunique()
 
-        if n_clusters < 2:
-            sil = -1
-        else:
-            sil = silhouette_score(adata.obsm[embedding], labels)
+        sil = -1 if n_clusters < 2 else fast_silhouette(X, labels)
+        ent = compute_sample_entropy(labels)
+        stab = stability_proxy(res)
 
         coarse_results.append({
             "resolution": res,
             "silhouette": sil,
-            "n_clusters": n_clusters
+            "n_clusters": n_clusters,
+            "mean_entropy": ent,
+            "stability_proxy": stab
         })
 
     coarse_df = pd.DataFrame(coarse_results)
@@ -49,21 +150,27 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, f
     fine_results = []
 
     for res in fine_resolutions:
-        sc.tl.leiden(adata, resolution=res, key_added="leiden_tmp",
-            flavor="igraph", directed=False, n_iterations=2)
+        sc.tl.leiden(
+            adata,
+            resolution=res,
+            key_added="leiden_tmp",
+            flavor="igraph", directed=False, n_iterations=2,
+            random_state=random_state
+        )
 
         labels = adata.obs["leiden_tmp"].astype(int)
         n_clusters = labels.nunique()
 
-        if n_clusters < 2:
-            sil = -1
-        else:
-            sil = silhouette_score(adata.obsm[embedding], labels)
+        sil = -1 if n_clusters < 2 else fast_silhouette(X, labels)
+        ent = compute_sample_entropy(labels)
+        stab = stability_proxy(res)
 
         fine_results.append({
             "resolution": res,
             "silhouette": sil,
-            "n_clusters": n_clusters
+            "n_clusters": n_clusters,
+            "mean_entropy": ent,
+            "stability_proxy": stab
         })
 
     fine_df = pd.DataFrame(fine_results)
@@ -71,8 +178,14 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors, coarse_range, f
     best_fine = fine_df.loc[fine_df["silhouette"].idxmax(), "resolution"]
     print(f"Optimal resolution: {best_fine:.3f}")
 
-    return best_fine, coarse_df, fine_df
+    # --------------------------------------------------
+    # Cleanup temporary columns
+    # --------------------------------------------------
+    for col in ["leiden_tmp", "leiden_tmp_s1", "leiden_tmp_s2"]:
+        if col in adata.obs:
+            del adata.obs[col]
 
+    return best_fine, coarse_df, fine_df
 
 def run_cluster(args):
     import scanpy as sc
@@ -81,6 +194,7 @@ def run_cluster(args):
     import matplotlib.pyplot as plt
     from scipy.optimize import linear_sum_assignment
     from scipy.stats import entropy
+    from scipy import sparse
     import random
     from scribble.import_data import setup_environment
 
@@ -217,39 +331,14 @@ def run_cluster(args):
     print(adata.obs["leiden"].value_counts())
 
     # --------------------------------------------------
-    # Stability via Hungarian alignment
+    # Stability via overlap mapping (label-invariant, fast)
     # --------------------------------------------------
     if args.n_repeats > 1:
         print(f"Computing cluster stability ({args.n_repeats} repeats)...")
 
-        # reference clustering
-        ref_labels = adata.obs["leiden"].astype(str).values
+        assignments = []
 
-        all_assignments = []
-
-        def align_labels(reference, current):
-            ref = pd.Series(reference)
-            cur = pd.Series(current)
-
-            contingency = pd.crosstab(cur, ref)
-
-            # convert to cost matrix (maximize overlap → minimize negative)
-            cost_matrix = -contingency.values
-
-            row_ind, col_ind = linear_sum_assignment(cost_matrix)
-
-            mapping = {
-                contingency.index[row]: contingency.columns[col]
-                for row, col in zip(row_ind, col_ind)
-            }
-
-            aligned = cur.map(mapping)
-
-            # fallback: keep original label if not mapped
-            aligned = aligned.fillna(cur)
-
-            return aligned.values
-
+        # Collect all clustering runs
         for i in range(args.n_repeats):
             sc.tl.leiden(
                 adata,
@@ -261,24 +350,51 @@ def run_cluster(args):
                 random_state=i
             )
 
-            raw_labels = adata.obs[f"leiden_tmp_{i}"].astype(str).values
-            aligned = align_labels(ref_labels, raw_labels)
+            assignments.append(adata.obs[f"leiden_tmp_{i}"].values)
 
-            all_assignments.append(aligned)
+        assignments = np.array(assignments)  # (runs, cells)
 
-        all_assignments = np.array(all_assignments, dtype=str)  # (runs, cells)
+        # --------------------------------------------------
+        # Use first run as reference (only for mapping)
+        # --------------------------------------------------
+        ref_labels = assignments[0]
 
-        # compute stability
-        stability = np.array([
-            np.unique(all_assignments[:, i], return_counts=True)[1].max() / args.n_repeats
-            for i in range(all_assignments.shape[1])
-        ])
+        aligned_assignments = [ref_labels]
 
-        adata.obs["cluster_stability"] = np.array(stability, dtype=float)
+        for i in range(1, assignments.shape[0]):
+            cur = assignments[i]
+
+            # Build overlap matrix
+            contingency = pd.crosstab(cur, ref_labels)
+
+            # Map each cluster to best matching reference cluster
+            mapping = contingency.idxmax(axis=1).to_dict()
+
+            # Apply mapping
+            aligned = pd.Series(cur).map(mapping).fillna(cur).values
+            aligned_assignments.append(aligned)
+
+        aligned_assignments = np.array(aligned_assignments)
+
+        # --------------------------------------------------
+        # Compute per-cell stability
+        # --------------------------------------------------
+        # transpose → (cells, runs)
+        df_assign = pd.DataFrame(aligned_assignments.T)
+
+        # most frequent label count per cell (vectorised)
+        stability = df_assign.apply(
+            lambda row: row.value_counts().max(),
+            axis=1
+        ).values
+
+        stability = stability / args.n_repeats
+
+        adata.obs["cluster_stability"] = stability
 
         print(f"Mean stability: {np.mean(stability):.3f}")
 
-        # cleanup temp columns
+        # cleanup
         for i in range(args.n_repeats):
             del adata.obs[f"leiden_tmp_{i}"]
 
@@ -435,6 +551,10 @@ def run_cluster(args):
     result = adata.uns["rank_genes_groups"]
     clusters = result["names"].dtype.names
 
+    var_names = adata.raw.var_names
+    var_index = pd.Series(range(len(var_names)), index=var_names)
+    X = adata.raw.X  # keep sparse
+
     print(f"Writing markers → {markers_file}")
     with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
         for cl in clusters:
@@ -459,22 +579,34 @@ def run_cluster(args):
             if adata.raw is None:
                 raise ValueError("Expected .raw for marker extraction, but none found")
 
-            X = adata.raw.X
-            var_names = adata.raw.var_names
+            # Compute gene_idx per cluster
+            gene_idx = var_index.loc[genes].values
 
-            # Convert to dense if needed
-            X = X.toarray() if hasattr(X, "toarray") else X
-
-            gene_idx = [var_names.get_loc(g) for g in genes]
             expr = X[:, gene_idx]
+            expr = expr.tocsr()
 
-            # Expression fractions
-            pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-            pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+            # Boolean indexing masks
+            in_mask = cluster_cells.values
+            out_mask = other_cells.values
 
-            # Mean expression
-            mean_in = expr[cluster_cells.values].mean(axis=0)
-            mean_out = expr[other_cells.values].mean(axis=0)
+            # --------------------------------------------------
+            # Fractions (sparse-safe)
+            # --------------------------------------------------
+            pct_in = (expr[in_mask] > 0).mean(axis=0)
+            pct_out = (expr[out_mask] > 0).mean(axis=0)
+
+            # Convert from matrix → flat array
+            pct_in = np.asarray(pct_in).ravel()
+            pct_out = np.asarray(pct_out).ravel()
+
+            # --------------------------------------------------
+            # Mean expression (sparse-safe)
+            # --------------------------------------------------
+            mean_in = expr[in_mask].mean(axis=0)
+            mean_out = expr[out_mask].mean(axis=0)
+
+            mean_in = np.asarray(mean_in).ravel()
+            mean_out = np.asarray(mean_out).ravel()
 
             df["pct_in"] = pct_in
             df["pct_out"] = pct_out
@@ -499,7 +631,6 @@ def run_cluster(args):
 
             # Keep only top 100 markers
             df = df.head(args.nmarkers)
-
 
             df.to_excel(writer, sheet_name=f"cluster_{cl}", index=False)
 

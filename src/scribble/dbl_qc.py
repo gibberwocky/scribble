@@ -199,9 +199,7 @@ def run_dbl_qc(args):
         "fraction_kept": float(total_post / adata.n_obs) if adata.n_obs > 0 else 0.0
     }
 
-
-    print("Saving QC tables...")
-
+    # Generate QC summary
     rows = []
 
     for sample in adata.obs["sample"].unique():
@@ -230,14 +228,9 @@ def run_dbl_qc(args):
     qc_df = pd.DataFrame(rows)
 
     # -------- save as CSV --------
-    csv_file = TABLE_DIR / f"{input_file.stem}_doublet_qc_summary.csv"
-    qc_df.to_csv(csv_file, index=False)
-
-    # -------- optional: Excel --------
     xlsx_file = TABLE_DIR / f"{input_file.stem}_doublet_qc_summary.xlsx"
     qc_df.to_excel(xlsx_file, index=False)
-
-    print(f"Saved QC summary → {csv_file}")
+    print(f"Saved QC summary → {xlsx_file}")
 
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file, compression="gzip")
