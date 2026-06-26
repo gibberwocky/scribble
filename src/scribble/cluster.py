@@ -96,8 +96,8 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             flavor="igraph", directed=False, n_iterations=2
         )
 
-        l1 = adata.obs["leiden_tmp_s1"].values
-        l2 = adata.obs["leiden_tmp_s2"].values
+        l1 = adata.obs["leiden_tmp_s1"].to_numpy(dtype=str)
+        l2 = adata.obs["leiden_tmp_s2"].to_numpy(dtype=str)
 
         return (l1 == l2).mean()
 
@@ -118,7 +118,7 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             random_state=random_state
         )
 
-        labels = adata.obs["leiden_tmp"].astype(int)
+        labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
         n_clusters = labels.nunique()
 
         sil = -1 if n_clusters < 2 else fast_silhouette(X, labels)
