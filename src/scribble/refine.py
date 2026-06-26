@@ -72,31 +72,61 @@ def run_refine(args):
     adata.obs["leiden_L2"] = adata.obs["leiden"].astype(str) + "-0"
 
     # --------------------------------------------------
-    # Identify merge groups
+    # Build refinement tasks (merge + subset)
     # --------------------------------------------------
-    groups = [
+
+    tasks = []
+
+    # --- MERGE GROUPS ---
+    merge_groups = [
         g for g in decisions["merge_group"].dropna().unique()
         if g != ""
     ]
 
-    if len(groups) == 0:
-        print("No merge groups found. Nothing to refine.")
+    for group in merge_groups:
+        clusters = decisions.loc[
+            decisions["merge_group"] == group, "cluster"
+        ].astype(str).tolist()
+
+        tasks.append({
+            "type": "merge",
+            "name": f"merge_{group}",
+            "clusters": clusters
+        })
+
+    # --- SUBSET CLUSTERS ---
+    subset_cluster_list = decisions.loc[
+        decisions["action"] == "subset", "cluster"
+    ].astype(str).tolist()
+
+    for cl in subset_cluster_list:
+        tasks.append({
+            "type": "subset",
+            "name": f"subset_{cl}",
+            "clusters": [cl]
+        })
+
+    # --------------------------------------------------
+    # Validate tasks
+    # --------------------------------------------------
+    if len(tasks) == 0:
+        print("No refinement tasks found (no merge or subset). Nothing to refine.")
         return
 
-    print(f"Found {len(groups)} merge group(s)")
+    print(f"Found {len(tasks)} refinement task(s)")
+
 
     # --------------------------------------------------
     # Process each group
     # --------------------------------------------------
-    for group in groups:
+    for task in tasks:
 
-        print(f"\nProcessing {group}")
+        print(f"\nProcessing {task['name']} ({task['type']})")
 
-        subset_clusters = decisions.loc[
-            decisions["merge_group"] == group, "cluster"
-        ].astype(str).tolist()
+        subset_clusters = task["clusters"]
 
         print(f"Clusters: {subset_clusters}")
+
 
         # --------------------------------------------------
         # Subset once (clean)
@@ -278,7 +308,7 @@ def run_refine(args):
         # --------------------------------------------------
         # Within-lineage markers
         # --------------------------------------------------
-        print(f"Computing within-lineage markers for {group}")
+        print(f"Computing within-lineage markers for {task['name']}")
 
         # ---- Filter clusters for DE ----
         cluster_sizes = adata_sub.obs["leiden_refined"].value_counts()
@@ -305,15 +335,15 @@ def run_refine(args):
 
         # ---- Safe guard ----
         if result is None:
-            print(f"No within-lineage DE results for {group}, skipping export")
+            print(f"No within-lineage DE results for {task['name']}, skipping export")
             continue
 
         marker_clusters = result["names"].dtype.names
 
         if marker_clusters is None or len(marker_clusters) == 0:
-            print(f"No marker clusters found for {group}, skipping export")
+            print(f"No marker clusters found for {task['name']}, skipping export")
         else:
-            markers_file = TABLE_DIR / f"{input_file.stem}_{group}_within_lineage_markers.xlsx"
+            markers_file = TABLE_DIR / f"{input_file.stem}_{task['name']}_within_lineage_markers.xlsx"
 
             with pd.ExcelWriter(markers_file, engine="openpyxl") as writer:
 
@@ -324,8 +354,7 @@ def run_refine(args):
                 var_names = adata_de.raw.var_names
                 var_index = pd.Series(range(len(var_names)), index=var_names)
 
-                parent_series = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
-                parent_label = "+".join(sorted(parent_series.unique(), key=int))
+                parent_label = "+".join(sorted(subset_clusters, key=int))
 
                 sheets_written = 0
 
@@ -404,7 +433,7 @@ def run_refine(args):
                     sheets_written += 1
 
                 if sheets_written == 0:
-                    print(f"No valid marker sheets written for {group}, skipping file")
+                    print(f"No valid marker sheets written for {task['name']}, skipping file")
 
         # --------------------------------------------------
         # Map refined labels back
