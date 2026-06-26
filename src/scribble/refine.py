@@ -264,6 +264,8 @@ def run_refine(args):
         mask = adata.obs["leiden"].isin(clusters)
         adata_sub = adata[mask].copy()
 
+        print(f"[Refine] Level {level} | clusters = {clusters} | cells = {adata_sub.n_obs}")
+
         if adata_sub.n_obs < args.min_cells_per_group:
             return []
 
@@ -281,6 +283,9 @@ def run_refine(args):
             + "-"
             + adata_sub.obs["leiden_refined"].astype(str)
         )
+
+        # prepend level for clarity
+        refined = [f"L{level}_{lab}" for lab in refined]
 
         adata.obs.loc[adata_sub.obs_names, "leiden_L2"] = refined
 
@@ -346,23 +351,50 @@ def run_refine(args):
                 cluster_size = counts[cl]
                 cluster_label = str(cl)
 
-                # ---- Rule 1: size filter ----
-                if cluster_size < args.min_cells_per_cluster:
-                    continue
-
-                # ---- Rule 2: stability filter ----
-                if cluster_label in stability:
-                    if stability[cluster_label] >= args.stability_threshold:
-                        continue
-
-                # ---- Rule 3: marker strength filter ----
                 marker_df = marker_tables.get(cluster_label, None)
 
+                # ------------------------------
+                # DEBUG / DECISION LOGGING
+                # ------------------------------
+                print(f"  Cluster {cluster_label}: size={cluster_size}", end="")
+
+                if cluster_label in stability:
+                    print(f", stability={stability[cluster_label]:.3f}", end="")
+
                 if marker_df is not None:
-                    if _is_marker_strong(marker_df, args.marker_strength_threshold):
+                    top_fc = marker_df["logfoldchange"].head(5).mean()
+                    print(f", marker_strength={top_fc:.2f}", end="")
+
+                print()
+
+                # ------------------------------
+                # RULE 1: size filter
+                # ------------------------------
+                if cluster_size < args.min_cells_per_cluster:
+                    print("    → STOP (too small)")
+                    continue
+
+                # ------------------------------
+                # RULE 2: stability filter
+                # ------------------------------
+                if cluster_label in stability:
+                    if stability[cluster_label] >= args.stability_threshold:
+                        print("    → STOP (stable)")
                         continue
 
-                # ---- If all tests passed → refine further ----
+                # ------------------------------
+                # RULE 3: marker strength filter
+                # ------------------------------
+                if marker_df is not None:
+                    if _is_marker_strong(marker_df, args.marker_strength_threshold):
+                        print("    → STOP (already well separated)")
+                        continue
+
+                # ------------------------------
+                # OTHERWISE → REFINE
+                # ------------------------------
+                print("    → REFINE further")
+
                 new_tasks.append({
                     "clusters": [f"{clusters[0]}-{cluster_label}"],
                     "level": level + 1
