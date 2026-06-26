@@ -37,6 +37,7 @@ def run_refine(args):
     import scanpy as sc
     import pandas as pd
     import numpy as np
+    import random
     import harmonypy as hm
     from pathlib import Path
 
@@ -47,7 +48,7 @@ def run_refine(args):
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
 
-    setup_environment(sc, np, None, PLOT_DIR)
+    setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
     decisions = pd.read_csv(args.decisions, sep="\t")
