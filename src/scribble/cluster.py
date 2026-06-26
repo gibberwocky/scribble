@@ -80,23 +80,26 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
         if not compute_stability_proxy:
             return np.nan
 
-        with sc.settings.verbosity = 1:
+        old_verbosity = sc.settings.verbosity
+        sc.settings.verbosity = 1
 
-            sc.tl.leiden(
-                adata,
-                resolution=res,
-                key_added="leiden_tmp_s1",
-                random_state=random_state,
-                flavor="igraph", directed=False, n_iterations=2
-            )
+        sc.tl.leiden(
+            adata,
+            resolution=res,
+            key_added="leiden_tmp_s1",
+            random_state=random_state,
+            flavor="igraph", directed=False, n_iterations=2
+        )
 
-            sc.tl.leiden(
-                adata,
-                resolution=res,
-                key_added="leiden_tmp_s2",
-                random_state=random_state + 1,
-                flavor="igraph", directed=False, n_iterations=2
-            )
+        sc.tl.leiden(
+            adata,
+            resolution=res,
+            key_added="leiden_tmp_s2",
+            random_state=random_state + 1,
+            flavor="igraph", directed=False, n_iterations=2
+        )
+
+        sc.settings.verbosity = old_verbosity
 
         l1 = adata.obs["leiden_tmp_s1"].to_numpy(dtype=str)
         l2 = adata.obs["leiden_tmp_s2"].to_numpy(dtype=str)
@@ -113,15 +116,18 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
 
     for res in coarse_resolutions:
 
-        with sc.settings.verbosity = 1:
+        old_verbosity = sc.settings.verbosity
+        sc.settings.verbosity = 1
 
-            sc.tl.leiden(
-                adata,
-                resolution=res,
-                key_added="leiden_tmp",
-                flavor="igraph", directed=False, n_iterations=2,
-                random_state=random_state
-            )
+        sc.tl.leiden(
+            adata,
+            resolution=res,
+            key_added="leiden_tmp",
+            flavor="igraph", directed=False, n_iterations=2,
+            random_state=random_state
+        )
+
+        sc.settings.verbosity = old_verbosity
 
         labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
         n_clusters = np.unique(labels).size
@@ -156,15 +162,18 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
 
     for res in fine_resolutions:
 
-        with sc.settings.verbosity = 1:
+        old_verbosity = sc.settings.verbosity
+        sc.settings.verbosity = 1
 
-            sc.tl.leiden(
-                adata,
-                resolution=res,
-                key_added="leiden_tmp",
-                flavor="igraph", directed=False, n_iterations=2,
-                random_state=random_state
-            )
+        sc.tl.leiden(
+            adata,
+            resolution=res,
+            key_added="leiden_tmp",
+            flavor="igraph", directed=False, n_iterations=2,
+            random_state=random_state
+        )
+
+        sc.settings.verbosity = old_verbosity
 
         labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
         n_clusters = np.unique(labels).size
@@ -339,15 +348,18 @@ def run_cluster(args):
     # --------------------------------------------------
     print(f"Running Leiden clustering (resolution={args.resolution})")
 
-    with sc.settings.verbosity = 1:
+    old_verbosity = sc.settings.verbosity
+    sc.settings.verbosity = 1
 
-        sc.tl.leiden(
-            adata,
-            resolution=args.resolution,
-            key_added="leiden",
-            flavor="igraph", directed=False, n_iterations=2,
-            random_state=0
-        )
+    sc.tl.leiden(
+        adata,
+        resolution=args.resolution,
+        key_added="leiden",
+        flavor="igraph", directed=False, n_iterations=2,
+        random_state=0
+    )
+
+    sc.settings.vebosity = old_verbosity
 
     print("Cluster sizes:")
     print(adata.obs["leiden"].value_counts())
@@ -363,17 +375,20 @@ def run_cluster(args):
         # Collect all clustering runs
         for i in range(args.n_repeats):
 
-            with sc.settings.verbosity = 1:
+            old_verbosity = sc.settings.verbosity
+            sc.settings.verbosity = 1
 
-                sc.tl.leiden(
-                    adata,
-                    resolution=args.resolution,
-                    key_added=f"leiden_tmp_{i}",
-                    flavor="igraph",
-                    directed=False,
-                    n_iterations=2,
-                    random_state=i
-                )
+            sc.tl.leiden(
+                adata,
+                resolution=args.resolution,
+                key_added=f"leiden_tmp_{i}",
+                flavor="igraph",
+                directed=False,
+                n_iterations=2,
+                random_state=i
+            )
+
+            sc.settings.verbosity = old_verbosity
 
             assignments.append(adata.obs[f"leiden_tmp_{i}"].values)
 
