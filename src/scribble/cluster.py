@@ -3,16 +3,6 @@
 from pathlib import Path
 
 
-def fast_silhouette(X, labels, max_cells=20000, random_state=0):
-    import numpy as np
-    from sklearn.metrics import silhouette_score
-
-    n = X.shape[0]
-    if n > max_cells:
-        idx = np.random.RandomState(random_state).choice(n, max_cells, replace=False)
-        return silhouette_score(X[idx], labels[idx])
-    else:
-        return silhouette_score(X, labels)
 
 
 def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
@@ -80,9 +70,6 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
         if not compute_stability_proxy:
             return np.nan
 
-        old_verbosity = sc.settings.verbosity
-        sc.settings.verbosity = 1
-
         sc.tl.leiden(
             adata,
             resolution=res,
@@ -99,8 +86,6 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             flavor="igraph", directed=False, n_iterations=2
         )
 
-        sc.settings.verbosity = old_verbosity
-
         l1 = adata.obs["leiden_tmp_s1"].to_numpy(dtype=str)
         l2 = adata.obs["leiden_tmp_s2"].to_numpy(dtype=str)
 
@@ -116,9 +101,6 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
 
     for res in coarse_resolutions:
 
-        old_verbosity = sc.settings.verbosity
-        sc.settings.verbosity = 1
-
         sc.tl.leiden(
             adata,
             resolution=res,
@@ -126,8 +108,6 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             flavor="igraph", directed=False, n_iterations=2,
             random_state=random_state
         )
-
-        sc.settings.verbosity = old_verbosity
 
         labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
         n_clusters = np.unique(labels).size
@@ -162,9 +142,6 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
 
     for res in fine_resolutions:
 
-        old_verbosity = sc.settings.verbosity
-        sc.settings.verbosity = 1
-
         sc.tl.leiden(
             adata,
             resolution=res,
@@ -172,8 +149,6 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             flavor="igraph", directed=False, n_iterations=2,
             random_state=random_state
         )
-
-        sc.settings.verbosity = old_verbosity
 
         labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
         n_clusters = np.unique(labels).size
@@ -204,12 +179,12 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
 
     return best_fine, coarse_df, fine_df
 
+
 def run_cluster(args):
     import scanpy as sc
     import numpy as np
     import pandas as pd
     import matplotlib.pyplot as plt
-    from scipy.optimize import linear_sum_assignment
     from scipy.stats import entropy
     from scipy import sparse
     import random
@@ -348,9 +323,6 @@ def run_cluster(args):
     # --------------------------------------------------
     print(f"Running Leiden clustering (resolution={args.resolution})")
 
-    old_verbosity = sc.settings.verbosity
-    sc.settings.verbosity = 1
-
     sc.tl.leiden(
         adata,
         resolution=args.resolution,
@@ -358,8 +330,6 @@ def run_cluster(args):
         flavor="igraph", directed=False, n_iterations=2,
         random_state=0
     )
-
-    sc.settings.vebosity = old_verbosity
 
     print("Cluster sizes:")
     print(adata.obs["leiden"].value_counts())
@@ -375,9 +345,6 @@ def run_cluster(args):
         # Collect all clustering runs
         for i in range(args.n_repeats):
 
-            old_verbosity = sc.settings.verbosity
-            sc.settings.verbosity = 1
-
             sc.tl.leiden(
                 adata,
                 resolution=args.resolution,
@@ -387,8 +354,6 @@ def run_cluster(args):
                 n_iterations=2,
                 random_state=i
             )
-
-            sc.settings.verbosity = old_verbosity
 
             assignments.append(adata.obs[f"leiden_tmp_{i}"].values)
 
