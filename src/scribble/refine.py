@@ -37,6 +37,7 @@ def run_refine(args):
     import scanpy as sc
     import pandas as pd
     import numpy as np
+    from scipy import sparse
     import random
     import harmonypy as hm
     from pathlib import Path
@@ -168,8 +169,18 @@ def run_refine(args):
 
         _robust_hvg(adata_sub)
 
-        if not np.all(np.isfinite(adata_sub.X)):
-            raise ValueError("Non-finite values after HVG step")
+        if sparse.issparse(adata_sub.X):
+            data = adata_sub.X.data
+        else:
+            data = adata_sub.X
+
+        if not np.isfinite(data).all():
+            print("[HVG WARNING] Non-finite values detected → cleaning matrix")
+
+            if sparse.issparse(adata_sub.X):
+                adata_sub.X.data = np.nan_to_num(adata_sub.X.data)
+            else:
+                adata_sub.X = np.nan_to_num(adata_sub.X)
 
         # only normalize if not already log-transformed
         if np.max(adata_sub.X) > 20:  # heuristic: raw counts
@@ -229,9 +240,6 @@ def run_refine(args):
 
 
     def _compute_markers(adata_de, groupby):
-
-        import numpy as np
-        import pandas as pd
 
         adata_de.obs[groupby] = adata_de.obs[groupby].astype("category")
 
