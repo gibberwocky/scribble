@@ -89,103 +89,43 @@ def run_refine(args):
     # --------------------------------------------------
 
     def _robust_hvg(adata_sub):
+        """
+        Single-attempt HVG selection.
+        If Seurat v3 HVG fails, treat cluster as terminal (no refinement).
+        """
 
-        initial_n = args.hvgs
-        current_n = initial_n
-        min_genes = max(1000, int(initial_n * 0.4))
-        step = max(250, initial_n // 10)
+        try:
+            sc.pp.highly_variable_genes(
+                adata_sub,
+                n_top_genes=args.hvgs,
+                batch_key=args.batch,
+                flavor="seurat_v3"
+            )
+            return True  # ✅ success
 
-        # --------------------------------------------------
-        # PASS 1: raw counts
-        # --------------------------------------------------
-        while current_n >= min_genes:
-            try:
-                sc.pp.highly_variable_genes(
-                    adata_sub,
-                    n_top_genes=current_n,
-                    batch_key=args.batch,
-                    flavor="seurat_v3"
-                )
+        except Exception as e:
+            error_msg = str(e)
 
-                if current_n != initial_n:
-                    print(f"[HVG] recovered (raw): {current_n} genes")
+            if (
+                "reciprocal condition number" in error_msg
+                or "near singularities" in error_msg
+                or "infinity" in error_msg
+            ):
+                print("[HVG FAILURE] Cluster too homogeneous → stopping refinement")
+                return False  # ❗ signal: stop refinement
 
-                return current_n
-
-            except Exception as e:
-                if "reciprocal condition number" in str(e):
-                    print(f"[HVG WARNING] raw instability at {current_n} → retry")
-                    current_n -= step
-                else:
-                    raise e
-
-        # --------------------------------------------------
-        # PASS 2: normalize + log1p
-        # --------------------------------------------------
-        print("[HVG WARNING] retrying with normalization")
-
-        adata_sub.X = adata_sub.X.copy()  # avoid modifying shared backing
-        sc.pp.normalize_total(adata_sub)
-        sc.pp.log1p(adata_sub)
-
-        current_n = initial_n
-
-        while current_n >= min_genes:
-            try:
-                sc.pp.highly_variable_genes(
-                    adata_sub,
-                    n_top_genes=current_n,
-                    batch_key=None,
-                    flavor="seurat_v3"
-                )
-
-                print(f"[HVG] recovered (normalized): {current_n} genes")
-                return current_n
-
-            except Exception as e:
-                if "reciprocal condition number" in str(e):
-                    print(f"[HVG WARNING] normalized instability at {current_n}")
-                    current_n -= step
-                else:
-                    raise e
-
-        # --------------------------------------------------
-        # PASS 3: final fallback (safe)
-        # --------------------------------------------------
-        print("[HVG WARNING] final fallback → flavor='seurat'")
-
-        sc.pp.highly_variable_genes(
-            adata_sub,
-            n_top_genes=initial_n,
-            flavor="seurat"
-        )
-
-        return initial_n
+            # unexpected error → still raise
+            raise e
 
 
     def _run_clustering(adata_sub):
 
         sc.pp.filter_genes(adata_sub, min_cells=args.min_cells_per_gene)
 
-        _robust_hvg(adata_sub)
+        hvg_ok = _robust_hvg(adata_sub)
 
-        if sparse.issparse(adata_sub.X):
-            data = adata_sub.X.data
-        else:
-            data = adata_sub.X
-
-        if not np.isfinite(data).all():
-            print("[HVG WARNING] Non-finite values detected → cleaning matrix")
-
-            if sparse.issparse(adata_sub.X):
-                adata_sub.X.data = np.nan_to_num(adata_sub.X.data)
-            else:
-                adata_sub.X = np.nan_to_num(adata_sub.X)
-
-        # only normalize if not already log-transformed
-        if np.max(adata_sub.X) > 20:  # heuristic: raw counts
-            sc.pp.normalize_total(adata_sub)
-            sc.pp.log1p(adata_sub)
+        if not hvg_ok:
+            return None  # ❗ signal upstream to stop refinement
 
         adata_sub.raw = adata_sub.copy()
         adata_sub = adata_sub[:, adata_sub.var.highly_variable].copy()
@@ -355,6 +295,10 @@ def run_refine(args):
         adata_sub = restore_counts(adata_sub)
 
         adata_sub = _run_clustering(adata_sub)
+
+        if adata_sub is None:
+            print(f"[Refine] Level {level} | clusters={clusters} → TERMINAL (no substructure)")
+            return []
 
         # -----------------------
         # Map refined labels
