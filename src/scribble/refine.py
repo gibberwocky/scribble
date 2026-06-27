@@ -88,17 +88,15 @@ def run_refine(args):
     # --------------------------------------------------
 
     def _robust_hvg(adata_sub):
-        """
-        Adaptive HVG selection with fallback for Seurat v3 loess instability.
-        Reduces number of HVGs only if numerical failure occurs.
-        """
 
-        current_n = args.hvgs
-        min_genes = max(1000, int(args.hvgs * 0.4))  # don't go too low
-        step = max(250, args.hvgs // 10)             # adaptive step size
+        initial_n = args.hvgs
+        current_n = initial_n
+        min_genes = max(1000, int(initial_n * 0.4))
+        step = max(250, initial_n // 10)
 
-        attempt = 1
-
+        # --------------------------------------------------
+        # PASS 1: raw counts
+        # --------------------------------------------------
         while current_n >= min_genes:
             try:
                 sc.pp.highly_variable_genes(
@@ -108,36 +106,60 @@ def run_refine(args):
                     flavor="seurat_v3"
                 )
 
-                if current_n != args.hvgs:
-                    print(f"[HVG] recovered: using {current_n} genes (after fallback)")
+                if current_n != initial_n:
+                    print(f"[HVG] recovered (raw): {current_n} genes")
 
-                return current_n  # ✅ success
+                return current_n
 
             except Exception as e:
                 if "reciprocal condition number" in str(e):
-                    print(f"[HVG WARNING] instability at {current_n} genes → retrying")
-
+                    print(f"[HVG WARNING] raw instability at {current_n} → retry")
                     current_n -= step
-                    attempt += 1
-
-                    if current_n < min_genes:
-                        break
                 else:
-                    raise e  # unrelated error
+                    raise e
 
         # --------------------------------------------------
-        # Last resort: fallback to 'seurat' (loess-free)
+        # PASS 2: normalize + log1p
         # --------------------------------------------------
-        print(f"[HVG WARNING] fallback failed → switching to flavor='seurat'")
+        print("[HVG WARNING] retrying with normalization")
+
+        adata_sub.X = adata_sub.X.copy()  # avoid modifying shared backing
+        sc.pp.normalize_total(adata_sub)
+        sc.pp.log1p(adata_sub)
+
+        current_n = initial_n
+
+        while current_n >= min_genes:
+            try:
+                sc.pp.highly_variable_genes(
+                    adata_sub,
+                    n_top_genes=current_n,
+                    batch_key=None,
+                    flavor="seurat_v3"
+                )
+
+                print(f"[HVG] recovered (normalized): {current_n} genes")
+                return current_n
+
+            except Exception as e:
+                if "reciprocal condition number" in str(e):
+                    print(f"[HVG WARNING] normalized instability at {current_n}")
+                    current_n -= step
+                else:
+                    raise e
+
+        # --------------------------------------------------
+        # PASS 3: final fallback (safe)
+        # --------------------------------------------------
+        print("[HVG WARNING] final fallback → flavor='seurat'")
 
         sc.pp.highly_variable_genes(
             adata_sub,
-            n_top_genes=args.hvgs,
-            batch_key=None,
+            n_top_genes=initial_n,
             flavor="seurat"
         )
 
-        return args.hvgs
+        return initial_n
 
 
     def _run_clustering(adata_sub):
@@ -146,8 +168,13 @@ def run_refine(args):
 
         _robust_hvg(adata_sub)
 
-        sc.pp.normalize_total(adata_sub)
-        sc.pp.log1p(adata_sub)
+        if not np.all(np.isfinite(adata_sub.X)):
+            raise ValueError("Non-finite values after HVG step")
+
+        # only normalize if not already log-transformed
+        if np.max(adata_sub.X) > 20:  # heuristic: raw counts
+            sc.pp.normalize_total(adata_sub)
+            sc.pp.log1p(adata_sub)
 
         adata_sub.raw = adata_sub.copy()
         adata_sub = adata_sub[:, adata_sub.var.highly_variable].copy()
