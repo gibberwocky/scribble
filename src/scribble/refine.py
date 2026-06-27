@@ -87,16 +87,64 @@ def run_refine(args):
     # INTERNAL FUNCTIONS
     # --------------------------------------------------
 
-    def _run_clustering(adata_sub):
+    def _robust_hvg(adata_sub):
+        """
+        Adaptive HVG selection with fallback for Seurat v3 loess instability.
+        Reduces number of HVGs only if numerical failure occurs.
+        """
 
-        sc.pp.filter_genes(adata_sub, min_cells=args.min_cells_per_gene)
+        current_n = args.hvgs
+        min_genes = max(1000, int(args.hvgs * 0.4))  # don't go too low
+        step = max(250, args.hvgs // 10)             # adaptive step size
+
+        attempt = 1
+
+        while current_n >= min_genes:
+            try:
+                sc.pp.highly_variable_genes(
+                    adata_sub,
+                    n_top_genes=current_n,
+                    batch_key=args.batch,
+                    flavor="seurat_v3"
+                )
+
+                if current_n != args.hvgs:
+                    print(f"[HVG] recovered: using {current_n} genes (after fallback)")
+
+                return current_n  # ✅ success
+
+            except Exception as e:
+                if "reciprocal condition number" in str(e):
+                    print(f"[HVG WARNING] instability at {current_n} genes → retrying")
+
+                    current_n -= step
+                    attempt += 1
+
+                    if current_n < min_genes:
+                        break
+                else:
+                    raise e  # unrelated error
+
+        # --------------------------------------------------
+        # Last resort: fallback to 'seurat' (loess-free)
+        # --------------------------------------------------
+        print(f"[HVG WARNING] fallback failed → switching to flavor='seurat'")
 
         sc.pp.highly_variable_genes(
             adata_sub,
             n_top_genes=args.hvgs,
-            batch_key=args.batch,
-            flavor="seurat_v3"
+            batch_key=None,
+            flavor="seurat"
         )
+
+        return args.hvgs
+
+
+    def _run_clustering(adata_sub):
+
+        sc.pp.filter_genes(adata_sub, min_cells=args.min_cells_per_gene)
+
+        _robust_hvg(adata_sub)
 
         sc.pp.normalize_total(adata_sub)
         sc.pp.log1p(adata_sub)
