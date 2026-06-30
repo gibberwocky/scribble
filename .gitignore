@@ -12,7 +12,6 @@ data/
 *.csv
 *.tsv
 *.xlsx
-*.png
 *.pdf
 
 # environments
@@ -21,5 +20,3 @@ data/
 
 # notebooks
 .ipynb_checkpoints/
-
-
