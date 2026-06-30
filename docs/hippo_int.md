@@ -183,7 +183,7 @@ scribble evaluate \
 
 ### Refine clustering
 
-The `cluster_summary_decisions.tsv` file can then be parsed to refine the clustering.
+The `cluster_summary_decisions.tsv` file can then be parsed to refine the clustering. This fully re-processes the cells from clusters that are tagged for subset or merging. Briefly, it subsets the cells, identifies HVGs, runs normalisation, etc.., re-integration with Harmony, clustering, builds hierarchical cluster labels and extracts refined markers (within lineage and global).
 
 ```bash
 # Refine clusters
