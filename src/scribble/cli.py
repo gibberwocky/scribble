@@ -253,6 +253,46 @@ GitHub: https://github.com/gibberwocky/scribble
     refine_parser.add_argument("--marker_strength_threshold", type=float, default=1.0,
         help="logFC threshold")
 
+    # ------------- Map to atlas ---------
+    map_parser = subparsers.add_parser("map",
+        description="""
+        Map query (e.g. organoid) data onto a reference atlas using scANVI.
+
+        This command performs:
+          - gene space harmonisation between reference and query
+          - semi-supervised label transfer using scANVI
+          - confidence estimation (max probability and entropy)
+          - rejection of low-confidence predictions
+          - graph-based label smoothing
+          - propagation of lineage annotations
+          - generation of diagnostic plots (UMAP + confidence)
+
+        Outputs:
+          - mapped AnnData object with:
+              * raw, smoothed and final predicted labels
+              * prediction confidence and entropy scores
+              * mapped lineage annotations
+          - diagnostic plots in scribble/plots/:
+              * predicted label UMAP
+              * confidence UMAP
+              * entropy (uncertainty) UMAP
+              * raw prediction UMAP
+          - summary tables in scribble/tables/
+        """
+    )
+    map_parser.add_argument("--project_dir", required=True,
+        help="Project directory containing scribble/ subfolders")
+    map_parser.add_argument("--reference", required=True,
+        help="Reference atlas AnnData (.h5ad), annotated using Scribble")
+    map_parser.add_argument("--query", required=True,
+        help="Query AnnData (.h5ad), e.g. organoid data processed with Scribble")
+    map_parser.add_argument("--label_key", type=str, default="cell_type_major",
+        help="Reference annotation key to transfer (default: 'cell_type_major')")
+    map_parser.add_argument("--lineage_key", type=str, default="lineage",
+        help="Reference lineage key to propagate (default: 'lineage')")
+    map_parser.add_argument("--confidence_threshold", type=float, default=0.5,
+        help=("Minimum prediction confidence for label assignment. "
+            "Cells below this threshold are labelled as 'Unassigned' "))
 
 
     args = parser.parse_args()
@@ -269,6 +309,7 @@ GitHub: https://github.com/gibberwocky/scribble
         "cluster": ("scribble.cluster", "run_cluster"),
         "evaluate": ("scribble.evaluate", "run_evaluate"),
         "refine": ("scribble.refine", "run_refine"),
+        "map": ("scribble.map", "run_map")
     }
     module_path, func_name = COMMANDS[args.command]
 
