@@ -29,11 +29,11 @@ sbatch --partition uoa-compute \
     -o ${PROJECT}/logs/velo.%j.out \
     -e ${PROJECT}/logs/velo.%j.err \
     /uoa/home/s14dw4/sharedscratch/scripts/velocyto.sh \
-        --barcodes "${BARCODES}" \
-        --out "${PROJECT}"/velocyto \
-        --repeats "${RPT}" \
-        --bam "${BAM}" \
-        --genes "${GENES}"
+        --barcodes ${BARCODES} \
+        --out ${PROJECT}/velocyto \
+        --repeats ${RPT} \
+        --bam ${BAM} \
+        --genes ${GENES}
 ```
 
 ## Pre-process data with scribble
@@ -81,7 +81,9 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 32G --time=2:00:00 \
     scribble dbl \
     --project_dir ${SCRATCH} \
     --input ${SCRATCH}/scribble/adata/combined_mtqc_nMADs-8.h5ad \
-    --expected 0.07 --mode hybrid --min_cells 200
+    --expected 0.07 \
+    --mode hybrid \
+    --min_cells 200
 ```
 
 ### Visually evaluate QC effects
@@ -95,7 +97,10 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
     scribble pca \
     --project_dir ${SCRATCH} \
     --input ${SCRATCH}/scribble/adata/combined_mtqc_nMADs-8_dblqc_exp-0.07.h5ad \
-    --mingenes 100 --maxgenes 9000 --hvgs 3000 --vmax 0.99
+    --mingenes 100 \
+    --maxgenes 9000 \
+    --hvgs 3000 \
+    --vmax 0.99
 ```
 
 ### Apply filtering
@@ -123,8 +128,12 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
     scribble preintegration \
     --project_dir ${SCRATCH} \
     --input ${SCRATCH}/scribble/adata/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered.h5ad \
-    --min_cells_per_gene 3 --hvgs 3000 --npcs 50 --neighbors 15 \
-    --batch sample --vars sample \
+    --min_cells_per_gene 3 \
+    --hvgs 3000 \
+    --npcs 50 \
+    --neighbors 15 \
+    --batch sample \
+    --vars sample \
     --regress total_counts pct_counts_mt
 ```
 
@@ -142,8 +151,11 @@ do
         scribble harmony \
         --project_dir ${SCRATCH} \
         --input ${SCRATCH}/scribble/adata/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration.h5ad \
-        --npcs 50 --neighbors 15 --theta ${theta} \
-        --batch sample --vars sample
+        --npcs 50 \
+        --neighbors 15 \
+        --theta ${theta} \
+        --batch sample \
+        --vars sample
 done
 ```
 
@@ -161,9 +173,16 @@ do
         scribble cluster \
         --project_dir ${SCRATCH} \
         --input ${SCRATCH}/scribble/adata/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-${theta}.h5ad \
-        --embedding X_pca_harmony --neighbors 15 \
-        --auto_resolution --res_min 0.2 --res_max 2.0 --res_steps 10 --fine_width 0.3 \
-        --vars sample cluster_stability --n_repeats 10 --nmarkers 100
+        --embedding X_pca_harmony \
+        --neighbors 15 \
+        --auto_resolution \
+        --res_min 0.2 \
+        --res_max 2.0 \
+        --res_steps 10 \
+        --fine_width 0.3 \
+        --vars sample cluster_stability \
+        --n_repeats 10 \
+        --nmarkers 100
 done
 ```
 
@@ -177,8 +196,14 @@ INPUTS=(${SCRATCH}/scribble/tables/*harmony*cluster_summary.tsv)
 scribble evaluate \
     --project_dir ${SCRATCH} \
     --input ${INPUTS[@]} \
-    --min_cells 200 --large_cells 800 --low_stability 0.75 --high_stability 0.95 --low_entropy 0.5 \
-    --merge_size_ratio 2.5 --merge_stability_tol 0.1 --merge_entropy_tol 0.2
+    --min_cells 200 \
+    --large_cells 800 \
+    --low_stability 0.75 \
+    --high_stability 0.95 \
+    --low_entropy 0.5 \
+    --merge_size_ratio 2.5 \
+    --merge_stability_tol 0.1 \
+    --merge_entropy_tol 0.2
 ```
 
 ### Refine clustering
@@ -194,9 +219,22 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
         --project_dir ${SCRATCH} \
         --decisions ${SCRATCH}/scribble/tables/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-${theta}_cluster_summary_decisions.tsv \
         --input ${SCRATCH}/scribble/adata/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-${theta}_clustered.h5ad \
-        --min_cells_per_gene 3 --batch sample --hvgs 3000 --npcs 50 --neighbors 15 --theta 7 \
-        --auto_resolution --res_min 0.1 --res_max 1.5 --res_steps 10 --fine_width 0.2 \
-        --min_cells_per_group 500 --n_repeats 10 --nmarkers 100 \
-        --max_refine_depth 5 --stability_threshold 0.9 --min_cells_per_cluster 50 \
+        --min_cells_per_gene 3 \
+        --batch sample \
+        --hvgs 3000 \
+        --npcs 50 \
+        --neighbors 15 \
+        --theta 7 \
+        --auto_resolution \
+        --res_min 0.1 \
+        --res_max 1.5 \
+        --res_steps 10 \
+        --fine_width 0.2 \
+        --min_cells_per_group 500 \
+        --n_repeats 10 \
+        --nmarkers 100 \
+        --max_refine_depth 5 \
+        --stability_threshold 0.9 \
+        --min_cells_per_cluster 50 \
         --marker_strength_threshold 1.0
 ```

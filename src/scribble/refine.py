@@ -116,14 +116,26 @@ def run_refine(args):
 
     def _run_clustering(adata_sub):
 
-        sc.pp.filter_genes(adata_sub, min_cells=args.min_cells_per_gene)
+        sc.pp.filter_genes(
+            adata_sub,
+            min_cells=args.min_cells_per_gene
+        )
+
+        # preserve raw counts
+        adata_sub.layers["counts"] = adata_sub.X.copy()
+
+        # normalise and log-transform
+        sc.pp.normalize_total(adata_sub)
+        sc.pp.log1p(adata_sub)
 
         hvg_ok = _robust_hvg(adata_sub)
 
         if not hvg_ok:
-            return None  # ❗ signal upstream to stop refinement
+            return None
 
+        # store log-normalised matrix for DE
         adata_sub.raw = adata_sub.copy()
+
         adata_sub = adata_sub[:, adata_sub.var.highly_variable].copy()
 
         if not args.no_scale:
