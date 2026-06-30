@@ -60,7 +60,7 @@ def run_refine(args):
     # --------------------------------------------------
     # Init labels + lineage
     # --------------------------------------------------
-    adata.obs["leiden_L2"] = adata.obs["leiden"].astype(str) + "-0"
+    adata.obs["refine_label"] = adata.obs["leiden"].astype(str)
 
     if "lineage_tree" not in adata.uns:
         adata.uns["lineage_tree"] = {}
@@ -104,18 +104,14 @@ def run_refine(args):
             return True  # ✅ success
 
         except Exception as e:
-            error_msg = str(e)
 
-            if (
-                "reciprocal condition number" in error_msg
-                or "near singularities" in error_msg
-                or "infinity" in error_msg
-            ):
-                print("[HVG FAILURE] Cluster too homogeneous → stopping refinement")
-                return False  # ❗ signal: stop refinement
+            print(
+                f"[HVG FAILURE] {e}\n"
+                "Refinement abandoned for this cluster."
+            )
 
-            # unexpected error → still raise
-            raise e
+            return False
+
 
 
     def _run_clustering(adata_sub):
@@ -284,7 +280,7 @@ def run_refine(args):
         clusters = task["clusters"]
         level = task["level"]
 
-        mask = adata.obs["leiden"].isin(clusters)
+        mask = adata.obs["refine_label"].isin(clusters)
         adata_sub = adata[mask].copy()
 
         print(f"[Refine] Level {level} | clusters = {clusters} | cells = {adata_sub.n_obs}")
@@ -303,7 +299,10 @@ def run_refine(args):
         # -----------------------
         # Map refined labels
         # -----------------------
-        parent_labels = adata.obs.loc[adata_sub.obs_names, "leiden"].astype(str)
+        parent_labels = adata.obs.loc[
+            adata_sub.obs_names,
+            "refine_label"
+        ].astype(str)
 
         refined = (
             parent_labels
@@ -313,9 +312,11 @@ def run_refine(args):
 
         # keep as pandas Series (CRITICAL)
         refined = refined.astype(str)
-        refined = "L" + str(level) + "_" + refined
 
-        adata.obs.loc[adata_sub.obs_names, "leiden_L2"] = refined
+        adata.obs.loc[
+            adata_sub.obs_names,
+            "refine_label"
+        ] = refined
 
         # -----------------------
         # Lineage tracking
@@ -331,6 +332,7 @@ def run_refine(args):
         # -----------------------
         cluster_sizes = adata_sub.obs["leiden_refined"].value_counts()
         valid = cluster_sizes[cluster_sizes >= 2].index
+        marker_tables = {}
 
         if len(valid) >= 2:
 
@@ -442,6 +444,24 @@ def run_refine(args):
         tasks.extend(new_tasks)
 
         i += 1
+
+    # --------------------------------------------------
+    # Build final hierarchical labels
+    # --------------------------------------------------
+
+    depth = (
+        adata.obs["refine_label"]
+        .astype(str)
+        .str.count("-")
+        + 1
+    )
+
+    adata.obs["leiden_L2"] = (
+        "L"
+        + depth.astype(str)
+        + "_"
+        + adata.obs["refine_label"].astype(str)
+    )
 
     # --------------------------------------------------
     # Final global markers
