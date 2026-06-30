@@ -1,4 +1,4 @@
-<img style="float:right;width:200px;" src="./img/scribble.png" alt="scarecrow"/>
+<img style="float:right;width:200px;" src="./img/scribble.png" alt="scribble"/>
 
 # scribble
 Single cell workflow CLI based on scanpy
