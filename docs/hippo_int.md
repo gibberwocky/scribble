@@ -56,6 +56,15 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 24G --time=4:00:00 \
     --metadata_file ${SCRATCH}/samples.xlsx
 ```
 
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/HPC431_qc_panel.png" alt="HPC431 QC panel"></td>
+    <td><img src="../img/hippo_int/K2HO120_qc_panel.png" alt="K2HO120 QC panel"></td>
+  </tr>
+</table>
+<br>
+
 ### Identify MT outliers
 
 After generating the `combined.h5ad` file, the next step is to annotate it with mitchondrial (MT) metrics. The `--nmads` parameters sets the number of median absolute deviations as a threshold for which to label cells as MT outliers. This outputs a new `h5ad` file in `scribble/adata`.
