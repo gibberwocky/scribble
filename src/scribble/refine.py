@@ -99,7 +99,8 @@ def run_refine(args):
                 adata_sub,
                 n_top_genes=args.hvgs,
                 batch_key=args.batch,
-                flavor="seurat_v3"
+                flavor="seurat_v3",
+                layer="counts"
             )
             return True  # ✅ success
 
@@ -124,18 +125,25 @@ def run_refine(args):
         # preserve raw counts
         adata_sub.layers["counts"] = adata_sub.X.copy()
 
-        # normalise and log-transform
-        sc.pp.normalize_total(adata_sub)
-        sc.pp.log1p(adata_sub)
-
+        # ------------------------------------------
+        # HVGs must be selected on counts for
+        # flavor="seurat_v3"
+        # ------------------------------------------
         hvg_ok = _robust_hvg(adata_sub)
 
         if not hvg_ok:
             return None
 
+        # ------------------------------------------
+        # Normalisation for PCA / Harmony / DE
+        # ------------------------------------------
+        sc.pp.normalize_total(adata_sub)
+        sc.pp.log1p(adata_sub)
+
         # store log-normalised matrix for DE
         adata_sub.raw = adata_sub.copy()
 
+        # restrict to HVGs after they have been selected
         adata_sub = adata_sub[:, adata_sub.var.highly_variable].copy()
 
         if not args.no_scale:
@@ -160,7 +168,10 @@ def run_refine(args):
 
         if args.auto_resolution:
             res, _, _ = optimise_resolution(
-                np, pd, sc, adata_sub,
+                np,
+                pd,
+                sc,
+                adata_sub,
                 "X_pca_harmony",
                 args.neighbors,
                 (args.res_min, args.res_max),
@@ -180,7 +191,9 @@ def run_refine(args):
             adata_sub,
             resolution=res,
             key_added="leiden_refined",
-            flavor="igraph", directed=False, n_iterations=2,
+            flavor="igraph",
+            directed=False,
+            n_iterations=2,
             random_state=0
         )
 
@@ -380,9 +393,8 @@ def run_refine(args):
             # compute mean stability per cluster (if available)
             if "cluster_stability" in adata_sub.obs:
                 stability = (
-                    adata_sub
-                    .obs
-                    .groupby("leiden_refined")["cluster_stability"]
+                    adata_sub.obs
+                    .groupby("leiden_refined",observed=False)["cluster_stability"]
                     .mean()
                 )
             else:
