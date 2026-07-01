@@ -38,6 +38,7 @@ sbatch --partition uoa-compute \
 
 ## Pre-process data with scribble
 
+<br>
 
 ### Import data
 
@@ -65,6 +66,7 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 24G --time=4:00:00 \
     <td><img src="../img/hippo_int/K2HO120_qc_panel.png" alt="K2HO120 QC panel"></td>
   </tr>
 </table>
+
 <br>
 
 ### Identify MT outliers
@@ -87,6 +89,7 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8.png" alt="MT outliers"></td>
   </tr>
 </table>
+
 <br>
 
 ### Identify doublets
@@ -119,6 +122,9 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 32G --time=2:00:00 \
 </table>
 <br>
 
+A doublet summary is written to file [`../tbl/hippo_int/combined_mtqc_nMADs-8_doublet_qc_summary.csv`](../tbl/hippo_int/combined_mtqc_nMADs-8_doublet_qc_summary.csv`).
+
+<br>
 
 ### Visually evaluate QC effects
 
@@ -143,8 +149,8 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_pca.png" alt="PCA"></td>
   </tr>
 </table>
-<br>
 
+<br>
 
 ### Apply filtering
 
@@ -159,6 +165,8 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
     --input ${SCRATCH}/scribble/adata/combined_mtqc_nMADs-8_dblqc_exp-0.07.h5ad \
     --filter_xlsx ${SCRATCH}/samples.xlsx
 ```
+
+<bt>
 
 ### Pre-integration processing
 
@@ -192,8 +200,8 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_umap.png" alt="Pre-integration UMAP"></td>
   </tr>
 </table>
-<br>
 
+<br>
 
 ### Batch integration
 
@@ -223,8 +231,8 @@ done
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_umap.png" alt="Haromny UMAP"></td>
   </tr>
 </table>
-<br>
 
+<br>
 
 ### Clustering
 
@@ -265,11 +273,8 @@ done
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_stability.png" alt="UMAP and stability"></td>
   </tr>
 </table>
+
 <br>
-
-
-
-
 
 ### Evaluate clustering
 
@@ -290,6 +295,8 @@ scribble evaluate \
     --merge_stability_tol 0.1 \
     --merge_entropy_tol 0.2
 ```
+
+<br>
 
 ### Refine clustering
 
