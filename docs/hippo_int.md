@@ -108,6 +108,8 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 32G --time=2:00:00 \
   <tr>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07.png" alt="Doublets summary"></td>
   </tr>
+</table>
+<table>
   <tr>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_HPC431_doublet_hist.png" alt="HPC431 doublets"></td>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_K2HO120_doublet_hist.png" alt="K2HO120 doublets"></td>
@@ -179,10 +181,10 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_vars.png" alt="PCA variables"></td>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_counts.png" alt="PCA counts"></td>
   </tr>
   <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_vars.png" alt="PCA sample"></td>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_umap.png" alt="Pre-integration UMAP"></td>
   </tr>
 </table>
@@ -251,10 +253,12 @@ done
 <table>
   <tr>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_resolution_optimisation.png" alt="Resolution optimisation"></td>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_clusters.png" alt="Leiden clusters"></td>
   </tr>
-  <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_vars.png" alt="UMAP and stability"></td>
+</table>
+<table>
+    <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_clusters.png" alt="Leiden clusters"></td>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_stability.png" alt="UMAP and stability"></td>
   </tr>
 </table>
 <br>
