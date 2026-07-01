@@ -60,6 +60,8 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 24G --time=4:00:00 \
 <table>
   <tr>
     <td><img src="../img/hippo_int/HPC431_qc_panel.png" alt="HPC431 QC panel"></td>
+  </tr>
+  <tr>
     <td><img src="../img/hippo_int/K2HO120_qc_panel.png" alt="K2HO120 QC panel"></td>
   </tr>
 </table>
@@ -183,6 +185,8 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
   <tr>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_counts.png" alt="PCA counts"></td>
   </tr>
+</table>
+<table>
   <tr>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_vars.png" alt="PCA sample"></td>
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_umap.png" alt="Pre-integration UMAP"></td>
