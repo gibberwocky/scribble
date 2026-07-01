@@ -70,6 +70,13 @@ def run_annotate(args):
 
     anno_index = annotations.set_index("refine_cluster")
 
+    # normalise atlas labels
+    adata.obs["refine_label"] = (
+        adata.obs["refine_label"]
+        .astype(str)
+        .apply(normalise_refine_label)
+    )
+
     for col in annotations.columns:
 
         if col == "refine_cluster":
@@ -77,12 +84,7 @@ def run_annotate(args):
 
         mapping = anno_index[col].to_dict()
 
-        adata.obs[col] = (
-            adata.obs["refine_label"]
-            .astype(str)
-            .apply(normalise_refine_label)
-            .map(mapping)
-        )
+        adata.obs[col] = adata.obs["refine_label"].map(mapping)
 
     print("\nAnnotation coverage")
 
@@ -102,18 +104,21 @@ def run_annotate(args):
             f"({100*(n_total-n_missing)/n_total:.1f}%)"
         )
 
-    print("\nUnmatched refine labels")
-
-    mapped = set(annotations["refine_cluster"].astype(str))
+    mapped = set(annotations["refine_cluster"])
 
     observed = set(
         adata.obs["refine_label"]
-        .astype(str)
         .unique()
     )
 
-    for x in sorted(observed - mapped):
-        print(x)
+    unmatched = sorted(observed - mapped)
+
+    if unmatched:
+
+        print("\nUnmatched refine labels")
+
+        for x in unmatched:
+            print(x)
 
     # --------------------------------------------------
     # UMAP cell type major
