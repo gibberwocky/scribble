@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from pathlib import Path
 
-def run_annotation(args):
+def run_annotate(args):
     import scanpy as sc
     import pandas as pd
     import numpy as np
