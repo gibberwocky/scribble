@@ -88,113 +88,113 @@ def run_annotation(args):
     plt.close()
 
     # --------------------------------------------------
-        # Marker visualisation (optional)
-        # --------------------------------------------------
+    # Marker visualisation (optional)
+    # --------------------------------------------------
 
-        if args.plot_markers is not None:
+    if args.plot_markers is not None:
 
-            if "cell_type_major" not in annotations.columns:
-                raise ValueError(
-                    "cell_type_major column required for "
-                    "marker visualisation"
-                )
-
-            if args.plot_markers not in annotations.columns:
-                raise ValueError(
-                    f"{args.plot_markers} not found in "
-                    "annotations worksheet"
-                )
-
-            def safe_name(x):
-                return re.sub(r"[^A-Za-z0-9._-]+", "_", str(x))
-
-            unique_types = (
-                annotations["cell_type_major"]
-                .dropna()
-                .unique()
+        if "cell_type_major" not in annotations.columns:
+            raise ValueError(
+                "cell_type_major column required for "
+                "marker visualisation"
             )
 
-            for cell_type in sorted(unique_types):
+        if args.plot_markers not in annotations.columns:
+            raise ValueError(
+                f"{args.plot_markers} not found in "
+                "annotations worksheet"
+            )
 
-                print(f"Processing {cell_type}")
+        def safe_name(x):
+            return re.sub(r"[^A-Za-z0-9._-]+", "_", str(x))
 
-                subset = annotations.loc[
-                    annotations["cell_type_major"] == cell_type
+        unique_types = (
+            annotations["cell_type_major"]
+            .dropna()
+            .unique()
+        )
+
+        for cell_type in sorted(unique_types):
+
+            print(f"Processing {cell_type}")
+
+            subset = annotations.loc[
+                annotations["cell_type_major"] == cell_type
+            ]
+
+            marker_set = set()
+
+            for markers in subset[args.plot_markers].dropna():
+
+                genes = [
+                    g.strip()
+                    for g in str(markers).split(";")
+                    if g.strip()
                 ]
 
-                marker_set = set()
+                marker_set.update(genes)
 
-                for markers in subset[args.plot_markers].dropna():
+            markers = sorted(
+                g for g in marker_set
+                if g in adata.var_names
+            )
 
-                    genes = [
-                        g.strip()
-                        for g in str(markers).split(";")
-                        if g.strip()
-                    ]
+            if len(markers) == 0:
 
-                    marker_set.update(genes)
-
-                markers = sorted(
-                    g for g in marker_set
-                    if g in adata.var_names
+                print(
+                    f"No markers found for {cell_type}"
                 )
 
-                if len(markers) == 0:
+                continue
 
-                    print(
-                        f"No markers found for {cell_type}"
-                    )
+            # ------------------------------------------
+            # Dot plot
+            # ------------------------------------------
 
-                    continue
+            sc.pl.dotplot(
+                adata,
+                var_names=markers,
+                groupby="cell_type_major",
+                show=False
+            )
 
-                # ------------------------------------------
-                # Dot plot
-                # ------------------------------------------
+            plt.suptitle(cell_type)
 
-                sc.pl.dotplot(
+            plt.savefig(
+                PLOT_DIR /
+                f"dotplot_{safe_name(cell_type)}.png",
+                dpi=300,
+                bbox_inches="tight"
+            )
+
+            plt.close()
+
+            # ------------------------------------------
+            # Marker UMAPs
+            # ------------------------------------------
+
+            for gene in markers:
+
+                sc.pl.umap(
                     adata,
-                    var_names=markers,
-                    groupby="cell_type_major",
+                    color=gene,
+                    cmap="Reds",
+                    title=f"{cell_type} | {gene}",
                     show=False
                 )
 
-                plt.suptitle(cell_type)
-
                 plt.savefig(
                     PLOT_DIR /
-                    f"dotplot_{safe_name(cell_type)}.png",
+                    (
+                        f"UMAP_"
+                        f"{safe_name(cell_type)}_"
+                        f"{safe_name(gene)}.png"
+                    ),
                     dpi=300,
                     bbox_inches="tight"
                 )
 
                 plt.close()
-
-                # ------------------------------------------
-                # Marker UMAPs
-                # ------------------------------------------
-
-                for gene in markers:
-
-                    sc.pl.umap(
-                        adata,
-                        color=gene,
-                        cmap="Reds",
-                        title=f"{cell_type} | {gene}",
-                        show=False
-                    )
-
-                    plt.savefig(
-                        PLOT_DIR /
-                        (
-                            f"UMAP_"
-                            f"{safe_name(cell_type)}_"
-                            f"{safe_name(gene)}.png"
-                        ),
-                        dpi=300,
-                        bbox_inches="tight"
-                    )
-
-                    plt.close()
 
     # --------------------------------------------------
     # Save
