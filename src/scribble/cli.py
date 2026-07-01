@@ -346,7 +346,7 @@ GitHub: https://github.com/gibberwocky/scribble
         "evaluate": ("scribble.evaluate", "run_evaluate"),
         "refine": ("scribble.refine", "run_refine"),
         "map": ("scribble.map", "run_map"),
-        "annotate": ("scribble.annotate", "run_anotate")
+        "annotate": ("scribble.annotate", "run_annotate")
     }
     module_path, func_name = COMMANDS[args.command]
 
