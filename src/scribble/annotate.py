@@ -28,6 +28,12 @@ def run_annotate(args):
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
 
+    print(
+        adata.obs["refine_label"]
+        .value_counts()
+        .head(50)
+    )
+
     print(f"Loading annotations → {annotation_file}")
 
     annotations = pd.read_excel(
@@ -40,6 +46,11 @@ def run_annotate(args):
             "annotations worksheet must contain "
             "'refine_cluster'"
         )
+
+    print(
+        annotations["refine_cluster"]
+        .tolist()
+    )
 
 
     # --------------------------------------------------
@@ -65,6 +76,37 @@ def run_annotate(args):
             .astype(str)
             .map(mapping)
         )
+
+    print("\nAnnotation coverage")
+
+    n_total = adata.n_obs
+
+    for col in annotations.columns:
+
+        if col == "refine_cluster":
+            continue
+
+        n_missing = adata.obs[col].isna().sum()
+
+        print(
+            f"{col}: "
+            f"{n_total - n_missing:,}/{n_total:,} "
+            f"annotated "
+            f"({100*(n_total-n_missing)/n_total:.1f}%)"
+        )
+
+    print("\nUnmatched refine labels")
+
+    mapped = set(annotations["refine_cluster"].astype(str))
+
+    observed = set(
+        adata.obs["refine_label"]
+        .astype(str)
+        .unique()
+    )
+
+    for x in sorted(observed - mapped):
+        print(x)
 
     # --------------------------------------------------
     # UMAP cell type major
@@ -114,9 +156,13 @@ def run_annotate(args):
             .unique()
         )
 
-        for cell_type in sorted(unique_types):
+        marker_dict = {}
 
-            print(f"Processing {cell_type}")
+        # ------------------------------------------
+        # Build marker dictionary
+        # ------------------------------------------
+
+        for cell_type in sorted(unique_types):
 
             subset = annotations.loc[
                 annotations["cell_type_major"] == cell_type
@@ -147,31 +193,38 @@ def run_annotate(args):
 
                 continue
 
-            # ------------------------------------------
-            # Dot plot
-            # ------------------------------------------
+            marker_dict[cell_type] = markers
+
+        # ------------------------------------------
+        # Single dotplot
+        # ------------------------------------------
+
+        if len(marker_dict) > 0:
+
+            print("Generating marker dotplot")
 
             sc.pl.dotplot(
                 adata,
-                var_names=markers,
+                var_names=marker_dict,
                 groupby="cell_type_major",
                 show=False
             )
 
-            plt.suptitle(cell_type)
-
             plt.savefig(
-                PLOT_DIR /
-                f"dotplot_{safe_name(cell_type)}.png",
+                PLOT_DIR / "dotplot_cell_type_major.png",
                 dpi=300,
                 bbox_inches="tight"
             )
 
             plt.close()
 
-            # ------------------------------------------
-            # Marker UMAPs
-            # ------------------------------------------
+        # ------------------------------------------
+        # Marker UMAPs
+        # ------------------------------------------
+
+        for cell_type, markers in marker_dict.items():
+
+            print(f"Processing {cell_type}")
 
             for gene in markers:
 
