@@ -1,6 +1,22 @@
 #!/usr/bin/env python
 from pathlib import Path
 
+def normalise_refine_label(label):
+
+    label = str(label)
+
+    if label.startswith("L1_"):
+        return label.replace("L1_", "")
+
+    if label.startswith("L2_"):
+        return label.replace("L2_", "")
+
+    if label.startswith("L3_"):
+        return label.replace("L3_", "")
+
+    return label
+
+
 def run_annotate(args):
     import scanpy as sc
     import pandas as pd
@@ -28,12 +44,6 @@ def run_annotate(args):
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
 
-    print(
-        adata.obs["refine_label"]
-        .value_counts()
-        .head(50)
-    )
-
     print(f"Loading annotations → {annotation_file}")
 
     annotations = pd.read_excel(
@@ -47,11 +57,6 @@ def run_annotate(args):
             "'refine_cluster'"
         )
 
-    print(
-        annotations["refine_cluster"]
-        .tolist()
-    )
-
 
     # --------------------------------------------------
     # Map annotations onto refine labels
@@ -60,6 +65,7 @@ def run_annotate(args):
     annotations["refine_cluster"] = (
         annotations["refine_cluster"]
         .astype(str)
+        .apply(normalise_refine_label)
     )
 
     anno_index = annotations.set_index("refine_cluster")
@@ -74,6 +80,7 @@ def run_annotate(args):
         adata.obs[col] = (
             adata.obs["refine_label"]
             .astype(str)
+            .apply(normalise_refine_label)
             .map(mapping)
         )
 
