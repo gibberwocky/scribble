@@ -295,7 +295,7 @@ theta-6_cluster_summary.tsv	1.000175978412794	0.9482019704201696	0.3144743317747
 theta-3_cluster_summary.tsv	0.20253667864620173	0.8503816779565261	0.30431000137935127	0.0	2
 ```
 
-The below plots from `scribble cluster` are from the theta = 9 Harmony run.
+The below plots from `scribble cluster` are from the theta = 9 Harmony run. Note, the cluster labels start at 0.
 
 <br>
 <table>
@@ -309,6 +309,49 @@ The below plots from `scribble cluster` are from the theta = 9 Harmony run.
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_stability.png" alt="UMAP and stability"></td>
   </tr>
 </table>
+<br>
+
+The `cluster_summary.tsv` from `scribble cluster` at theta = 9, provided below, indicates for each cluster a range of metrics. These include the number of cells, mean stability, emedian stability, fraction of total cells, sample cell counts, entropy, whether the cluster has low stability or low sample mixing, the clustering resolution, embedding used, and number of clustering iterations undertaken.
+
+```tsv
+cluster	n_cells	mean_stability	median_stability	fraction	HPC431	K2HO120	sample_entropy	low_stability	low_mixing	resolution	embedding	n_repeats
+1	3989	0.9740035096515418	1.0	0.25993744298188454	3504	485	0.37006987143163084	False	True	0.22777777777777777	X_pca_harmony	10
+2	2258	1.0	1.0	0.147139319692428	2037	221	0.3203869033059639	False	True	0.22777777777777777	X_pca_harmony	10
+4	2116	0.8223062381852552	0.7	0.1378860940961814	1170	946	0.6875334863432727	False	False	0.22777777777777777	X_pca_harmony	10
+6	1830	0.9865027322404372	1.0	0.11924931578261436	1105	725	0.6714301921816759	False	False	0.22777777777777777	X_pca_harmony	10
+10	1458	0.9742112482853225	1.0	0.0950084712628698	489	969	0.63793088082967	False	False	0.22777777777777777	X_pca_harmony	10
+3	1228	0.9178338762214983	1.0	0.08002085233937183	758	470	0.6653877334401116	False	False	0.22777777777777777	X_pca_harmony	10
+0	771	1.0	1.0	0.05024110517398671	635	136	0.46588170850890376	False	True	0.22777777777777777	X_pca_harmony	10
+11	421	1.0	1.0	0.027433858986054997	252	169	0.673585297162481	False	False	0.22777777777777777	X_pca_harmony	10
+8	394	1.0	1.0	0.02567444285155741	326	68	0.4599674821976243	False	True	0.22777777777777777	X_pca_harmony	10
+5	355	0.7907042253521126	0.8	0.02313306399061645	269	86	0.5536636244312005	False	False	0.22777777777777777	X_pca_harmony	10
+12	168	1.0	1.0	0.01094747817020722	75	93	0.687396352150425	False	False	0.22777777777777777	X_pca_harmony	10
+13	163	0.9000000000000001	0.9	0.010621660367522481	100	63	0.6671581372394269	False	False	0.22777777777777777	X_pca_harmony	10
+7	103	0.9	0.9	0.006711846735305617	90	13	0.37912498845561804	False	True	0.22777777777777777	X_pca_harmony	10
+9	73	1.0	1.0	0.004756939919197185	27	46	0.6588827340166754	False	False	0.22777777777777777	X_pca_harmony	10
+14	19	1.0	1.0	0.001238107650202007	19	0	0.0	False	True	0.22777777777777777	X_pca_harmony	10
+```
+
+The `summary_decisions.tsv` output from `scribble evaluate` applied to the theta = 9 results is provided below. This step classifies clusters based on the number of cells, cluster stability, and entropy. In some datasets a recommendation will be made to subset or merge clusetrs.
+
+```tsv
+cluster	action	reason	detail	priority	merge_group
+1	flag_bias	sample_specific_cluster	n=3989; stability=0.97; entropy=0.37	medium
+2	flag_bias	sample_specific_cluster	n=2258; stability=1.00; entropy=0.32	medium
+4	subset	heterogeneous_large_cluster	n=2116; stability=0.82; entropy=0.69	high
+6	keep	well_defined_cluster	n=1830; stability=0.99; entropy=0.67	low
+10	keep	well_defined_cluster	n=1458; stability=0.97; entropy=0.64	low
+3	subset	heterogeneous_large_cluster	n=1228; stability=0.92; entropy=0.67	high
+0	flag_bias	sample_specific_cluster	n=771; stability=1.00; entropy=0.47	medium
+11	keep	well_defined_cluster	n=421; stability=1.00; entropy=0.67	low
+8	flag_bias	sample_specific_cluster	n=394; stability=1.00; entropy=0.46	medium
+5	keep	well_defined_cluster	n=355; stability=0.79; entropy=0.55	low
+12	keep	small_cluster	n=168; stability=1.00; entropy=0.69	low
+13	keep	small_cluster	n=163; stability=0.90; entropy=0.67	low
+7	keep	small_cluster	n=103; stability=0.90; entropy=0.38	low
+9	keep	small_cluster	n=73; stability=1.00; entropy=0.66	low
+14	keep	small_cluster	n=19; stability=1.00; entropy=0.00	low
+```
 
 <br>
 
