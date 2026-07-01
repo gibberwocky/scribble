@@ -120,9 +120,6 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 32G --time=2:00:00 \
     <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_K2HO120_doublet_hist.png" alt="K2HO120 doublets"></td>
   </tr>
 </table>
-<br>
-
-A doublet summary is written to file [`../tbl/hippo_int/combined_mtqc_nMADs-8_doublet_qc_summary.csv`](../tbl/hippo_int/combined_mtqc_nMADs-8_doublet_qc_summary.csv`).
 
 <br>
 
@@ -228,7 +225,12 @@ done
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_umap.png" alt="Haromny UMAP"></td>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-3_umap.png" alt="theta = 3"></td>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-6_umap.png" alt="theta = 6"></td>
+  </tr>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_umap.png" alt="theta = 9"></td>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-12_umap.png" alt="theta = 12"></td>
   </tr>
 </table>
 
@@ -278,7 +280,7 @@ done
 
 ### Evaluate clustering
 
-The resulting `cluster_summary.tsv` outputs are then imported to the `evluate` tool. This tool evaluates clustering quality, suggests clusters to merge or subset, and outputs a decision table `cluster_summary_decisions.tsv`. Results are scored based on mean stability, mean entropy, low stabiility fraction, and a cluster penalty (if too few or too many clusters). The best score favours high stability, good mixing, few unstable clusters, and a reasonable cluster number.
+The resulting `cluster_summary.tsv` outputs are then imported to the `evaluate` tool. This tool evaluates clustering quality, suggests clusters to merge or subset, and outputs a decision table `cluster_summary_decisions.tsv`. Results are scored based on mean stability, mean entropy, low stabiility fraction, and a cluster penalty (if too few or too many clusters). The best score favours high stability, good mixing, few unstable clusters, and a reasonable cluster number.
 
 ```bash
 # Evaluate clustering
