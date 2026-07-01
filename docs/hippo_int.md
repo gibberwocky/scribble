@@ -264,19 +264,6 @@ done
 ```
 
 <br>
-<table>
-  <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_resolution_optimisation.png" alt="Resolution optimisation"></td>
-  </tr>
-</table>
-<table>
-    <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_clusters.png" alt="Leiden clusters"></td>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_stability.png" alt="UMAP and stability"></td>
-  </tr>
-</table>
-
-<br>
 
 ### Evaluate clustering
 
@@ -297,6 +284,31 @@ scribble evaluate \
     --merge_stability_tol 0.1 \
     --merge_entropy_tol 0.2
 ```
+
+These results indicate theta = 9 to be optimal.
+
+```tsv
+file	score	mean_stability	mean_entropy	low_stability_fraction	n_clusters
+theta-9_cluster_summary.tsv	1.2143174350522337	0.9510374553290778	0.526559959446312	0.0	15
+theta-12_cluster_summary.tsv	1.1313952975256716	0.9591771675775617	0.5549625756856938	0.05263157894736842	19
+theta-6_cluster_summary.tsv	1.000175978412794	0.9482019704201696	0.314474331774722	0.05263157894736842	19
+theta-3_cluster_summary.tsv	0.20253667864620173	0.8503816779565261	0.30431000137935127	0.0	2
+```
+
+The below plots from `scribble cluster` are from the theta = 9 Harmony run.
+
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_resolution_optimisation.png" alt="Resolution optimisation"></td>
+  </tr>
+</table>
+<table>
+    <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_clusters.png" alt="Leiden clusters"></td>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_stability.png" alt="UMAP and stability"></td>
+  </tr>
+</table>
 
 <br>
 
