@@ -79,6 +79,14 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
     --nmads 8
 ```
 
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8.png" alt="MT outliers"></td>
+  </tr>
+</table>
+<br>
+
 ### Identify doublets
 
 Net we need to label doublets. Here we run `dbl` in `hybrid` mode to apply both quantile and `scrublet` methods, with an expected doublet fraction of `0.07` and minimum cell count of 200 for a sample to be processed with scrublet. This outputs a new `h5ad` file in `scribble/adata`.
@@ -94,6 +102,19 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 32G --time=2:00:00 \
     --mode hybrid \
     --min_cells 200
 ```
+
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07.png" alt="Doublets summary"></td>
+  </tr>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_HPC431_doublet_hist.png" alt="HPC431 doublets"></td>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_K2HO120_doublet_hist.png" alt="K2HO120 doublets"></td>
+  </tr>
+</table>
+<br>
+
 
 ### Visually evaluate QC effects
 
@@ -112,6 +133,15 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
     --vmax 0.99
 ```
 
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_pca.png" alt="PCA"></td>
+  </tr>
+</table>
+<br>
+
+
 ### Apply filtering
 
 Having reviewed the results, we next filter the data. Here we pass an `xlsx` file which has a `filters` workseet containing fields for `sample`, `min_genes` and `max_genes`. This enables sample-specific filtering thresholds. Alternatively, fixed thresholds could be applied across all samples by setting `--mingenes` and `--maxgenes`. This outputs a new `h5ad` file in `scribble/adata`.
@@ -126,7 +156,7 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
     --filter_xlsx ${SCRATCH}/samples.xlsx
 ```
 
-### Pre-integratino processing
+### Pre-integration processing
 
 Prior to batch interration, we run the `preintegration` tool to pre-process the data. This step preserves raw counts and metadata to avoid later loss during any transformations. It emoves genes expressed in too few cells (n = 3) to reduce noise and sparsity. It calculates HVGs, performs normalisation and log transformation and then subsets the data to the HVGs. It can optionally perform regression to remove effets of covariates, e.g. depth and %MT, and scales data to standardise gene expression (use `--no-scale` to disable). It then performs PCA, generates a KNN graph, and plots UMAP(s) cololured by the specified variables `vars`. This outputs a new `h5ad` file in `scribble/adata`.
 
@@ -145,6 +175,19 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
     --vars sample \
     --regress total_counts pct_counts_mt
 ```
+
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_vars.png" alt="PCA variables"></td>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_counts.png" alt="PCA counts"></td>
+  </tr>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_umap.png" alt="Pre-integration UMAP"></td>
+  </tr>
+</table>
+<br>
+
 
 ### Batch integration
 
@@ -167,6 +210,15 @@ do
         --vars sample
 done
 ```
+
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_umap.png" alt="Haromny UMAP"></td>
+  </tr>
+</table>
+<br>
+
 
 ### Clustering
 
@@ -194,6 +246,22 @@ do
         --nmarkers 100
 done
 ```
+
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_resolution_optimisation.png" alt="Resolution optimisation"></td>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_clusters.png" alt="Leiden clusters"></td>
+  </tr>
+  <tr>
+    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_theta-9_vars.png" alt="UMAP and stability"></td>
+  </tr>
+</table>
+<br>
+
+
+
+
 
 ### Evaluate clustering
 
