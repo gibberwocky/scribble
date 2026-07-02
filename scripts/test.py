@@ -43,8 +43,8 @@ if args.umap:
             color=gene,
             cmap="Reds"
         )
-        out_file = args.plot_file.with_name(
-            f"{args.plot_file.stem}_{gene}.png"
+        out_file = Path(args.plot_file).with_name(
+            f"{Path(args.plot_file).stem}_{gene}.png"
         )
         plt.savefig(out_file, dpi=300, bbox_inches="tight")
         plt.close()
