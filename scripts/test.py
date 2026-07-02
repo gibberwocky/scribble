@@ -31,7 +31,7 @@ sc.pl.dotplot(
     adata,
     args.markers,
     standard_scale="var",
-    groupby="cell_type_major",
+    groupby="refine_label",
     dendrogram=False
 )
 
