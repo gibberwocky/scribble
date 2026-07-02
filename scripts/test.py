@@ -15,26 +15,36 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--input_file", type=str, required=True)
 parser.add_argument("--plot_file", type=str, required=True)
 parser.add_argument("--markers", nargs="+", required=True)
+parser.add_argument("--dotplot", action="store_true")
+parser.add_argument("--umap", action="store_true")
+
 
 args = parser.parse_args()
-
-#marker_dict = ["TTR", "CP", "PAX8", "HNF1B", "DNAH11", "MAP2"]
-
 
 
 # Import adata
 adata = sc.read(args.input_file)
 
+if args.dotplot:
+    sc.pl.dotplot(
+        adata,
+        args.markers,
+        standard_scale="var",
+        groupby="refine_label",
+        dendrogram=False
+    )
+    plt.savefig(args.plot_file, dpi=300, bbox_inches="tight")
+    plt.close()
 
-
-sc.pl.dotplot(
-    adata,
-    args.markers,
-    standard_scale="var",
-    groupby="refine_label",
-    dendrogram=False
-)
-
-
-plt.savefig(args.plot_file, dpi=300, bbox_inches="tight")
-plt.close()
+if args.umap:
+    for gene in markers:
+        sc.pl.umap(
+            adata,
+            color=gene,
+            cmap="Reds"
+        )
+        out_file = args.plot_file.with_name(
+            f"{args.plot_file.stem}_{gene}.png"
+        )
+        plt.savefig(out_file, dpi=300, bbox_inches="tight")
+        plt.close()
