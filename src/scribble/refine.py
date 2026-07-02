@@ -82,7 +82,6 @@ def run_refine(args):
 
     if len(tasks) == 0:
         print("No refinement tasks.")
-        return
 
     # --------------------------------------------------
     # INTERNAL FUNCTIONS
@@ -461,13 +460,15 @@ def run_refine(args):
     # MAIN LOOP (safe recursion)
     # --------------------------------------------------
 
-    i = 0
-    while i < len(tasks):
+    if len(tasks) > 0:
 
-        new_tasks = _refine_task(tasks[i])
-        tasks.extend(new_tasks)
+        i = 0
+        while i < len(tasks):
 
-        i += 1
+            new_tasks = _refine_task(tasks[i])
+            tasks.extend(new_tasks)
+
+            i += 1
 
     # --------------------------------------------------
     # Build final hierarchical labels
