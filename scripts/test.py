@@ -37,7 +37,7 @@ if args.dotplot:
     plt.close()
 
 if args.umap:
-    for gene in markers:
+    for gene in args.markers:
         sc.pl.umap(
             adata,
             color=gene,
