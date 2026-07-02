@@ -44,6 +44,10 @@ GitHub: https://github.com/gibberwocky/scribble
         help='Directory containing cellranger/ sample subdirectories')
     import_parser.add_argument("--velocyto_dir", required=True,
         help='Directory containing velocyto/ sample subdirectories')
+    import_parser.add_argument("--samples", nargs="+",
+        help="Samples to process")
+    import_parser.add_argument("--samples-file",
+        help="One sample per line")
     import_parser.add_argument("--metadata_file", required=True,
         help="Excel metadata file with sheet 'meta' containing a 'sample' column matching input folder names")
     import_parser.add_argument("--inflection_lower", type=int, default=100,

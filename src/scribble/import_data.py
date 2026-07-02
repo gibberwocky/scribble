@@ -169,32 +169,32 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, i
     return adata_clean
 
 # Check sampels present in cellranger and velocyto directories
-def get_samples(cellranger_dir, velo_dir):
-    velo_samples = {
-        d.name for d in velo_dir.iterdir()
-        if d.is_dir()
-    }
+def get_samples(cellranger_dir, velo_dir, requested_samples=None):
 
-    cellranger_samples = {
+    available_cr = {
         d.name for d in cellranger_dir.iterdir()
         if d.is_dir()
     }
 
-    samples = sorted(velo_samples & cellranger_samples)
+    available_velo = {
+        d.name for d in velo_dir.iterdir()
+        if d.is_dir()
+    }
 
-    missing_velo = sorted(cellranger_samples - velo_samples)
-    missing_cr = sorted(velo_samples - cellranger_samples)
+    available = available_cr & available_velo
 
-    if missing_velo:
-        print(f"Missing velocyto data: {missing_velo}")
+    if requested_samples is None:
+        samples = sorted(available)
+    else:
+        missing = sorted(set(requested_samples) - available)
 
-    if missing_cr:
-        print(f"Missing cellranger data: {missing_cr}")
+        if missing:
+            raise ValueError(
+                f"Samples missing from Cell Ranger and/or Velocyto:\n"
+                + "\n".join(missing)
+            )
 
-    if not samples:
-        raise RuntimeError(
-            "No samples found in both Cell Ranger and Velocyto directories"
-        )
+        samples = sorted(requested_samples)
 
     return samples
 
@@ -220,7 +220,26 @@ def run_import(args):
 
     setup_environment(sc, np, random, PLOT_DIR)
 
-    samples = get_samples(CELLRANGER_DIR, VELO_DIR)
+
+    requested_samples = None
+
+    if args.samples:
+        requested_samples = args.samples
+
+    elif args.samples_file:
+        with open(args.samples_file) as handle:
+            requested_samples = [
+                line.strip()
+                for line in handle
+                if line.strip()
+            ]
+
+    samples = get_samples(
+        CELLRANGER_DIR,
+        VELO_DIR,
+        requested_samples
+    )
+
     print(f"Detected samples: {samples}")
 
     adatas = []
