@@ -14,14 +14,6 @@ def setup_environment(sc, np, random, plot_dir):
     random.seed(0)
 
 
-# ---------- Sample detection ----------
-def get_samples(velo_dir):
-    samples = sorted([d.name for d in velo_dir.iterdir() if d.is_dir()])
-    if len(samples) == 0:
-        raise RuntimeError("No sample folders found in velocyto directory")
-    return samples
-
-
 # ---------- Metadata ----------
 def add_metadata(pd, adata, metadata_file):
     print(f"Reading metadata: {metadata_file}")
@@ -176,6 +168,35 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, i
 
     return adata_clean
 
+# Check sampels present in cellranger and velocyto directories
+def get_samples(cellranger_dir, velo_dir):
+    velo_samples = {
+        d.name for d in velo_dir.iterdir()
+        if d.is_dir()
+    }
+
+    cellranger_samples = {
+        d.name for d in cellranger_dir.iterdir()
+        if d.is_dir()
+    }
+
+    samples = sorted(velo_samples & cellranger_samples)
+
+    missing_velo = sorted(cellranger_samples - velo_samples)
+    missing_cr = sorted(velo_samples - cellranger_samples)
+
+    if missing_velo:
+        print(f"Missing velocyto data: {missing_velo}")
+
+    if missing_cr:
+        print(f"Missing cellranger data: {missing_cr}")
+
+    if not samples:
+        raise RuntimeError(
+            "No samples found in both Cell Ranger and Velocyto directories"
+        )
+
+    return samples
 
 # ---------- MAIN ENTRY ----------
 def run_import(args):
@@ -187,8 +208,8 @@ def run_import(args):
 
     PROJECT_DIR = Path(args.project_dir)
 
-    CELLRANGER_DIR = PROJECT_DIR / "cellranger"
-    VELO_DIR = PROJECT_DIR / "velocyto"
+    CELLRANGER_DIR = Path(args.cellranger_dir)
+    VELO_DIR = Path(args.velocyto_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     ADATA_DIR = PROJECT_DIR / "scribble/adata"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
@@ -199,7 +220,7 @@ def run_import(args):
 
     setup_environment(sc, np, random, PLOT_DIR)
 
-    samples = get_samples(VELO_DIR)
+    samples = get_samples(CELLRANGER_DIR, VELO_DIR)
     print(f"Detected samples: {samples}")
 
     adatas = []

@@ -39,7 +39,11 @@ GitHub: https://github.com/gibberwocky/scribble
     # ---------- IMPORT COMMAND ----------
     import_parser = subparsers.add_parser("import")
     import_parser.add_argument("--project_dir", required=True,
-        help='Root project directory containing cellranger/ and velocyto/ subdirectories')
+        help='Root project directory')
+    import_parser.add_argument("--cellranger_dir", required=True,
+        help='Directory containing cellranger/ sample subdirectories')
+    import_parser.add_argument("--velocyto_dir", required=True,
+        help='Directory containing velocyto/ sample subdirectories')
     import_parser.add_argument("--metadata_file", required=True,
         help="Excel metadata file with sheet 'meta' containing a 'sample' column matching input folder names")
     import_parser.add_argument("--inflection_lower", type=int, default=100,
