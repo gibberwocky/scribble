@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--input_file", type=str, required=True)
 parser.add_argument("--plot_file", type=str, required=True)
 parser.add_argument("--markers", nargs="+", required=True)
+parser.add_argument("--samples", nargs="+", default=None)
 parser.add_argument("--dotplot", action="store_true")
 parser.add_argument("--umap", action="store_true")
 
@@ -23,6 +24,30 @@ args = parser.parse_args()
 
 # Import adata
 adata = sc.read(args.input_file)
+
+# Optional sample filtering
+if args.samples is not None:
+    if "sample" not in adata.obs.columns:
+        raise ValueError(
+            "Column 'sample' not found in adata.obs. "
+            f"Available columns: {list(adata.obs.columns)}"
+        )
+
+    before_n = adata.n_obs
+
+    adata = adata[adata.obs["sample"].isin(args.samples)].copy()
+
+    after_n = adata.n_obs
+
+    print(
+        f"Subsetted to samples: {', '.join(args.samples)} "
+        f"({after_n}/{before_n} cells retained)"
+    )
+
+    if after_n == 0:
+        raise ValueError(
+            f"No cells found for requested samples: {args.samples}"
+        )
 
 # Keep only markers present in the dataset
 requested_markers = args.markers
