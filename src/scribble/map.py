@@ -32,6 +32,33 @@ def run_map(args):
     adata_ref = sc.read(DATA_DIR / args.reference)
     adata_query = sc.read(DATA_DIR / args.query)
 
+    # Set counts
+    if "counts" in adata_ref.layers:
+        adata_ref.X = adata_ref.layers["counts"].copy()
+
+    if "counts" in adata_query.layers:
+        adata_query.X = adata_query.layers["counts"].copy()
+
+    # Set query annotations as "Unknown"
+    adata_query.obs[args.label_key] = "Unknown"
+
+    # Check counts
+    for name, ad in {
+        "ref": adata_ref,
+        "query": adata_query
+    }.items():
+
+        X = ad.X.data if sparse.issparse(ad.X) else np.asarray(ad.X)
+
+        print(
+            name,
+            np.nanmin(X),
+            np.nanmax(X),
+            np.isnan(X).sum(),
+            (X < 0).sum()
+        )
+
+
     # ----------------------------
     # Harmonise gene space
     # ----------------------------
@@ -52,35 +79,6 @@ def run_map(args):
         batch_categories=["ref", "query"]
     )
 
-    # Check SCVI inputs
-    print("shape:", adata.shape)
-
-    print("nan X:",
-          np.isnan(adata.X.data).sum()
-          if sparse.issparse(adata.X)
-          else np.isnan(adata.X).sum())
-
-    print("inf X:",
-          np.isinf(adata.X.data).sum()
-          if sparse.issparse(adata.X)
-          else np.isinf(adata.X).sum())
-
-    print("min:",
-          adata.X.data.min()
-          if sparse.issparse(adata.X)
-          else adata.X.min())
-
-    print("max:",
-          adata.X.data.max()
-          if sparse.issparse(adata.X)
-          else adata.X.max())
-
-    print("zero-count cells:",
-          (np.asarray(adata.X.sum(axis=1)).ravel() == 0).sum())
-
-    print("zero-count genes:",
-          (np.asarray(adata.X.sum(axis=0)).ravel() == 0).sum())
-
     # ----------------------------
     # SCVI model
     # ----------------------------
@@ -88,7 +86,8 @@ def run_map(args):
 
     scvi.model.SCVI.setup_anndata(
         adata_combined,
-        batch_key="dataset"
+        batch_key="dataset",
+        layer="counts"
     )
 
     model = scvi.model.SCVI(adata_combined)
