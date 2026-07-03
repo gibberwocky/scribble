@@ -49,6 +49,24 @@ if args.samples is not None:
             f"No cells found for requested samples: {args.samples}"
         )
 
+if args.umap:
+    print("Generating cell_type_major UMAP")
+    sc.pl.umap(
+        adata,
+        color="cell_type_major",
+        legend_loc="right margin",
+        show=False
+    )
+    out_file = Path(args.plot_file).with_name(
+        f"{Path(args.plot_file).stem}_cell_type_major.png"
+    )
+    plt.savefig(
+        out_file,
+        dpi=300,
+        bbox_inches="tight"
+    )
+    plt.close()
+
 # Keep only markers present in the dataset
 requested_markers = args.markers
 available_markers = [g for g in requested_markers if g in adata.var_names]
@@ -87,21 +105,3 @@ if args.umap:
         )
         plt.savefig(out_file, dpi=300, bbox_inches="tight")
         plt.close()
-
-    print("Generating cell_type_major UMAP")
-    sc.pl.umap(
-        adata,
-        color="cell_type_major",
-        legend_loc="right margin",
-        show=False
-    )
-    out_file = Path(args.plot_file).with_name(
-        f"{Path(args.plot_file).stem}_cell_type_major.png"
-    )
-    plt.savefig(
-        out_file,
-        dpi=300,
-        bbox_inches="tight"
-    )
-
-    plt.close()
