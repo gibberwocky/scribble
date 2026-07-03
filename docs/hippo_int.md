@@ -17,7 +17,7 @@ pip install velocyto
 Next, we run velocyto to generate spliced and unspliced count matrices from the 10X BAM output. The `velocyto.sh` script reference below is provided in the `scribble/scripts` floder. In the below example, the HPC431 sample is processed, the `BAM` and `BARCODES` file paths should be updated to process the K2HO120 sample.
 
 ```bash
-mamba activate velocity
+mamba activate velocyto
 PROJECT=/uoa/home/s14dw4/sharedscratch/KangLab/hippocampus
 BAM=${PROJECT}/cellranger/HPC431/outs/possorted_genome_bam.bam
 BARCODES=${PROJECT}/cellranger/HPC431/outs/filtered_feature_bc_matrix/barcodes.tsv.gz
@@ -42,10 +42,10 @@ sbatch --partition uoa-compute \
 
 ### Import data
 
-I have `scribble` installed in an env originally created for `scvelo` which uses `python=3.12`. Note, `scribble` requires the `--project` directory to include directories for `cellranger` and `velocyto`, each of which contains one subdirectory per sample. When importing data it will be looking in each cellranger sample directory for `outs/filtered_feature_bc_matrix`, and in each velocyto sample directory for `*.loom` - it will use the first identified so ensure there is only one per sample directory. It also expets an `xlsx` file containing the worksheet `meta`, which includes the column `sample` whose values matching the sample directory names in the cellranger and velocyto directories. After importing the data and appending the metadata, a `combined.h5ad` file is written to the `scribble/adata` directory in `--project_dir`.
+I have `scribble` installed in an env which uses `python=3.12`, and in which `torch` was installed whilst connected to a GPU node. The import tool expects an `xlsx` file containing the worksheet `meta`, which includes the column `sample` whose values match the sample names provided to `--samples`, which should also be directories in the cellranger and velocyto directories. After importing the data and appending the metadata, a `combined.h5ad` file is written to the `scribble/adata` directory in `--project_dir`.
 
 ```bash
-mamba activate scvelo
+mamba activate scribble
 
 SCRATCH=/uoa/home/s14dw4/sharedscratch/KangLab/hippocampus
 
@@ -54,6 +54,9 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 24G --time=4:00:00 \
     -o ${SCRATCH}/logs/sc_import.%j.out -e ${SCRATCH}/logs/sc_import.%j.err \
     scribble import \
     --project_dir ${SCRATCH} \
+    --cellranger_dir ${SCRATCH}/cellranger \
+    --velocyto_dir ${SCRATCH}/velocyto \
+    --samples HPC431 K2HO120 \
     --metadata_file ${SCRATCH}/samples.xlsx
 ```
 

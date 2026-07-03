@@ -21,14 +21,27 @@ parser.add_argument("--umap", action="store_true")
 
 args = parser.parse_args()
 
-
 # Import adata
 adata = sc.read(args.input_file)
+
+# Keep only markers present in the dataset
+requested_markers = args.markers
+available_markers = [g for g in requested_markers if g in adata.var_names]
+missing_markers = [g for g in requested_markers if g not in adata.var_names]
+
+if missing_markers:
+    print(
+        f"Warning: {len(missing_markers)} marker(s) not found and will be skipped: "
+        + ", ".join(missing_markers)
+    )
+
+if not available_markers:
+    raise ValueError("None of the requested markers were found in adata.var_names.")
 
 if args.dotplot:
     sc.pl.dotplot(
         adata,
-        args.markers,
+        available_markers,
         standard_scale="var",
         groupby="refine_label",
         dendrogram=False
@@ -37,16 +50,12 @@ if args.dotplot:
     plt.close()
 
 if args.umap:
-    for gene in args.markers:
-        try:
-            sc.pl.umap(
-                adata,
-                color=gene,
-                cmap="Reds"
-            )
-        except KeyError:
-            print(f"Warning: {gene} not found. Skipping.")
-            continue
+    for gene in available_markers:
+        sc.pl.umap(
+            adata,
+            color=gene,
+            cmap="Reds"
+        )
 
         out_file = Path(args.plot_file).with_name(
             f"{Path(args.plot_file).stem}_{gene}.png"
