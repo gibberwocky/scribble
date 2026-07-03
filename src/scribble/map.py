@@ -52,6 +52,35 @@ def run_map(args):
         batch_categories=["ref", "query"]
     )
 
+    # Check SCVI inputs
+    print("shape:", adata.shape)
+
+    print("nan X:",
+          np.isnan(adata.X.data).sum()
+          if sparse.issparse(adata.X)
+          else np.isnan(adata.X).sum())
+
+    print("inf X:",
+          np.isinf(adata.X.data).sum()
+          if sparse.issparse(adata.X)
+          else np.isinf(adata.X).sum())
+
+    print("min:",
+          adata.X.data.min()
+          if sparse.issparse(adata.X)
+          else adata.X.min())
+
+    print("max:",
+          adata.X.data.max()
+          if sparse.issparse(adata.X)
+          else adata.X.max())
+
+    print("zero-count cells:",
+          (np.asarray(adata.X.sum(axis=1)).ravel() == 0).sum())
+
+    print("zero-count genes:",
+          (np.asarray(adata.X.sum(axis=0)).ravel() == 0).sum())
+
     # ----------------------------
     # SCVI model
     # ----------------------------

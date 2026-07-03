@@ -38,11 +38,16 @@ if args.dotplot:
 
 if args.umap:
     for gene in args.markers:
-        sc.pl.umap(
-            adata,
-            color=gene,
-            cmap="Reds"
-        )
+        try:
+            sc.pl.umap(
+                adata,
+                color=gene,
+                cmap="Reds"
+            )
+        except KeyError:
+            print(f"Warning: {gene} not found. Skipping.")
+            continue
+
         out_file = Path(args.plot_file).with_name(
             f"{Path(args.plot_file).stem}_{gene}.png"
         )
