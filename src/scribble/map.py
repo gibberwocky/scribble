@@ -2,7 +2,25 @@
 
 from pathlib import Path
 
+def qc_scvi_input(adata, name):
+
+    X = adata.X.data if sparse.issparse(adata.X) else np.asarray(adata.X)
+    cell_sums = np.asarray(
+        adata.X.sum(axis=1)
+    ).ravel()
+
+    print(
+        name,
+        np.nanmin(X),
+        np.nanmax(X),
+        np.isnan(X).sum(),
+        (X < 0).sum(),
+        "zero_cells=",
+        (cell_sums == 0).sum()
+    )
+
 def run_map(args):
+    import anndata as ad
     import scanpy as sc
     import numpy as np
     import pandas as pd
@@ -43,41 +61,34 @@ def run_map(args):
     adata_query.obs[args.label_key] = "Unknown"
 
     # Check counts
-    for name, ad in {
-        "ref": adata_ref,
-        "query": adata_query
-    }.items():
-
-        X = ad.X.data if sparse.issparse(ad.X) else np.asarray(ad.X)
-
-        print(
-            name,
-            np.nanmin(X),
-            np.nanmax(X),
-            np.isnan(X).sum(),
-            (X < 0).sum()
-        )
-
+    qc_scvi_input(adata_ref, "ref")
+    qc_scvi_input(adata_query, "query")
 
     # ----------------------------
     # Harmonise gene space
     # ----------------------------
     print("Harmonising gene space...")
-
     common = adata_ref.var_names.intersection(adata_query.var_names)
+
+    print(f"Reference genes: {adata_ref.n_vars}")
+    print(f"Query genes: {adata_query.n_vars}")
+
     adata_ref = adata_ref[:, common].copy()
     adata_query = adata_query[:, common].copy()
+    print(f"Shared genes: {len(common)}")
 
     # ----------------------------
     # Combine datasets
     # ----------------------------
     print("Combining datasets...")
 
-    adata_combined = adata_ref.concatenate(
-        adata_query,
-        batch_key="dataset",
-        batch_categories=["ref", "query"]
+    adata_combined = ad.concat(
+        [adata_ref, adata_query],
+        label="dataset",
+        keys=["ref", "query"],
+        join="inner"
     )
+    print(adata_combined.obs["dataset"].value_counts())
 
     # ----------------------------
     # SCVI model
@@ -86,25 +97,31 @@ def run_map(args):
 
     scvi.model.SCVI.setup_anndata(
         adata_combined,
-        batch_key="dataset",
-        layer="counts"
+        batch_key="dataset"
     )
 
     model = scvi.model.SCVI(adata_combined)
-    model.train()
+    model.train(accelerator="auto")
 
     # ----------------------------
     # SCANVI model
     # ----------------------------
     print("Training SCANVI model...")
 
-    scvi.model.SCANVI.setup_anndata(
-        adata_combined,
-        labels_key=args.label_key
+    print(
+        adata_combined.obs[args.label_key]
+        .value_counts(dropna=False)
     )
 
-    scanvi = scvi.model.SCANVI.from_scvi_model(model)
-    scanvi.train()
+    scanvi = scvi.model.SCANVI.from_scvi_model(
+        model,
+        labels_key=args.label_key,
+        unlabeled_category="Unknown"
+    )
+
+    scanvi.train(
+        accelerator="auto"
+    )
 
     # ----------------------------
     # Predictions
