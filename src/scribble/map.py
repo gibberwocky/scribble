@@ -3,6 +3,8 @@
 from pathlib import Path
 
 def qc_scvi_input(adata, name):
+    import numpy as np
+    from scipy import sparse
 
     X = adata.X.data if sparse.issparse(adata.X) else np.asarray(adata.X)
     cell_sums = np.asarray(
