@@ -92,6 +92,12 @@ def run_map(args):
     )
     print(adata_combined.obs["dataset"].value_counts())
 
+    # For debugging
+    print(
+        adata_combined.obs[args.label_key]
+        .value_counts(dropna=False)
+    )
+
     # ----------------------------
     # SCVI model
     # ----------------------------
@@ -131,10 +137,13 @@ def run_map(args):
     print("Predicting labels...")
 
     preds = scanvi.predict(adata_combined)
-    probs = scanvi.predict_proba(adata_combined)
+    probs = scanvi.predict(adata_combined, soft=True)
 
     adata_combined.obs["predicted_labels"] = preds
-    adata_combined.obsm["prediction_probs"] = probs
+    adata_combined.obsm["prediction_probs"] = np.asarray(probs)
+
+    # For debugging
+    print(pd.Series(preds).value_counts())
 
     # ----------------------------
     # Split query
@@ -149,7 +158,7 @@ def run_map(args):
     print("Calculating confidence scores...")
 
     max_prob = np.max(adata_query.obsm["prediction_probs"], axis=1)
-    ent = entropy(adata_query.obsm["prediction_probs"].T)
+    ent = entropy(np.asarray(adata_query.obsm["prediction_probs"]).T)
 
     # Normalised entropy (0 = confident, 1 = uncertain)
     ent_norm = ent / np.log(adata_query.obsm["prediction_probs"].shape[1])
