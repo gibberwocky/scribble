@@ -130,9 +130,16 @@ def run_annotate(args):
         adata,
         color="cell_type_major",
         legend_loc="on data",
-        legend_fontsize=8,
+        legend_fontsize=6,
+        frameon=False,
         show=False
     )
+
+    ax = plt.gca()
+
+    for txt in ax.texts:
+        txt.set_fontweight("normal")
+        txt.set_alpha(0.8)
 
     plt.savefig(
         PLOT_DIR / "UMAP_cell_type_major.png",
