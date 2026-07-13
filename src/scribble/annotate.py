@@ -129,7 +129,8 @@ def run_annotate(args):
     sc.pl.umap(
         adata,
         color="cell_type_major",
-        legend_loc="right margin",
+        legend_loc="on data",
+        legend_fontsize=8,
         show=False
     )
 
