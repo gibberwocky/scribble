@@ -129,13 +129,31 @@ def run_annotate(args):
     sc.pl.umap(
         adata,
         color="cell_type_major",
-        legend_loc="right",
+        legend_loc="right margin",
         legend_fontsize=4,
         frameon=False,
         show=False
     )
 
     ax = plt.gca()
+
+    # get legend
+    leg = ax.get_legend()
+
+    if leg is not None:
+
+        # move legend further right
+        leg.set_bbox_to_anchor((1.25, 0.5))
+
+        # shrink marker size
+        for h in leg.legend_handles:
+            try:
+                h.set_sizes([20])      # default is usually huge
+            except AttributeError:
+                pass
+
+        # optional: tighten text spacing
+        leg._legend_box.sep = 2
 
     for txt in ax.texts:
         txt.set_fontweight("normal")
