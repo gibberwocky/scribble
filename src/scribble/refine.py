@@ -68,13 +68,53 @@ def run_refine(args):
     # --------------------------------------------------
     # Build initial tasks
     # --------------------------------------------------
+
     tasks = []
 
-    subset_clusters = decisions.loc[
-        decisions["action"] == "subset", "cluster"
-    ].astype(str)
+    subset_df = decisions.loc[
+        decisions["action"] == "subset"
+    ].copy()
 
-    for cl in subset_clusters:
+    subset_df["cluster"] = subset_df["cluster"].astype(str)
+
+    # ----------------------------------------
+    # 1. Handle merge groups
+    # ----------------------------------------
+
+    processed = set()
+
+    if "merge_group" in subset_df.columns:
+
+        merge_df = subset_df[
+            subset_df["merge_group"].notna()
+            & (subset_df["merge_group"].astype(str).str.strip() != "")
+        ]
+
+        for merge_group, grp in merge_df.groupby("merge_group"):
+
+            clusters = grp["cluster"].tolist()
+
+            tasks.append({
+                "clusters": clusters,
+                "level": 2,
+            })
+
+            processed.update(clusters)
+
+            print(
+                f"[Refine] Merge group '{merge_group}' "
+                f"→ clusters {clusters}"
+            )
+
+    # ----------------------------------------
+    # 2. Handle standalone subset clusters
+    # ----------------------------------------
+
+    for cl in subset_df["cluster"]:
+
+        if cl in processed:
+            continue
+
         tasks.append({
             "clusters": [cl],
             "level": 2,
@@ -448,8 +488,12 @@ def run_refine(args):
                 # ------------------------------
                 print("    → REFINE further")
 
+                child_labels = refined[
+                    adata_sub.obs["leiden_refined"].astype(str) == cluster_label
+                ].unique().tolist()
+
                 new_tasks.append({
-                    "clusters": [f"{clusters[0]}-{cluster_label}"],
+                    "clusters": child_labels,
                     "level": level + 1
                 })
 
