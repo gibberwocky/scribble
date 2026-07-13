@@ -130,33 +130,35 @@ def run_annotate(args):
         adata,
         color="cell_type_major",
         legend_loc="right margin",
-        legend_fontsize=4,
         frameon=False,
         show=False
     )
 
     ax = plt.gca()
 
-    # get legend
+
+    # Get Scanpy-generated legend
     leg = ax.get_legend()
 
     if leg is not None:
 
-        # force 1 column
-        leg.set_ncols(1)
+        handles = leg.legend_handles
+        labels = [t.get_text() for t in leg.get_texts()]
 
-        # move legend further right
-        leg.set_bbox_to_anchor((1.35, 0.5))
+        leg.remove()
 
-        # shrink marker size
-        for h in leg.legend_handles:
-            try:
-                h.set_sizes([10])      # default is usually huge
-            except AttributeError:
-                pass
-
-        # optional: tighten text spacing
-        leg._legend_box.sep = 2
+        ax.legend(
+            handles,
+            labels,
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            ncol=1,
+            fontsize=4,
+            frameon=False,
+            markerscale=0.25,
+            handletextpad=0.3,
+            labelspacing=0.2
+        )
 
     for txt in ax.texts:
         txt.set_fontweight("normal")
