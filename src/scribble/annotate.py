@@ -24,6 +24,7 @@ def run_annotate(args):
     import random
     import re
     import matplotlib.pyplot as plt
+    from adjustText import adjust_text
 
     from pathlib import Path
     from scribble.import_data import setup_environment
@@ -129,17 +130,45 @@ def run_annotate(args):
     sc.pl.umap(
         adata,
         color="cell_type_major",
-        legend_loc="on data",
-        legend_fontsize=4,
+        legend_loc=None,
         frameon=False,
         show=False
     )
 
     ax = plt.gca()
 
-    for txt in ax.texts:
-        txt.set_fontweight("normal")
-        txt.set_alpha(1.0)
+
+    texts = []
+
+    for label in adata.obs["cell_type_major"].cat.categories:
+
+        coords = adata.obsm["X_umap"][
+            adata.obs["cell_type_major"] == label
+        ]
+
+        x = coords[:, 0].mean()
+        y = coords[:, 1].mean()
+
+        texts.append(
+            ax.text(
+                x,
+                y,
+                label,
+                fontsize=6,
+                weight="normal"
+            )
+        )
+
+    adjust_text(
+        texts,
+        ax=ax,
+        arrowprops=dict(
+            arrowstyle="-",
+            color="grey",
+            lw=0.5
+        )
+    )
+
 
     plt.savefig(
         PLOT_DIR / "UMAP_cell_type_major.png",
