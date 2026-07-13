@@ -142,13 +142,16 @@ def run_annotate(args):
 
     if leg is not None:
 
+        # force 1 column
+        leg.set_ncols(1)
+
         # move legend further right
-        leg.set_bbox_to_anchor((1.25, 0.5))
+        leg.set_bbox_to_anchor((1.35, 0.5))
 
         # shrink marker size
         for h in leg.legend_handles:
             try:
-                h.set_sizes([20])      # default is usually huge
+                h.set_sizes([10])      # default is usually huge
             except AttributeError:
                 pass
 
