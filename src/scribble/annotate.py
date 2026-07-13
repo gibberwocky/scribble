@@ -130,7 +130,7 @@ def run_annotate(args):
         adata,
         color="cell_type_major",
         legend_loc="on data",
-        legend_fontsize=6,
+        legend_fontsize=4,
         frameon=False,
         show=False
     )
@@ -139,7 +139,7 @@ def run_annotate(args):
 
     for txt in ax.texts:
         txt.set_fontweight("normal")
-        txt.set_alpha(0.8)
+        txt.set_alpha(1.0)
 
     plt.savefig(
         PLOT_DIR / "UMAP_cell_type_major.png",
