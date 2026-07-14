@@ -193,6 +193,7 @@ def run_cluster(args):
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
+    ADATA_DIR = PROJECT_DIR / "scribble/adata"
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
@@ -200,7 +201,8 @@ def run_cluster(args):
         output_prefix = input_file.stem
     else:
         output_prefix = Path(args.output_prefix)
-    output_file = input_file.with_name(f"{output_prefix}_clustered.h5ad")
+
+    output_file = ADATA_DIR / f"{output_prefix}_clustered.h5ad"
     markers_file = TABLE_DIR / f"{output_prefix}_clusters.xlsx"
     coarse_file = TABLE_DIR / f"{output_prefix}_res_coarse.tsv"
     fine_file = TABLE_DIR / f"{output_prefix}_res_fine.tsv"
