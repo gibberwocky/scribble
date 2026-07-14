@@ -196,16 +196,20 @@ def run_cluster(args):
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
-    output_file = input_file.with_name(f"{input_file.stem}_clustered.h5ad")
-    markers_file = TABLE_DIR / f"{input_file.stem}_clusters.xlsx"
-    coarse_file = TABLE_DIR / f"{input_file.stem}_res_coarse.tsv"
-    fine_file = TABLE_DIR / f"{input_file.stem}_res_fine.tsv"
-    stats_file = TABLE_DIR / f"{input_file.stem}_cluster_summary.tsv"
-    cell_file = TABLE_DIR / f"{input_file.stem}_cluster_cells.tsv"
-    cluster_file = PLOT_DIR / f"{input_file.stem}_clusters.png"
-    vars_file = PLOT_DIR / f"{input_file.stem}_vars.png"
-    stability_file = PLOT_DIR / f"{input_file.stem}_stability.png"
-    plot_file = PLOT_DIR / f"{input_file.stem}_resolution_optimisation.png"
+    if not args.output_prefix:
+        output_prefix = input_file.stem
+    else:
+        output_prefix = Path(args.output_prefix)
+    output_file = input_file.with_name(f"{output_prefix}_clustered.h5ad")
+    markers_file = TABLE_DIR / f"{output_prefix}_clusters.xlsx"
+    coarse_file = TABLE_DIR / f"{output_prefix}_res_coarse.tsv"
+    fine_file = TABLE_DIR / f"{output_prefix}_res_fine.tsv"
+    stats_file = TABLE_DIR / f"{output_prefix}_cluster_summary.tsv"
+    cell_file = TABLE_DIR / f"{output_prefix}_cluster_cells.tsv"
+    cluster_file = PLOT_DIR / f"{output_prefix}_clusters.png"
+    vars_file = PLOT_DIR / f"{output_prefix}_vars.png"
+    stability_file = PLOT_DIR / f"{output_prefix}_stability.png"
+    plot_file = PLOT_DIR / f"{output_prefix}_resolution_optimisation.png"
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)

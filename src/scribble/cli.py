@@ -153,6 +153,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Project directory containing scribble output folder")
     cluster_parser.add_argument("--input", required=True,
         help="Input AnnData (.h5ad) file (generated with scribble)")
+    cluster_parser.add_argument("--output_prefix", required=True,
+        help="Prefix for output files (defaults to args.input.stem)")
     cluster_parser.add_argument("--embedding", default="X_pca",
         help="Embedding to use for clustering ('X_pca' or 'X_pca_harmony')")
     cluster_parser.add_argument("--resolution", type=float, default=1.0,
