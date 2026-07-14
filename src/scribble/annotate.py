@@ -252,9 +252,32 @@ def run_annotate(args):
 
             print("Generating marker dotplot")
 
+            # ------------------------------------------
+            # Remove duplicated genes across cell types
+            # for dotplot only
+            # ------------------------------------------
+
+            used_genes = set()
+            dotplot_dict = {}
+
+            for cell_type, markers in marker_dict.items():
+
+                unique_markers = []
+
+                for gene in markers:
+
+                    if gene in used_genes:
+                        continue
+
+                    unique_markers.append(gene)
+                    used_genes.add(gene)
+
+                if len(unique_markers) > 0:
+                    dotplot_dict[cell_type] = unique_markers
+
             sc.pl.dotplot(
                 adata,
-                var_names=marker_dict,
+                var_names=dotplot_dict,
                 groupby="cell_type_major",
                 show=False
             )
