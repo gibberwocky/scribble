@@ -217,7 +217,7 @@ def run_annotate(args):
 
                 genes = [
                     g.strip()
-                    for g in str(markers).split(";")
+                    for g in re.split(r"[;,]", str(markers))
                     if g.strip()
                 ]
 
@@ -235,6 +235,12 @@ def run_annotate(args):
                 )
 
                 continue
+
+            print(
+                f"{cell_type}: "
+                f"{len(markers)} markers found"
+            )
+            print(markers[:10])
 
             marker_dict[cell_type] = markers
 
