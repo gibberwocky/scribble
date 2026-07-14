@@ -134,14 +134,26 @@ def run_refine(args):
         """
 
         try:
-            sc.pp.highly_variable_genes(
-                adata_sub,
-                n_top_genes=args.hvgs,
-                batch_key=args.batch,
-                flavor="seurat_v3",
-                layer="counts"
-            )
-            return True  # ✅ success
+            if args.skip_integration:
+
+                sc.pp.highly_variable_genes(
+                    adata_sub,
+                    n_top_genes=args.hvgs,
+                    flavor="seurat_v3",
+                    layer="counts"
+                )
+
+            else:
+
+                sc.pp.highly_variable_genes(
+                    adata_sub,
+                    n_top_genes=args.hvgs,
+                    batch_key=args.batch,
+                    flavor="seurat_v3",
+                    layer="counts"
+                )
+
+            return True
 
         except Exception as e:
 
@@ -190,18 +202,25 @@ def run_refine(args):
 
         sc.tl.pca(adata_sub, n_comps=args.npcs)
 
-        ho = hm.run_harmony(
-            adata_sub.obsm["X_pca"],
-            adata_sub.obs,
-            args.batch,
-            theta=args.theta
-        )
+        if args.skip_integration:
 
-        adata_sub.obsm["X_pca_harmony"] = ho.Z_corr
+            use_rep = "X_pca"
+
+        else:
+
+            ho = hm.run_harmony(
+                adata_sub.obsm["X_pca"],
+                adata_sub.obs,
+                args.batch,
+                theta=args.theta
+            )
+
+            adata_sub.obsm["X_pca_harmony"] = ho.Z_corr
+            use_rep = "X_pca_harmony"
 
         sc.pp.neighbors(
             adata_sub,
-            use_rep="X_pca_harmony",
+            use_rep=use_rep,
             n_neighbors=args.neighbors
         )
 
@@ -211,7 +230,7 @@ def run_refine(args):
                 pd,
                 sc,
                 adata_sub,
-                "X_pca_harmony",
+                use_rep,
                 args.neighbors,
                 (args.res_min, args.res_max),
                 args.fine_width,
@@ -222,7 +241,7 @@ def run_refine(args):
 
         sc.pp.neighbors(
             adata_sub,
-            use_rep="X_pca_harmony",
+            use_rep=use_rep,
             n_neighbors=args.neighbors
         )
 

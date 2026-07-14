@@ -262,6 +262,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Minimum number of cells permitted per cluster")
     refine_parser.add_argument("--marker_strength_threshold", type=float, default=1.0,
         help="logFC threshold")
+    refine_parser.add_argument("--skip-integration", action="store_true",
+        help="Skip Harmony and use PCA directly.")
 
     # ------------- Map to atlas ---------
     map_parser = subparsers.add_parser("map",
