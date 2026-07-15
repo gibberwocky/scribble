@@ -228,12 +228,15 @@ def run_annotate(args):
                 if g in adata.var_names
             )
 
-            if len(markers) == 0:
+            missing_markers = sorted(
+                g for g in marker_set
+                if g not in adata.var_names
+            )
 
+            if len(markers) == 0:
                 print(
                     f"No markers found for {cell_type}"
                 )
-
                 continue
 
             print(
@@ -241,6 +244,14 @@ def run_annotate(args):
                 f"{len(markers)} markers found"
             )
             print(markers[:10])
+
+            if len(missing_markers) > 0:
+                print(
+                    f"{cell_type}: "
+                    f"{len(missing_markers)} markers not found "
+                    f"in adata"
+                )
+                print(missing_markers[:10])
 
             marker_dict[cell_type] = markers
 
