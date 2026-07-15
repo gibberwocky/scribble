@@ -305,6 +305,8 @@ GitHub: https://github.com/gibberwocky/scribble
     map_parser.add_argument("--confidence_threshold", type=float, default=0.5,
         help=("Minimum prediction confidence for label assignment. "
             "Cells below this threshold are labelled as 'Unassigned' "))
+    map_parser.add_argument("--nieghbors", type=int, default=15,
+        help="Number of nearest neighbours used to smoothing labels")
 
     # -----------Add annotations ---------
     annotate_parser = subparsers.add_parser(
