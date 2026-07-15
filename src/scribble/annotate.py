@@ -27,6 +27,7 @@ def run_annotate(args):
 
     from pathlib import Path
     from scribble.import_data import setup_environment
+    from scribble.refine import restore_counts
 
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
@@ -43,6 +44,39 @@ def run_annotate(args):
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
+
+    print(adata.shape)
+
+    print(
+        "counts_full" in adata.uns,
+        "var_full" in adata.uns,
+        "obs_full_names" in adata.uns
+    )
+
+    try:
+        adata_plot = restore_counts(adata)
+
+        # preserve annotations/embeddings
+        adata_plot.obsm = adata.obsm.copy()
+        adata_plot.obs = adata.obs.copy()
+        adata_plot.uns = adata.uns.copy()
+
+        adata = adata_plot
+
+        sc.pp.normalize_total(adata)
+        sc.pp.log1p(adata)
+        adata.raw = adata
+
+        print(
+            f"Restored full feature space: "
+            f"{adata.n_vars:,} genes"
+        )
+
+    except Exception as e:
+
+        print(
+            f"Could not restore counts: {e}"
+        )
 
     print(f"Loading annotations → {annotation_file}")
 
