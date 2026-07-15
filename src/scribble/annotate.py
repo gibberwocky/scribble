@@ -283,7 +283,7 @@ def run_annotate(args):
             )
 
             plt.savefig(
-                PLOT_DIR / "dotplot_cell_type_major.png",
+                PLOT_DIR / f"dotplot_cell_type_major_{args.plot_markers}.png",
                 dpi=300,
                 bbox_inches="tight"
             )
