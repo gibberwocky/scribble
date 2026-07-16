@@ -47,12 +47,6 @@ def run_annotate(args):
 
     print(adata.shape)
 
-    print(
-        "counts_full" in adata.uns,
-        "var_full" in adata.uns,
-        "obs_full_names" in adata.uns
-    )
-
     try:
         adata_plot = restore_counts(adata)
 
@@ -158,11 +152,11 @@ def run_annotate(args):
     # UMAP cell type major
     # --------------------------------------------------
 
-    print("Generating cell_type_major UMAP")
+    print(f"Generating {args.label} UMAP")
 
     sc.pl.umap(
         adata,
-        color="cell_type_major",
+        color=args.label,
         legend_loc="right margin",
         frameon=False,
         show=False
@@ -199,7 +193,7 @@ def run_annotate(args):
         txt.set_alpha(1.0)
 
     plt.savefig(
-        PLOT_DIR / "UMAP_cell_type_major.png",
+        PLOT_DIR / f"UMAP_{args.label}.png",
         dpi=300,
         bbox_inches="tight"
     )
@@ -212,9 +206,9 @@ def run_annotate(args):
 
     if args.plot_markers is not None:
 
-        if "cell_type_major" not in annotations.columns:
+        if args.label not in annotations.columns:
             raise ValueError(
-                "cell_type_major column required for "
+                f"{args.label} column required for "
                 "marker visualisation"
             )
 
@@ -228,7 +222,7 @@ def run_annotate(args):
             return re.sub(r"[^A-Za-z0-9._-]+", "_", str(x))
 
         unique_types = (
-            annotations["cell_type_major"]
+            annotations[args.label]
             .dropna()
             .unique()
         )
@@ -242,7 +236,7 @@ def run_annotate(args):
         for cell_type in sorted(unique_types):
 
             subset = annotations.loc[
-                annotations["cell_type_major"] == cell_type
+                annotations[args.label] == cell_type
             ]
 
             marker_set = set()
@@ -323,12 +317,12 @@ def run_annotate(args):
             sc.pl.dotplot(
                 adata,
                 var_names=dotplot_dict,
-                groupby="cell_type_major",
+                groupby=args.label,
                 show=False
             )
 
             plt.savefig(
-                PLOT_DIR / f"dotplot_cell_type_major_{args.plot_markers}.png",
+                PLOT_DIR / f"dotplot_{args.label}_{args.plot_markers}.png",
                 dpi=300,
                 bbox_inches="tight"
             )

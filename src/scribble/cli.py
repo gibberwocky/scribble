@@ -344,6 +344,8 @@ GitHub: https://github.com/gibberwocky/scribble
             "marker genes. Generates dot plots grouped by "
             "'cell_type_major' and UMAP expression plots for each marker "
             "(e.g. key_markers or canonical_markers)."))
+    annotate_parser.add_argument("--label", default="cell_type_major",
+        help=("Field from 'annotations' to plot as cluster colour / label"))
 
     args = parser.parse_args()
 
