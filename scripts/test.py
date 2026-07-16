@@ -44,6 +44,13 @@ try:
         f"{adata.n_vars:,} genes"
     )
 
+except Exception as e:
+
+    print(
+        f"Could not restore counts: {e}"
+    )
+
+
 # Optional sample filtering
 if args.samples is not None:
     if "sample" not in adata.obs.columns:
