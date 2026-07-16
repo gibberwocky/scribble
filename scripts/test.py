@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import random
 from scribble.import_data import setup_environment
+from scribble.refine import restore_counts
 import os
 import argparse
 
