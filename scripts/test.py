@@ -25,6 +25,25 @@ args = parser.parse_args()
 # Import adata
 adata = sc.read(args.input_file)
 
+try:
+    adata_plot = restore_counts(adata)
+
+    # preserve annotations/embeddings
+    adata_plot.obsm = adata.obsm.copy()
+    adata_plot.obs = adata.obs.copy()
+    adata_plot.uns = adata.uns.copy()
+
+    adata = adata_plot
+
+    sc.pp.normalize_total(adata)
+    sc.pp.log1p(adata)
+    adata.raw = adata
+
+    print(
+        f"Restored full feature space: "
+        f"{adata.n_vars:,} genes"
+    )
+
 # Optional sample filtering
 if args.samples is not None:
     if "sample" not in adata.obs.columns:
@@ -49,24 +68,6 @@ if args.samples is not None:
             f"No cells found for requested samples: {args.samples}"
         )
 
-try:
-    adata_plot = restore_counts(adata)
-
-    # preserve annotations/embeddings
-    adata_plot.obsm = adata.obsm.copy()
-    adata_plot.obs = adata.obs.copy()
-    adata_plot.uns = adata.uns.copy()
-
-    adata = adata_plot
-
-    sc.pp.normalize_total(adata)
-    sc.pp.log1p(adata)
-    adata.raw = adata
-
-    print(
-        f"Restored full feature space: "
-        f"{adata.n_vars:,} genes"
-    )
 
 # Keep only markers present in the dataset
 requested_markers = args.markers
