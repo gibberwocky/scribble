@@ -10,6 +10,27 @@ from scribble.import_data import setup_environment
 from scribble.refine import restore_counts
 import os
 import argparse
+from scipy import sparse
+
+def summarize_expression(adata, label="adata"):
+    X = adata.X
+
+    if sparse.issparse(X):
+        values = X.data
+        nnz = X.nnz
+    else:
+        values = np.asarray(X).ravel()
+        nnz = np.count_nonzero(values)
+
+    print(f"\n{label}.X summary")
+    print(f"  shape: {adata.shape}")
+    print(f"  nonzero entries: {nnz:,}")
+    print(f"  min / max: {values.min():.4g} / {values.max():.4g}")
+    print(f"  mean (nonzero): {values.mean():.4g}")
+    print(f"  first values: {values[:20]}")
+    print(f"  integer-like: {np.allclose(values, np.rint(values))}")
+    print(f"  log1p metadata: {adata.uns.get('log1p', 'absent')}")
+
 
 parser = argparse.ArgumentParser()
 
@@ -25,9 +46,11 @@ args = parser.parse_args()
 
 # Import adata
 adata = sc.read(args.input_file)
+summarize_expression(adata, "Loaded data")
 
 try:
     adata_plot = restore_counts(adata)
+    summarize_expression(adata_plot, "After restore_counts")
 
     # preserve annotations/embeddings
     adata_plot.obsm = adata.obsm.copy()
