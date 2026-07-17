@@ -49,11 +49,11 @@ def run_map(args):
 
     print("PLOT_DIR :", PLOT_DIR)
     print("TABLE_DIR:", TABLE_DIR)
-    print("ADATA_DIR:", ADATA_DIR)
+    print("DATA_DIR:", DATA_DIR)
 
     print("PLOT exists :", PLOT_DIR.exists())
     print("TABLE exists:", TABLE_DIR.exists())
-    print("ADATA exists:", ADATA_DIR.exists())
+    print("DATA exists:", DATA_DIR.exists())
 
     setup_environment(sc, np, random, PLOT_DIR)
 
