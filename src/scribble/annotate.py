@@ -56,6 +56,7 @@ def run_annotate(args):
         adata_plot.uns = adata.uns.copy()
 
         adata = adata_plot
+        adata.uns.pop("log1p", None)
 
         sc.pp.normalize_total(adata)
         sc.pp.log1p(adata)
