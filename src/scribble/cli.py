@@ -293,7 +293,7 @@ GitHub: https://github.com/gibberwocky/scribble
         """
     )
     map_parser.add_argument("--project_dir", required=True,
-        help="Project directory containing scribble/ subfolders")
+        help="Project directory to output mapped data")
     map_parser.add_argument("--reference", required=True,
         help="Reference atlas AnnData (.h5ad), annotated using Scribble")
     map_parser.add_argument("--query", required=True,

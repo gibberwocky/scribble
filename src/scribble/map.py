@@ -22,6 +22,8 @@ def qc_scvi_input(adata, name):
     )
 
 def run_map(args):
+    import random
+    import scvi
     import anndata as ad
     import scanpy as sc
     import numpy as np
@@ -29,9 +31,8 @@ def run_map(args):
     import matplotlib.pyplot as plt
     from scipy.stats import entropy
     from scipy import sparse
-    import random
-    import scvi
 
+    from scribble.refine import restore_counts
     from scribble.import_data import setup_environment
 
     # ----------------------------
@@ -40,7 +41,19 @@ def run_map(args):
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
-    DATA_DIR = PROJECT_DIR / "scribble/data"
+    DATA_DIR = PROJECT_DIR / "scribble/adata"
+
+    PLOT_DIR.mkdir(exist_ok=True, parents=True)
+    DATA_DIR.mkdir(exist_ok=True, parents=True)
+    TABLE_DIR.mkdir(exist_ok=True, parents=True)
+
+    print("PLOT_DIR :", PLOT_DIR)
+    print("TABLE_DIR:", TABLE_DIR)
+    print("ADATA_DIR:", ADATA_DIR)
+
+    print("PLOT exists :", PLOT_DIR.exists())
+    print("TABLE exists:", TABLE_DIR.exists())
+    print("ADATA exists:", ADATA_DIR.exists()
 
     setup_environment(sc, np, random, PLOT_DIR)
 
@@ -49,18 +62,35 @@ def run_map(args):
     # ----------------------------
     print("Loading datasets...")
 
-    adata_ref = sc.read(DATA_DIR / args.reference)
-    adata_query = sc.read(DATA_DIR / args.query)
+    adata_ref = sc.read(args.reference)
+    adata_query = sc.read(args.query)
 
-    # Set counts
-    if "counts" in adata_ref.layers:
-        adata_ref.X = adata_ref.layers["counts"].copy()
+    # Restore raw counts if available
+    try:
+        adata_tmp = restore_counts(adata_ref)
+        # preserve annotations/embeddings
+        adata_tmp.obsm = adata_ref.obsm.copy()
+        adata_tmp.obs = adata_ref.obs.copy()
+        adata_tmp.uns = adata_ref.uns.copy()
+        adata_ref = adata_tmp
+        adata_ref.uns.pop("log1p", None)
+        print("Reference counts restored")
+    except Exception as e:
+        print(f"Could not restore reference counts: {e}")
 
-    if "counts" in adata_query.layers:
-        adata_query.X = adata_query.layers["counts"].copy()
-
-    # Set query annotations as "Unknown"
-    adata_query.obs[args.label_key] = "Unknown"
+    try:
+        adata_tmp = restore_counts(adata_query)
+        # preserve annotations/embeddings
+        adata_tmp.obsm = adata_query.obsm.copy()
+        adata_tmp.obs = adata_query.obs.copy()
+        adata_tmp.uns = adata_query.uns.copy()
+        adata_query = adata_tmp
+        adata_query.uns.pop("log1p", None)
+        print("Query counts restored")
+        # Set query annotations as "Unknown"
+        adata_query.obs[args.label_key] = "Unknown"
+    except Exception as e:
+        print(f"Could not restore query counts: {e}")
 
     # Check counts
     qc_scvi_input(adata_ref, "ref")
