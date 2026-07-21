@@ -258,7 +258,26 @@ def run_refine(args):
         return adata_sub
 
 
+
     def _compute_markers(adata_de, groupby):
+
+        cluster_sizes = (
+            adata_de.obs[groupby]
+            .value_counts()
+        )
+
+        valid = cluster_sizes[cluster_sizes >= 2].index
+
+        if len(valid) < 2:
+
+            print(
+                f"[Markers] Skipping {groupby}: "
+                "fewer than two groups with >=2 cells"
+            )
+
+            return {}
+
+        adata_de = adata_de[adata_de.obs[groupby].isin(valid)].copy()
 
         adata_de.obs[groupby] = adata_de.obs[groupby].astype("category")
 
