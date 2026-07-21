@@ -266,13 +266,13 @@ def run_refine(args):
             .value_counts()
         )
 
-        valid = cluster_sizes[cluster_sizes >= 2].index
+        valid = cluster_sizes[cluster_sizes >= args.min_cells_per_cluster].index
 
         if len(valid) < 2:
 
             print(
                 f"[Markers] Skipping {groupby}: "
-                "fewer than two groups with >=2 cells"
+                f"fewer than two groups with >={args.min_cells_per_cluster} cells"
             )
 
             return {}
