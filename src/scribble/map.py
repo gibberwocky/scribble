@@ -70,49 +70,42 @@ def run_scanvi_mapping(
     scanvi.train(accelerator="auto")
 
     preds = scanvi.predict(adata_combined)
-    probs = np.asarray(
-        scanvi.predict(
-            adata_combined,
-            soft=True
-        )
+    probs = scanvi.predict(
+        adata_combined,
+        soft=True
     )
+
+    if hasattr(probs, "values"):
+        probs = probs.values
+
+    probs = np.asarray(probs)
+
 
     adata_combined.obs["pred"] = preds
-    adata_combined.obsm["probs"] = probs
+
+    query_mask = (
+        adata_combined.obs["dataset"] == "query"
+    ).values
 
     mapped = adata_combined[
-        adata_combined.obs["dataset"] == "query"
+        query_mask
     ].copy()
 
-    max_prob = np.max(probs[mapped.obs_names.isin(adata_combined.obs_names)], axis=1)
+    query_probs = probs[query_mask]
+    mapped.obsm["probs"] = query_probs
 
-    ent = entropy(
-        mapped.obsm["probs"].T
-    )
-
-    ent = ent / np.log(
-        mapped.obsm["probs"].shape[1]
-    )
+    max_prob = np.max(query_probs, axis=1)
+    ent = entropy(query_probs.T)
+    ent = ent / np.log(query_probs.shape[1])
 
     mapped.obs["confidence"] = max_prob
     mapped.obs["entropy"] = ent
-
     mapped.obs["pred_filtered"] = mapped.obs["pred"]
 
-    low_conf = (
-        mapped.obs["confidence"]
-        < confidence_threshold
-    )
+    low_conf = (mapped.obs["confidence"] < confidence_threshold)
+    mapped.obs.loc[low_conf,"pred_filtered"] = "Unassigned"
 
-    mapped.obs.loc[
-        low_conf,
-        "pred_filtered"
-    ] = "Unassigned"
-
-    sc.pp.neighbors(
-        mapped,
-        n_neighbors=neighbors
-    )
+    sc.pp.neighbors(mapped,n_neighbors=neighbors)
 
     conn = mapped.obsp["connectivities"]
 
