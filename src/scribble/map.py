@@ -569,8 +569,8 @@ def run_map(args):
     # Cross tab of results
     # ----------------------------
     pd.crosstab(
-        adata.obs["cell_type_major"],
-        adata.obs["cell_type_major_reference_final"],
+        adata_query_original.obs["cell_type_major"],
+        adata_query_original.obs["cell_type_major_reference_final"],
         normalize="index"
     )
     adata_query_original.obs.groupby(
@@ -581,8 +581,8 @@ def run_map(args):
 
     if "cell_type_minor" in adata_ref.obs.columns:
         pd.crosstab(
-            adata.obs["cell_type_minor"],
-            adata.obs["cell_type_minor_reference_final"],
+            adata_query_original.obs["cell_type_minor"],
+            adata_query_original.obs["cell_type_minor_reference_final"],
             normalize="index"
         )
         adata_query_original.obs.groupby(
