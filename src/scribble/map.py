@@ -254,7 +254,7 @@ def run_map(args):
         label_key="cell_type_major",
         confidence_threshold=args.confidence_threshold,
         neighbors=args.neighbors,
-        smooth-args.smooth
+        smooth=args.smooth
     )
 
     for col in major_results.columns:
