@@ -337,7 +337,8 @@ def run_map(args):
 
     plt.savefig(
         PLOT_DIR / "umap_original_query_annotation.png",
-        dpi=300
+        dpi=300,
+        bbox_inches="tight"
     )
     plt.close()
 
@@ -380,7 +381,8 @@ def run_map(args):
 
     plt.savefig(
         PLOT_DIR / "umap_reference_prediction_annotation.png",
-        dpi=300
+        dpi=300,
+        bbox_inches="tight"
     )
     plt.close()
 
