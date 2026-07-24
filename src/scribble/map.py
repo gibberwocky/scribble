@@ -27,6 +27,7 @@ def run_scanvi_mapping(
     label_key,
     confidence_threshold,
     neighbors,
+    smooth
 ):
     """
     Map a query dataset to a reference using a single label_key.
@@ -96,7 +97,10 @@ def run_scanvi_mapping(
 
     max_prob = np.max(query_probs, axis=1)
     ent = entropy(query_probs.T)
-    ent = ent / np.log(query_probs.shape[1])
+    if query_probs.shape[1] > 1:
+        ent = ent / np.log(query_probs.shape[1])
+    else:
+        ent = np.zeros_like(ent)
 
     mapped.obs["confidence"] = max_prob
     mapped.obs["entropy"] = ent
@@ -105,22 +109,38 @@ def run_scanvi_mapping(
     low_conf = (mapped.obs["confidence"] < confidence_threshold)
     mapped.obs.loc[low_conf,"pred_filtered"] = "Unassigned"
 
-    sc.pp.neighbors(mapped,n_neighbors=neighbors)
+    latent = scanvi.get_latent_representation(
+        adata_combined
+    )
+
+    mapped.obsm["X_scVI"] = latent[query_mask]
+    sc.pp.neighbors(mapped,n_neighbors=neighbors,use_rep="X_scVI")
 
     conn = mapped.obsp["connectivities"]
 
     labels = mapped.obs["pred_filtered"].astype(str)
 
-    smoothed = []
+    mapped.obs["pred_final"] = mapped.obs["pred"]
 
-    for i in range(conn.shape[0]):
-        idx = conn[i].nonzero()[1]
-        vote = labels.iloc[idx]
-        smoothed.append(
-            vote.value_counts().idxmax()
-        )
+    # Apply smoothing if required
+    if smooth:
+        smoothed = []
 
-    mapped.obs["pred_final"] = smoothed
+        for i in range(conn.shape[0]):
+
+            idx = conn[i].nonzero()[1]
+
+            if len(idx) == 0:
+                smoothed.append(labels.iloc[i])
+                continue
+
+            vote = labels.iloc[idx]
+
+            smoothed.append(
+                vote.value_counts().idxmax()
+            )
+
+        mapped.obs["pred_final"] = smoothed
 
     return pd.DataFrame(
         {
@@ -234,6 +254,7 @@ def run_map(args):
         label_key="cell_type_major",
         confidence_threshold=args.confidence_threshold,
         neighbors=args.neighbors,
+        smooth-args.smooth
     )
 
     for col in major_results.columns:
@@ -251,6 +272,7 @@ def run_map(args):
             label_key="cell_type_minor",
             confidence_threshold=args.confidence_threshold,
             neighbors=args.neighbors,
+            smooth=args.smooth
         )
 
         for col in minor_results.columns:
