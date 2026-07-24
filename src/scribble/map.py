@@ -568,28 +568,50 @@ def run_map(args):
     # ----------------------------
     # Cross tab of results
     # ----------------------------
-    pd.crosstab(
-        adata_query_original.obs["cell_type_major"],
-        adata_query_original.obs["cell_type_major_reference_final"],
-        normalize="index"
-    )
-    adata_query_original.obs.groupby(
-        "cell_type_major"
-    )[
-        "cell_type_major_reference_confidence"
-    ].median()
-
-    if "cell_type_minor" in adata_ref.obs.columns:
-        pd.crosstab(
-            adata_query_original.obs["cell_type_minor"],
-            adata_query_original.obs["cell_type_minor_reference_final"],
+    major_confusion = pd.crosstab(
+            adata_query_original.obs["cell_type_major"],
+            adata_query_original.obs["cell_type_major_reference_final"],
             normalize="index"
         )
+    major_confusion.to_csv(TABLE_DIR / "major_annotation_confusion_matrix.csv")
+
+    major_confidence = (
         adata_query_original.obs.groupby(
-            "cell_type_minor"
-        )[
-            "cell_type_minor_reference_confidence"
-        ].median()
+            "cell_type_major",
+            observed=False
+        )["cell_type_major_reference_confidence"]
+        .agg(
+            median_confidence="median",
+            mean_confidence="mean"
+        )
+    )
+    major_confidence.to_csv(
+        TABLE_DIR / "major_annotation_confidence.csv"
+    )
+
+
+    if "cell_type_minor" in adata_ref.obs.columns:
+        minor_confusion = pd.crosstab(
+                adata_query_original.obs["cell_type_minor"],
+                adata_query_original.obs["cell_type_minor_reference_final"],
+                normalize="index"
+            )
+        minor_confusion.to_csv(TABLE_DIR / "minor_annotation_confusion_matrix.csv")
+
+        minor_confidence = (
+            adata_query_original.obs.groupby(
+                "cell_type_minor",
+                observed=False
+            )["cell_type_minor_reference_confidence"]
+            .agg(
+                median_confidence="median",
+                mean_confidence="mean"
+            )
+        )
+
+        minor_confidence.to_csv(
+            TABLE_DIR / "minor_annotation_confidence.csv"
+        )
 
 
     # ----------------------------
