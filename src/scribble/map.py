@@ -563,6 +563,35 @@ def run_map(args):
         plt.close()
 
 
+
+
+    # ----------------------------
+    # Cross tab of results
+    # ----------------------------
+    pd.crosstab(
+        adata.obs["cell_type_major"],
+        adata.obs["cell_type_major_reference_final"],
+        normalize="index"
+    )
+    adata_query_original.obs.groupby(
+        "cell_type_major"
+    )[
+        "cell_type_major_reference_confidence"
+    ].median()
+
+    if "cell_type_minor" in adata_ref.obs.columns:
+        pd.crosstab(
+            adata.obs["cell_type_minor"],
+            adata.obs["cell_type_minor_reference_final"],
+            normalize="index"
+        )
+        adata_query_original.obs.groupby(
+            "cell_type_minor"
+        )[
+            "cell_type_minor_reference_confidence"
+        ].median()
+
+
     # ----------------------------
     # Save results
     # ----------------------------
