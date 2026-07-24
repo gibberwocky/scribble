@@ -280,21 +280,82 @@ def run_map(args):
         adata_query_original,
         color="cell_type_major",
         title="Original annotation",
+        legend_loc="right margin",
+        frameon=False,
         show=False
     )
+    ax = plt.gca()
+
+    # Get Scanpy-generated legend
+    leg = ax.get_legend()
+
+    if leg is not None:
+
+        handles = leg.legend_handles
+        labels = [t.get_text() for t in leg.get_texts()]
+
+        leg.remove()
+
+        ax.legend(
+            handles,
+            labels,
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            ncol=1,
+            fontsize=4,
+            frameon=False,
+            markerscale=0.25,
+            handletextpad=0.3,
+            labelspacing=0.2
+        )
+
+    for txt in ax.texts:
+        txt.set_fontweight("normal")
+        txt.set_alpha(1.0)
+
     plt.savefig(
-        PLOT_DIR / "map_original_annotation_umap.png",
+        PLOT_DIR / "umap_original_query_annotation.png",
         dpi=300
     )
-    plt.savefig(PLOT_DIR / "umap_original_query_annotation.png", dpi=300)
     plt.close()
 
     sc.pl.umap(
         adata_query_original,
         color="cell_type_major_reference_final",
         title="Atlas prediction",
+        legend_loc="right margin",
+        frameon=False,
         show=False
     )
+    ax = plt.gca()
+
+    # Get Scanpy-generated legend
+    leg = ax.get_legend()
+
+    if leg is not None:
+
+        handles = leg.legend_handles
+        labels = [t.get_text() for t in leg.get_texts()]
+
+        leg.remove()
+
+        ax.legend(
+            handles,
+            labels,
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            ncol=1,
+            fontsize=4,
+            frameon=False,
+            markerscale=0.25,
+            handletextpad=0.3,
+            labelspacing=0.2
+        )
+
+    for txt in ax.texts:
+        txt.set_fontweight("normal")
+        txt.set_alpha(1.0)
+
     plt.savefig(
         PLOT_DIR / "umap_reference_prediction_annotation.png",
         dpi=300
