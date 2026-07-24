@@ -307,8 +307,6 @@ GitHub: https://github.com/gibberwocky/scribble
             "Cells below this threshold are labelled as 'Unassigned' "))
     map_parser.add_argument("--neighbors", type=int, default=15,
         help="Number of nearest neighbours used to smoothing labels")
-    map_parser.add_argument("--smooth", action="store_true",
-        help="Apply post-hoc neighbour smoothing")
 
     # -----------Add annotations ---------
     annotate_parser = subparsers.add_parser(

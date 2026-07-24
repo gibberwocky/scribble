@@ -26,8 +26,7 @@ def run_scanvi_mapping(
     adata_query,
     label_key,
     confidence_threshold,
-    neighbors,
-    smooth
+    neighbors
 ):
     """
     Map a query dataset to a reference using a single label_key.
@@ -122,25 +121,23 @@ def run_scanvi_mapping(
 
     mapped.obs["pred_final"] = mapped.obs["pred"]
 
-    # Apply smoothing if required
-    if smooth:
-        smoothed = []
+    smoothed = []
 
-        for i in range(conn.shape[0]):
+    for i in range(conn.shape[0]):
 
-            idx = conn[i].nonzero()[1]
+        idx = conn[i].nonzero()[1]
 
-            if len(idx) == 0:
-                smoothed.append(labels.iloc[i])
-                continue
+        if len(idx) == 0:
+            smoothed.append(labels.iloc[i])
+            continue
 
-            vote = labels.iloc[idx]
+        vote = labels.iloc[idx]
 
-            smoothed.append(
-                vote.value_counts().idxmax()
-            )
+        smoothed.append(
+            vote.value_counts().idxmax()
+        )
 
-        mapped.obs["pred_final"] = smoothed
+    mapped.obs["pred_smooth"] = smoothed
 
     return pd.DataFrame(
         {
@@ -148,6 +145,8 @@ def run_scanvi_mapping(
                 mapped.obs["pred"],
             f"{label_key}_reference_final":
                 mapped.obs["pred_final"],
+            f"{label_key}_reference_smooth":
+                mapped.obs["pred_smooth"],
             f"{label_key}_reference_confidence":
                 mapped.obs["confidence"],
             f"{label_key}_reference_entropy":
@@ -253,8 +252,7 @@ def run_map(args):
         adata_query=adata_query,
         label_key="cell_type_major",
         confidence_threshold=args.confidence_threshold,
-        neighbors=args.neighbors,
-        smooth=args.smooth
+        neighbors=args.neighbors
     )
 
     for col in major_results.columns:
@@ -271,8 +269,7 @@ def run_map(args):
             adata_query=adata_query,
             label_key="cell_type_minor",
             confidence_threshold=args.confidence_threshold,
-            neighbors=args.neighbors,
-            smooth=args.smooth
+            neighbors=args.neighbors
         )
 
         for col in minor_results.columns:
@@ -336,7 +333,51 @@ def run_map(args):
         txt.set_alpha(1.0)
 
     plt.savefig(
-        PLOT_DIR / "umap_original_query_annotation.png",
+        PLOT_DIR / "umap_original_major_query_annotation.png",
+        dpi=300,
+        bbox_inches="tight"
+    )
+    plt.close()
+
+    sc.pl.umap(
+        adata_query_original,
+        color="cell_type_major_reference_smooth",
+        title="Atlas smoothed prediction",
+        legend_loc="right margin",
+        frameon=False,
+        show=False
+    )
+    ax = plt.gca()
+
+    # Get Scanpy-generated legend
+    leg = ax.get_legend()
+
+    if leg is not None:
+
+        handles = leg.legend_handles
+        labels = [t.get_text() for t in leg.get_texts()]
+
+        leg.remove()
+
+        ax.legend(
+            handles,
+            labels,
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            ncol=1,
+            fontsize=4,
+            frameon=False,
+            markerscale=0.25,
+            handletextpad=0.3,
+            labelspacing=0.2
+        )
+
+    for txt in ax.texts:
+        txt.set_fontweight("normal")
+        txt.set_alpha(1.0)
+
+    plt.savefig(
+        PLOT_DIR / "umap_reference_major_smoothed_prediction_annotation.png",
         dpi=300,
         bbox_inches="tight"
     )
@@ -380,11 +421,147 @@ def run_map(args):
         txt.set_alpha(1.0)
 
     plt.savefig(
-        PLOT_DIR / "umap_reference_prediction_annotation.png",
+        PLOT_DIR / "umap_reference_major_prediction_annotation.png",
         dpi=300,
         bbox_inches="tight"
     )
     plt.close()
+
+
+    if "cell_type_minor" in adata_ref.obs.columns:
+
+        sc.pl.umap(
+            adata_query_original,
+            color="cell_type_minor",
+            title="Original annotation",
+            legend_loc="right margin",
+            frameon=False,
+            show=False
+        )
+        ax = plt.gca()
+
+        # Get Scanpy-generated legend
+        leg = ax.get_legend()
+
+        if leg is not None:
+
+            handles = leg.legend_handles
+            labels = [t.get_text() for t in leg.get_texts()]
+
+            leg.remove()
+
+            ax.legend(
+                handles,
+                labels,
+                loc="center left",
+                bbox_to_anchor=(1.01, 0.5),
+                ncol=1,
+                fontsize=4,
+                frameon=False,
+                markerscale=0.25,
+                handletextpad=0.3,
+                labelspacing=0.2
+            )
+
+        for txt in ax.texts:
+            txt.set_fontweight("normal")
+            txt.set_alpha(1.0)
+
+        plt.savefig(
+            PLOT_DIR / "umap_original_minor_query_annotation.png",
+            dpi=300,
+            bbox_inches="tight"
+        )
+        plt.close()
+
+        sc.pl.umap(
+            adata_query_original,
+            color="cell_type_minor_reference_final",
+            title="Atlas prediction",
+            legend_loc="right margin",
+            frameon=False,
+            show=False
+        )
+        ax = plt.gca()
+
+        # Get Scanpy-generated legend
+        leg = ax.get_legend()
+
+        if leg is not None:
+
+            handles = leg.legend_handles
+            labels = [t.get_text() for t in leg.get_texts()]
+
+            leg.remove()
+
+            ax.legend(
+                handles,
+                labels,
+                loc="center left",
+                bbox_to_anchor=(1.01, 0.5),
+                ncol=1,
+                fontsize=4,
+                frameon=False,
+                markerscale=0.25,
+                handletextpad=0.3,
+                labelspacing=0.2
+            )
+
+        for txt in ax.texts:
+            txt.set_fontweight("normal")
+            txt.set_alpha(1.0)
+
+        plt.savefig(
+            PLOT_DIR / "umap_reference_minor_prediction_annotation.png",
+            dpi=300,
+            bbox_inches="tight"
+        )
+        plt.close()
+
+        sc.pl.umap(
+            adata_query_original,
+            color="cell_type_minor_reference_smooth",
+            title="Atlas smoothed prediction",
+            legend_loc="right margin",
+            frameon=False,
+            show=False
+        )
+        ax = plt.gca()
+
+        # Get Scanpy-generated legend
+        leg = ax.get_legend()
+
+        if leg is not None:
+
+            handles = leg.legend_handles
+            labels = [t.get_text() for t in leg.get_texts()]
+
+            leg.remove()
+
+            ax.legend(
+                handles,
+                labels,
+                loc="center left",
+                bbox_to_anchor=(1.01, 0.5),
+                ncol=1,
+                fontsize=4,
+                frameon=False,
+                markerscale=0.25,
+                handletextpad=0.3,
+                labelspacing=0.2
+            )
+
+        for txt in ax.texts:
+            txt.set_fontweight("normal")
+            txt.set_alpha(1.0)
+
+        plt.savefig(
+            PLOT_DIR / "umap_reference_minor_smoothed_prediction_annotation.png",
+            dpi=300,
+            bbox_inches="tight"
+        )
+        plt.close()
+
 
     # ----------------------------
     # Save results
