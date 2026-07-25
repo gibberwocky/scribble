@@ -65,6 +65,10 @@ def run_refine(args):
     if "lineage_tree" not in adata.uns:
         adata.uns["lineage_tree"] = {}
 
+    # Global marker registry
+    master_markers = {}
+    master_marker_rows = []
+
     # --------------------------------------------------
     # Build initial tasks
     # --------------------------------------------------
@@ -398,6 +402,68 @@ def run_refine(args):
             print(f"[Refine] Level {level} | clusters={clusters} → TERMINAL (no substructure)")
             return []
 
+        # --------------------------------------------------
+        # Parent node markers
+        # --------------------------------------------------
+
+        if len(clusters) == 1:
+
+            parent_name = (
+                f"L{level-1}_"
+                + clusters[0]
+            )
+
+        else:
+
+            parent_name = None
+
+        if parent_name is not None:
+
+            try:
+
+                parent_df = pd.DataFrame()
+
+                expr = adata_sub.X
+
+                mean_expr = np.asarray(
+                    expr.mean(axis=0)
+                ).ravel()
+
+                parent_df["gene"] = adata_sub.var_names
+                parent_df["mean_expr"] = mean_expr
+
+                parent_df = (
+                    parent_df
+                    .sort_values(
+                        "mean_expr",
+                        ascending=False
+                    )
+                    .head(args.nmarkers)
+                    .copy()
+                )
+
+                master_markers[parent_name] = parent_df
+
+                tmp = parent_df.copy()
+
+                tmp["refine_cluster"] = parent_name
+                tmp["parent_clusters"] = None
+                tmp["level"] = level - 1
+                tmp["node_type"] = "parent"
+                tmp["n_parent_clusters"] = len(clusters)
+                tmp["marker_type"] = "parent_mean_expression"
+
+                master_marker_rows.append(tmp)
+
+            except Exception as e:
+
+                print(
+                    f"[Parent markers] "
+                    f"{parent_name}: {e}"
+                )
+
+
+
         # -----------------------
         # Map refined labels
         # -----------------------
@@ -448,10 +514,48 @@ def run_refine(args):
             )
 
             clusters_str = "+".join(task["clusters"])
-            out_file = TABLE_DIR / f"L{task['level']}_{clusters_str}_markers.xlsx"
+
+            # Save workbook for this refinement step
+            out_file = (
+                TABLE_DIR
+                / f"L{task['level']}_{clusters_str}_markers.xlsx"
+            )
+
             with pd.ExcelWriter(out_file) as writer:
+
                 for cl, df in marker_tables.items():
-                    df.to_excel(writer, sheet_name=str(cl), index=False)
+
+                    # Full node label
+                    node_label = (
+                        f"L{task['level']}_"
+                        f"{'+'.join(task['clusters'])}-{cl}"
+                    )
+
+                    # Workbook storage
+                    master_markers[node_label] = df.copy()
+
+                    df.to_excel(
+                        writer,
+                        sheet_name=str(cl),
+                        index=False
+                    )
+
+                    # Flat table storage
+                    tmp = df.copy()
+
+                    tmp["refine_cluster"] = node_label
+
+                    tmp["parent_clusters"] = (
+                        "+".join(task["clusters"])
+                    )
+
+                    tmp["level"] = task["level"]
+
+                    tmp["node_type"] = "child"
+                    tmp["n_parent_clusters"] = len(clusters)
+                    tmp["marker_type"] = "differential"
+
+                    master_marker_rows.append(tmp)
 
         # -----------------------
         # Recursive refinement
@@ -573,13 +677,84 @@ def run_refine(args):
     # --------------------------------------------------
     # Final global markers
     # --------------------------------------------------
-    if len(adata.obs["leiden_L2"].unique()) > 1:
+    master_file = (
+        TABLE_DIR
+        / "L2_markers.xlsx"
+    )
 
-        markers = _compute_markers(adata, "leiden_L2")
+    with pd.ExcelWriter(master_file) as writer:
 
-        with pd.ExcelWriter(TABLE_DIR / "L2_markers.xlsx") as writer:
-            for cl, df in markers.items():
-                df.to_excel(writer, sheet_name=str(cl), index=False)
+        for label, df in sorted(
+            master_markers.items()
+        ):
+
+            sheet = (
+                label
+                .replace("+", "_")
+                .replace("-", "_")
+            )[:31]
+
+            df.to_excel(
+                writer,
+                sheet_name=sheet,
+                index=False
+            )
+
+    # --------------------------------------------------
+    # Flat marker table
+    # --------------------------------------------------
+
+    if len(master_marker_rows) > 0:
+
+        all_markers = pd.concat(
+            master_marker_rows,
+            ignore_index=True
+        )
+
+        all_markers.to_csv(
+            TABLE_DIR / "all_markers.tsv",
+            sep="\t",
+            index=False
+        )
+
+        print(
+            f"Saved {len(all_markers):,} marker rows "
+            f"to all_markers.tsv"
+        )
+
+    # --------------------------------------------------
+    # Save lineage tree
+    # --------------------------------------------------
+
+    lineage_rows = []
+
+    for parent, children in (
+        adata.uns["lineage_tree"].items()
+    ):
+
+        for child in children:
+
+            lineage_rows.append({
+                "parent": parent,
+                "child": child
+            })
+
+    if len(lineage_rows) > 0:
+
+        lineage_df = (
+            pd.DataFrame(lineage_rows)
+            .drop_duplicates()
+        )
+
+        lineage_df.to_csv(
+            TABLE_DIR / "lineage_tree.tsv",
+            sep="\t",
+            index=False
+        )
+
+        print(
+            f"Saved {len(lineage_df):,} lineage relationships"
+        )
 
     # --------------------------------------------------
     # Save
