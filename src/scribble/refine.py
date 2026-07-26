@@ -41,6 +41,7 @@ def run_refine(args):
     import random
     import harmonypy as hm
     from pathlib import Path
+    import matplotlib.pyplot as plt
 
     from scribble.import_data import setup_environment
     from scribble.cluster import optimise_resolution
@@ -687,6 +688,22 @@ def run_refine(args):
         .astype(str)
     )
 
+    # Identify global markers
+    adata_global = restore_counts(adata)
+    if "X_umap" in adata.obsm:
+        adata_global.obsm["X_umap"] = adata.obsm["X_umap"].copy()
+    sc.pp.normalize_total(adata_global)
+    sc.pp.log1p(adata_global)
+    adata_global.raw = adata_global.copy()
+    adata_global.obs["refine_cluster"] = (
+        adata.obs["refine_label"]
+        .astype(str)
+    )
+    global_markers = _compute_markers(
+        adata_global,
+        "refine_cluster"
+    )
+
     # --------------------------------------------------
     # Final global markers
     # --------------------------------------------------
@@ -708,7 +725,8 @@ def run_refine(args):
 
         # Marker sheets
         for label, df in sorted(
-            master_markers.items()
+            global_markers.items(),
+            key=lambda x: int(x[0])
         ):
 
             sheet_name = label
@@ -774,6 +792,25 @@ def run_refine(args):
         print(
             f"Saved {len(lineage_df):,} lineage relationships"
         )
+
+    # --------------------------------------------------
+    # UMAP final cluster labels
+    # --------------------------------------------------
+    sc.pl.umap(
+        adata_global,
+        color="refine_cluster",
+        legend_loc="on data",   # or "right margin"
+        legend_fontsize=7,
+        show=False
+    )
+    plt.savefig(
+        PLOT_DIR / f"UMAP_refine_cluster.png",
+        dpi=300,
+        bbox_inches="tight"
+    )
+
+    plt.close()
+
 
     # --------------------------------------------------
     # Save
