@@ -65,6 +65,10 @@ def run_refine(args):
     if "lineage_tree" not in adata.uns:
         adata.uns["lineage_tree"] = {}
 
+    # Refine cluster registry
+    next_cluster_id = 1
+    cluster_registry = []
+
     # Global marker registry
     master_markers = {}
     master_marker_rows = []
@@ -382,6 +386,7 @@ def run_refine(args):
 
 
     def _refine_task(task):
+        nonlocal next_cluster_id
 
         clusters = task["clusters"]
         level = task["level"]
@@ -442,12 +447,11 @@ def run_refine(args):
                     .copy()
                 )
 
-                master_markers[parent_name] = parent_df
 
                 tmp = parent_df.copy()
 
-                tmp["refine_cluster"] = parent_name
-                tmp["parent_clusters"] = None
+                tmp["refine_cluster"] = None
+                tmp["parent_refine_cluster"] = clusters[0]
                 tmp["level"] = level - 1
                 tmp["node_type"] = "parent"
                 tmp["n_parent_clusters"] = len(clusters)
@@ -467,24 +471,42 @@ def run_refine(args):
         # -----------------------
         # Map refined labels
         # -----------------------
-        parent_labels = adata.obs.loc[
-            adata_sub.obs_names,
-            "refine_label"
-        ].astype(str)
+        cluster_map = {}
+
+        for cl in sorted(
+            adata_sub.obs["leiden_refined"].astype(str).unique()
+        ):
+
+            cluster_id = str(next_cluster_id)
+
+            cluster_map[cl] = cluster_id
+
+            cluster_registry.append({
+                "refine_cluster": cluster_id,
+                "parent_refine_cluster": (
+                    "|".join(clusters)
+                    if len(clusters) > 0
+                    else None
+                ),
+                "local_cluster": cl,
+                "level": level,
+                "n_cells": int(
+                    (adata_sub.obs["leiden_refined"].astype(str) == cl).sum()
+                )
+            })
+
+            next_cluster_id += 1
 
         refined = (
-            parent_labels
-            + "-"
-            + adata_sub.obs["leiden_refined"].astype(str)
+            adata_sub.obs["leiden_refined"]
+            .astype(str)
+            .map(cluster_map)
         )
-
-        # keep as pandas Series (CRITICAL)
-        refined = refined.astype(str)
 
         adata.obs.loc[
             adata_sub.obs_names,
             "refine_label"
-        ] = refined
+        ] = refined.values
 
         # -----------------------
         # Lineage tracking
@@ -525,18 +547,15 @@ def run_refine(args):
 
                 for cl, df in marker_tables.items():
 
-                    # Full node label
-                    node_label = (
-                        f"L{task['level']}_"
-                        f"{'+'.join(task['clusters'])}-{cl}"
-                    )
+                    # Refine node label
+                    node_label = cluster_map[str(cl)]
 
                     # Workbook storage
                     master_markers[node_label] = df.copy()
 
                     df.to_excel(
                         writer,
-                        sheet_name=str(cl),
+                        sheet_name=node_label,
                         index=False
                     )
 
@@ -660,18 +679,12 @@ def run_refine(args):
     # Build final hierarchical labels
     # --------------------------------------------------
 
-    depth = (
+    # --------------------------------------------------
+    # Store final refine IDs
+    # --------------------------------------------------
+    adata.obs["leiden_L2"] = (
         adata.obs["refine_label"]
         .astype(str)
-        .str.count("-")
-        + 1
-    )
-
-    adata.obs["leiden_L2"] = (
-        "L"
-        + depth.astype(str)
-        + "_"
-        + adata.obs["refine_label"].astype(str)
     )
 
     # --------------------------------------------------
@@ -684,19 +697,25 @@ def run_refine(args):
 
     with pd.ExcelWriter(master_file) as writer:
 
+        # INDEX worksheet first
+        pd.DataFrame(
+            cluster_registry
+        ).to_excel(
+            writer,
+            sheet_name="INDEX",
+            index=False
+        )
+
+        # Marker sheets
         for label, df in sorted(
             master_markers.items()
         ):
 
-            sheet = (
-                label
-                .replace("+", "_")
-                .replace("-", "_")
-            )[:31]
+            sheet_name = label
 
             df.to_excel(
                 writer,
-                sheet_name=sheet,
+                sheet_name=sheet_name,
                 index=False
             )
 
