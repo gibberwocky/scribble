@@ -745,6 +745,51 @@ def run_refine(args):
         min_cluster_size=2
     )
 
+
+    # --------------------------------------------------
+    # Summary
+    # --------------------------------------------------
+    print(
+        "\nFinal refine clusters in adata:",
+        sorted(
+            adata.obs["refine_label"]
+            .astype(str)
+            .unique(),
+            key=int
+        )
+    )
+
+    print(
+        "\nN refine clusters in adata:",
+        adata.obs["refine_label"].nunique()
+    )
+
+    print(
+        "\nRefine clusters in registry:",
+        len(cluster_registry)
+    )
+
+    print(
+        "\nRegistry IDs:",
+        sorted(
+            [x["refine_cluster"] for x in cluster_registry],
+            key=int
+        )
+    )
+
+    print(
+        "\nGlobal marker clusters:",
+        sorted(
+            global_markers.keys(),
+            key=int
+        )
+    )
+
+    print(
+        "\nN global marker clusters:",
+        len(global_markers)
+    )
+
     # --------------------------------------------------
     # Final global markers
     # --------------------------------------------------
