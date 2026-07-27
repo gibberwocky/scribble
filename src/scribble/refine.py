@@ -717,12 +717,42 @@ def run_refine(args):
             i += 1
 
     # --------------------------------------------------
-    # Build final hierarchical labels
-    # --------------------------------------------------
-
-    # --------------------------------------------------
     # Store final refine IDs
     # --------------------------------------------------
+    final_labels = sorted(
+        adata.obs["refine_label"]
+        .astype(str)
+        .unique()
+    )
+
+    final_map = {}
+
+    for old_label in final_labels:
+
+        cluster_id = str(next_cluster_id)
+
+        final_map[old_label] = cluster_id
+
+        n_cells = int(
+            (adata.obs["refine_label"].astype(str) == old_label).sum()
+        )
+
+        cluster_registry.append({
+            "refine_cluster": cluster_id,
+            "parent_refine_cluster": old_label,
+            "local_cluster": old_label,
+            "level": "final",
+            "n_cells": n_cells
+        })
+
+        next_cluster_id += 1
+
+    adata.obs["refine_label"] = (
+        adata.obs["refine_label"]
+        .astype(str)
+        .map(final_map)
+    )
+
     adata.obs["leiden_L2"] = (
         adata.obs["refine_label"]
         .astype(str)
@@ -750,44 +780,23 @@ def run_refine(args):
     # Summary
     # --------------------------------------------------
     print(
-        "\nFinal refine clusters in adata:",
-        sorted(
-            adata.obs["refine_label"]
-            .astype(str)
-            .unique(),
-            key=int
-        )
-    )
-
-    print(
-        "\nN refine clusters in adata:",
+        "Final refine clusters:",
         adata.obs["refine_label"].nunique()
     )
 
     print(
-        "\nRefine clusters in registry:",
+        "Registry clusters:",
         len(cluster_registry)
     )
 
     print(
-        "\nRegistry IDs:",
-        sorted(
-            [x["refine_cluster"] for x in cluster_registry],
-            key=int
-        )
-    )
-
-    print(
-        "\nGlobal marker clusters:",
-        sorted(
-            global_markers.keys(),
-            key=int
-        )
-    )
-
-    print(
-        "\nN global marker clusters:",
+        "Global marker clusters:",
         len(global_markers)
+    )
+
+    print(
+        "Workbook sheets:",
+        len(all_clusters)
     )
 
     # --------------------------------------------------
