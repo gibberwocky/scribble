@@ -268,20 +268,25 @@ def run_refine(args):
 
 
 
-    def _compute_markers(adata_de, groupby):
+    def _compute_markers(adata_de, groupby, min_cluster_size=None):
+
+        if min_cluster_size is None:
+            min_cluster_size = args.min_cells_per_cluster
 
         cluster_sizes = (
             adata_de.obs[groupby]
             .value_counts()
         )
 
-        valid = cluster_sizes[cluster_sizes >= args.min_cells_per_cluster].index
+        valid = cluster_sizes[
+            cluster_sizes >= min_cluster_size
+        ].index
 
         if len(valid) < 2:
 
             print(
                 f"[Markers] Skipping {groupby}: "
-                f"fewer than two groups with >={args.min_cells_per_cluster} cells"
+                f"fewer than two groups with >={min_cluster_size} cells"
             )
 
             return {}
@@ -474,9 +479,30 @@ def run_refine(args):
         # -----------------------
         cluster_map = {}
 
+        cluster_sizes = (
+            adata_sub.obs["leiden_refined"]
+            .astype(str)
+            .value_counts()
+        )
+
         for cl in sorted(
             adata_sub.obs["leiden_refined"].astype(str).unique()
         ):
+
+            n_cells = int(cluster_sizes[cl])
+
+            # too small -> collapse into parent
+            if n_cells < args.min_cells_per_cluster:
+
+                cluster_map[cl] = None
+
+                print(
+                    f"[Collapse] refined cluster {cl} "
+                    f"({n_cells} cells) "
+                    f"returned to parent"
+                )
+
+                continue
 
             cluster_id = str(next_cluster_id)
 
@@ -491,9 +517,7 @@ def run_refine(args):
                 ),
                 "local_cluster": cl,
                 "level": level,
-                "n_cells": int(
-                    (adata_sub.obs["leiden_refined"].astype(str) == cl).sum()
-                )
+                "n_cells": n_cells
             })
 
             next_cluster_id += 1
@@ -503,6 +527,19 @@ def run_refine(args):
             .astype(str)
             .map(cluster_map)
         )
+
+        # any cluster collapsed for being too small
+        collapsed = refined.isna()
+
+        if collapsed.any():
+
+            parent_label = (
+                clusters[0]
+                if len(clusters) == 1
+                else "|".join(clusters)
+            )
+
+            refined.loc[collapsed] = parent_label
 
         adata.obs.loc[
             adata_sub.obs_names,
@@ -549,7 +586,10 @@ def run_refine(args):
                 for cl, df in marker_tables.items():
 
                     # Refine node label
-                    node_label = cluster_map[str(cl)]
+                    node_label = cluster_map.get(str(cl))
+
+                    if node_label is None:
+                        continue
 
                     # Workbook storage
                     master_markers[node_label] = df.copy()
@@ -701,7 +741,8 @@ def run_refine(args):
     )
     global_markers = _compute_markers(
         adata_global,
-        "refine_cluster"
+        "refine_cluster",
+        min_cluster_size=2
     )
 
     # --------------------------------------------------
@@ -724,16 +765,30 @@ def run_refine(args):
         )
 
         # Marker sheets
-        for label, df in sorted(
-            global_markers.items(),
-            key=lambda x: int(x[0])
-        ):
+        all_clusters = sorted(
+            cluster_registry,
+            key=lambda x: int(x["refine_cluster"])
+        )
 
-            sheet_name = label
+        for row in all_clusters:
+
+            label = str(row["refine_cluster"])
+
+            if label in global_markers:
+
+                df = global_markers[label]
+
+            else:
+
+                df = pd.DataFrame({
+                    "note": [
+                        "No markers available"
+                    ]
+                })
 
             df.to_excel(
                 writer,
-                sheet_name=sheet_name,
+                sheet_name=label,
                 index=False
             )
 
@@ -799,7 +854,7 @@ def run_refine(args):
     sc.pl.umap(
         adata_global,
         color="refine_cluster",
-        legend_loc="on data",   # or "right margin"
+        legend_loc="right margin",
         legend_fontsize=7,
         show=False
     )
