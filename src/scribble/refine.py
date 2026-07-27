@@ -722,41 +722,36 @@ def run_refine(args):
     final_labels = sorted(
         adata.obs["refine_label"]
         .astype(str)
-        .unique()
+        .unique(),
+        key=str
     )
 
-    final_map = {}
+    final_registry = []
 
-    for old_label in final_labels:
-
-        cluster_id = str(next_cluster_id)
-
-        final_map[old_label] = cluster_id
+    for label in final_labels:
 
         n_cells = int(
-            (adata.obs["refine_label"].astype(str) == old_label).sum()
+            (adata.obs["refine_label"].astype(str) == label).sum()
         )
 
-        cluster_registry.append({
-            "refine_cluster": cluster_id,
-            "parent_refine_cluster": old_label,
-            "local_cluster": old_label,
-            "level": "final",
+        final_registry.append({
+            "refine_cluster": label,
             "n_cells": n_cells
         })
 
-        next_cluster_id += 1
+    cluster_registry = final_registry
 
-    adata.obs["refine_label"] = (
-        adata.obs["refine_label"]
-        .astype(str)
-        .map(final_map)
-    )
 
     adata.obs["leiden_L2"] = (
         adata.obs["refine_label"]
         .astype(str)
     )
+
+    print(
+        "Final refine clusters:",
+        adata.obs["refine_label"].nunique()
+    )
+
 
     # Identify global markers
     adata_global = restore_counts(adata)
@@ -775,13 +770,9 @@ def run_refine(args):
         min_cluster_size=2
     )
 
-
-    # --------------------------------------------------
-    # Summary
-    # --------------------------------------------------
     print(
-        "Final refine clusters:",
-        adata.obs["refine_label"].nunique()
+        "Global marker clusters:",
+        len(global_markers)
     )
 
     print(
@@ -789,15 +780,6 @@ def run_refine(args):
         len(cluster_registry)
     )
 
-    print(
-        "Global marker clusters:",
-        len(global_markers)
-    )
-
-    print(
-        "Workbook sheets:",
-        len(all_clusters)
-    )
 
     # --------------------------------------------------
     # Final global markers
@@ -845,6 +827,8 @@ def run_refine(args):
                 sheet_name=label,
                 index=False
             )
+
+
 
     # --------------------------------------------------
     # Flat marker table
