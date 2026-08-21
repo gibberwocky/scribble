@@ -59,12 +59,12 @@ def run_refine(args):
     adata = sc.read(input_file)
 
     # --------------------------------------------------
-    # Init labels + lineage
+    # Init labels + refinement tree
     # --------------------------------------------------
     adata.obs["refine_label"] = adata.obs["leiden"].astype(str)
 
-    if "lineage_tree" not in adata.uns:
-        adata.uns["lineage_tree"] = {}
+    if "refinement_tree" not in adata.uns:
+        adata.uns["refinement_tree"] = {}
 
     # Refine cluster registry
     next_cluster_id = 1
@@ -547,13 +547,13 @@ def run_refine(args):
         ] = refined.values
 
         # -----------------------
-        # Lineage tracking
+        # Refinement tracking
         # -----------------------
         for parent in clusters:
             children = refined.unique().tolist()
 
-            adata.uns["lineage_tree"].setdefault(parent, [])
-            adata.uns["lineage_tree"][parent].extend(children)
+            adata.uns["refinement_tree"].setdefault(parent, [])
+            adata.uns["refinement_tree"][parent].extend(children)
 
         # -----------------------
         # Markers
@@ -853,37 +853,37 @@ def run_refine(args):
         )
 
     # --------------------------------------------------
-    # Save lineage tree
+    # Save refinement tree
     # --------------------------------------------------
 
-    lineage_rows = []
+    refinement_rows = []
 
     for parent, children in (
-        adata.uns["lineage_tree"].items()
+        adata.uns["refinement_tree"].items()
     ):
 
         for child in children:
 
-            lineage_rows.append({
+            refinement_rows.append({
                 "parent": parent,
                 "child": child
             })
 
-    if len(lineage_rows) > 0:
+    if len(refinement_rows) > 0:
 
-        lineage_df = (
-            pd.DataFrame(lineage_rows)
+        refinement_df = (
+            pd.DataFrame(refinement_rows)
             .drop_duplicates()
         )
 
-        lineage_df.to_csv(
-            TABLE_DIR / "lineage_tree.tsv",
+        refinement_df.to_csv(
+            TABLE_DIR / "refinement_tree.tsv",
             sep="\t",
             index=False
         )
 
         print(
-            f"Saved {len(lineage_df):,} lineage relationships"
+            f"Saved {len(refinement_df):,} refinement relationships"
         )
 
     # --------------------------------------------------

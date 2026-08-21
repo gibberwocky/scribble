@@ -9,7 +9,6 @@ def setup_environment(sc, np, random, plot_dir):
     sc.logging.print_header()
     sc.settings.figdir = plot_dir
     sc.set_figure_params(dpi=100, facecolor="white")
-
     np.random.seed(0)
     random.seed(0)
 
