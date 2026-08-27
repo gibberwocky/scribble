@@ -21,11 +21,14 @@ from pygam import LinearGAM, s
 from scribble.refine import restore_counts
 from scribble.import_data import setup_environment
 
+#def safe_sheet_name(name):
+#    name = re.sub(r"[/\\?*\\[\\]:]", "_", name)
+#    return name[:31]
 
 def safe_sheet_name(name):
-    name = re.sub(r"[/\\?*\\[\\]:]", "_", name)
+    name = str(name)
+    name = re.sub(r'[\\/*?:\[\]]', '_', name)
     return name[:31]
-
 
 def load_dorothea():
 
