@@ -588,7 +588,7 @@ def run_pseudotime(args):
         # Plot the top genes per cell type
         markers = sc.get.rank_genes_groups_df(adata_markers, group=None)
         marker_tfs = markers[
-            markers["names"].isin(TF_list)
+            markers["names"].isin(tf_list)
         ].copy()
 
         top_tfs = (
@@ -1035,7 +1035,7 @@ def run_pseudotime(args):
             summary.loc[
                 summary["scfates_tested"]
                 & summary["scfates_sig"]
-                & summary["gene"].isin(TF_list)
+                & summary["gene"].isin(tf_list)
             ]
             .sort_values(
                 "scfates_A",
