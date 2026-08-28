@@ -546,7 +546,7 @@ def run_pseudotime(args):
 
         ordered_celltypes = (
             adata_markers.obs
-            .groupby(celltype)["t"]
+            .groupby(args.celltype)["t"]
             .median()
             .sort_values()
             .index
@@ -572,7 +572,7 @@ def run_pseudotime(args):
         sc.pl.dotplot(
             adata_markers,
             var_names=genes,
-            groupby=celltype,
+            groupby=args.celltype,
             standard_scale="var"
         )
 
@@ -607,7 +607,7 @@ def run_pseudotime(args):
         sc.pl.dotplot(
             adata_markers,
             var_names=tf_genes,
-            groupby=celltype,
+            groupby=args.celltype,
             standard_scale="var"
         )
 
@@ -624,7 +624,7 @@ def run_pseudotime(args):
         ulm = pbs.obsm["score_ulm"].copy()
 
         ulm.index = pbs.obs_names
-        ulm["cell_type"] = pbs.obs[celltype].values
+        ulm["cell_type"] = pbs.obs[args.celltype].values
 
         ct_means = (
             ulm
@@ -725,8 +725,8 @@ def run_pseudotime(args):
         ]
 
         # Plot
-        adata_markers.obs[celltype] = pd.Categorical(
-            adata_markers.obs[celltype],
+        adata_markers.obs[args.celltype] = pd.Categorical(
+            adata_markers.obs[args.celltype],
             categories=ordered_celltypes,
             ordered=True
         )
@@ -734,7 +734,7 @@ def run_pseudotime(args):
         sc.pl.matrixplot(
             adata_markers,
             var_names=ordered_genes,
-            groupby=celltype,
+            groupby=args.celltype,
             standard_scale="var",
             cmap="viridis"
         )
@@ -752,7 +752,7 @@ def run_pseudotime(args):
         sc.pl.dotplot(
             adata_markers,
             var_names=genes,
-            groupby=celltype,
+            groupby=args.celltype,
             standard_scale="var"
         )
 
@@ -1050,7 +1050,7 @@ def run_pseudotime(args):
         sc.pl.dotplot(
             adata_markers,
             var_names=genes,
-            groupby=celltype,
+            groupby=args.celltype,
             standard_scale="var"
         )
 
@@ -1101,7 +1101,7 @@ def run_pseudotime(args):
         # Requires the cell-type specificty ULM TFs generated earlier (repeated here)
         ulm = pbs.obsm["score_ulm"].copy()
         ulm.index = pbs.obs_names
-        ulm["cell_type"] = pbs.obs[celltype].values
+        ulm["cell_type"] = pbs.obs[args.celltype].values
         ct_means = (
             ulm
             .groupby("cell_type", observed=True)
