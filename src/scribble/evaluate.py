@@ -200,7 +200,7 @@ def run_evaluate(args):
     # Continue existing behaviour
     # ----------------------------
     output_file = input_file.with_name(f"{input_file.stem}_decisions.tsv")
-    adata_file = (PROJECT_DIR / "scribble/adata" / input_file.name.replace("_cluster_summary.tsv", ".h5ad"))
+    adata_file = (PROJECT_DIR / "scribble/adata" / input_file.name.replace("_cluster_summary.tsv", "_clustered.h5ad"))
     adata = sc.read(adata_file)
 
     print(f"Loading cluster summary: {input_file}")
