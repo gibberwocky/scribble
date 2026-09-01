@@ -150,14 +150,17 @@ def run_annotate(args):
             print(x)
 
     # --------------------------------------------------
-    # UMAP cell type major
+    # UMAP cell type
     # --------------------------------------------------
 
     print(f"Generating {args.label} UMAP")
-
+    adata.obs["combined_label"] = (
+        "[" + adata.obs[refine_cluster].astype(str) + "] "
+        + adata.obs[args.label].astype(str)
+    )
     sc.pl.umap(
         adata,
-        color=args.label,
+        color="combined_label",
         legend_loc="right margin",
         frameon=False,
         show=False
