@@ -155,7 +155,7 @@ def run_annotate(args):
 
     print(f"Generating {args.label} UMAP")
     adata.obs["combined_label"] = (
-        "[" + adata.obs[refine_cluster].astype(str) + "] "
+        "[" + adata.obs["refine_label"].astype(str) + "] "
         + adata.obs[args.label].astype(str)
     )
     sc.pl.umap(
