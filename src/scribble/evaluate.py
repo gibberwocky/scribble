@@ -22,48 +22,87 @@ def classify_cluster(row, thresholds):
     return "keep", "well_defined_cluster", "low"
 
 
-def find_merge_candidates(decision_df, thresholds):
+def find_merge_candidates(
+    adata,
+    decision_df,
+    cluster_key="leiden",
+    min_connectivity=0.10
+):
+    """
+    Find candidate merge pairs using normalized graph connectivity.
+
+    Connectivity score is the mean of:
+
+        edges(A->B) / total_edges(A)
+        edges(B->A) / total_edges(B)
+
+    Values range approximately from 0 to 1.
+
+    Only clusters marked for 'subset' are evaluated.
+    """
+
+    import numpy as np
+
+    conn = adata.obsp["connectivities"]
+
+    subset_clusters = (
+        decision_df.loc[
+            decision_df["action"] == "subset",
+            "cluster"
+        ]
+        .astype(str)
+        .tolist()
+    )
+
     merge_pairs = []
 
-    subset_df = decision_df[decision_df["action"] == "subset"]
+    for i, clust_a in enumerate(subset_clusters):
 
-    for i, row_a in subset_df.iterrows():
-        for j, row_b in subset_df.iterrows():
-            if row_a["cluster"] >= row_b["cluster"]:
+        cells_a = np.where(
+            adata.obs[cluster_key].astype(str) == clust_a
+        )[0]
+
+        if len(cells_a) == 0:
+            continue
+
+        total_edges_a = conn[cells_a].sum()
+
+        for clust_b in subset_clusters[i + 1:]:
+
+            cells_b = np.where(
+                adata.obs[cluster_key].astype(str) == clust_b
+            )[0]
+
+            if len(cells_b) == 0:
                 continue
 
-            if row_a["action"] != "subset":
+            total_edges_b = conn[cells_b].sum()
+
+            if total_edges_a == 0 or total_edges_b == 0:
                 continue
-            if row_b["action"] != "subset":
-                continue
 
-            # Parse values from detail string
-            def parse(detail, key):
-                return float(detail.split(key + "=")[1].split(";")[0])
+            edges_ab = conn[cells_a][:, cells_b].sum()
+            edges_ba = conn[cells_b][:, cells_a].sum()
 
-            n_a = parse(row_a["detail"], "n")
-            n_b = parse(row_b["detail"], "n")
-            s_a = parse(row_a["detail"], "stability")
-            s_b = parse(row_b["detail"], "stability")
-            e_a = parse(row_a["detail"], "entropy")
-            e_b = parse(row_b["detail"], "entropy")
+            frac_ab = edges_ab / total_edges_a
+            frac_ba = edges_ba / total_edges_b
 
-            size_ratio = max(n_a, n_b) / min(n_a, n_b)
+            connectivity_score = (
+                frac_ab + frac_ba
+            ) / 2
 
-            low_entropy_cutoff = 0.5
+            if connectivity_score >= min_connectivity:
 
-            if (
-                size_ratio < thresholds["merge_size_ratio"]
-                and abs(s_a - s_b) < thresholds["merge_stability_tol"]
-                and (
-                    abs(e_a - e_b) < thresholds["merge_entropy_tol"]
-                    or (
-                        (e_a < low_entropy_cutoff and e_b > low_entropy_cutoff)
-                        or (e_b < low_entropy_cutoff and e_a > low_entropy_cutoff)
-                    )
+                merge_pairs.append(
+                    (clust_a, clust_b)
                 )
-            ):
-                merge_pairs.append((row_a["cluster"], row_b["cluster"]))
+
+                print(
+                    f"MERGE "
+                    f"{clust_a} <-> {clust_b} "
+                    f"(graph connectivity="
+                    f"{connectivity_score:.3f})"
+                )
 
     return merge_pairs
 
@@ -161,6 +200,8 @@ def run_evaluate(args):
     # Continue existing behaviour
     # ----------------------------
     output_file = input_file.with_name(f"{input_file.stem}_decisions.tsv")
+    adata_file = (PROJECT_DIR / "scribble/adata" / input_file.name.replace("_cluster_summary.tsv", ".h5ad"))
+    adata = sc.read(adata_file)
 
     print(f"Loading cluster summary: {input_file}")
 
@@ -175,9 +216,6 @@ def run_evaluate(args):
         "low_stability": args.low_stability,
         "high_stability": args.high_stability,
         "low_entropy": args.low_entropy,
-        "merge_size_ratio": args.merge_size_ratio,
-        "merge_stability_tol": args.merge_stability_tol,
-        "merge_entropy_tol": args.merge_entropy_tol,
     }
 
     # ----------------------------
@@ -207,7 +245,14 @@ def run_evaluate(args):
     # ----------------------------
     # Merge candidates
     # ----------------------------
-    merge_pairs = find_merge_candidates(out_df, thresholds)
+    cluster_col = "leiden"
+
+    merge_pairs = find_merge_candidates(
+        adata=adata,
+        decision_df=out_df,
+        cluster_key=cluster_col,
+        min_connectivity=args.merge_connectivity
+    )
 
     merge_groups = []
     visited = set()

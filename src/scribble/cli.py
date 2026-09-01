@@ -195,12 +195,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Threshold above which clusters are considered highly stable")
     evaluate_parser.add_argument("--low_entropy", type=float, default=0.5,
         help="Threshold below which clusters are considered poorly mixed across samples")
-    evaluate_parser.add_argument("--merge_size_ratio", type=float, default=2.5,
-        help="Maximum size ratio allowed when merging clusters")
-    evaluate_parser.add_argument("--merge_stability_tol", type=float, default=0.1,
-        help="Maximum difference in stability allowed when merging clusters")
-    evaluate_parser.add_argument("--merge_entropy_tol", type=float, default=0.2,
-        help="Maximum difference in entropy allowed when merging clusters")
+    evaluate_parser.add_argument("--merge_connectivity", type=float, default=0.10,
+        help="Minimum normalized graph connectivity required to assign clusters to a merge group")
 
     # -------------- Evaluate ------------
     refine_parser = subparsers.add_parser("refine",
