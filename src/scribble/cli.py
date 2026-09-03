@@ -177,6 +177,12 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Width of fine search window around best coarse resolution")
     cluster_parser.add_argument("--nmarkers", type=int, default=100,
         help="Number of top marker genes exported per cluster")
+    cluster_parser.add_argument("--max_cells", type=int, default=20000,
+        help="Maximum number or cells for calculating silhouette score")
+    cluster_parser.add_argument("--max_dims", type=int, default=50,
+        help="Maximum number of PCA dimensions when running resolution optimisation")
+    cluster_parser.add_argument("--min_cluster_size", type=int, default=50,
+        help="Minimum number of cells for a cluster, below which cells assigned to nearest cluster in graph")
 
     # -------------- Evaluate ------------
     evaluate_parser = subparsers.add_parser("evaluate",

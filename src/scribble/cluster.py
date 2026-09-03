@@ -86,6 +86,7 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
                         coarse_range, fine_width, n_steps,
                         max_cells=20000,
                         max_dims=50,
+                        min_cluster_size=50,
                         random_state=0,
                         compute_entropy=True,
                         compute_stability_proxy=True):
@@ -154,6 +155,12 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             random_state=random_state,
             flavor="igraph", directed=False, n_iterations=2
         )
+        merge_small_clusters(
+            adata,
+            cluster_key="leiden_tmp_s1",
+            min_size=min_cluster_size,
+            output_key="leiden_tmp_s1"
+        )
 
         sc.tl.leiden(
             adata,
@@ -161,6 +168,12 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             key_added="leiden_tmp_s2",
             random_state=random_state + 1,
             flavor="igraph", directed=False, n_iterations=2
+        )
+        merge_small_clusters(
+            adata,
+            cluster_key="leiden_tmp_s2",
+            min_size=min_cluster_size,
+            output_key="leiden_tmp_s2"
         )
 
         l1 = adata.obs["leiden_tmp_s1"].to_numpy(dtype=str)
@@ -184,6 +197,12 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             key_added="leiden_tmp",
             flavor="igraph", directed=False, n_iterations=2,
             random_state=random_state
+        )
+        merge_small_clusters(
+            adata,
+            cluster_key="leiden_tmp",
+            min_size=min_cluster_size,
+            output_key="leiden_tmp"
         )
 
         labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
@@ -225,6 +244,12 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             key_added="leiden_tmp",
             flavor="igraph", directed=False, n_iterations=2,
             random_state=random_state
+        )
+        merge_small_clusters(
+            adata,
+            cluster_key="leiden_tmp",
+            min_size=min_cluster_size,
+            output_key="leiden_tmp"
         )
 
         labels = adata.obs["leiden_tmp"].to_numpy(dtype=str)
@@ -324,7 +349,10 @@ def run_cluster(args):
             args.neighbors,
             (args.res_min, args.res_max),
             args.fine_width,
-            args.res_steps
+            args.res_steps,
+            args.max_cells,
+            args.max_dims,
+            args.min_cluster_size
         )
 
         args.resolution = best_res
@@ -413,6 +441,12 @@ def run_cluster(args):
         flavor="igraph", directed=False, n_iterations=2,
         random_state=0
     )
+    merge_small_clusters(
+        adata,
+        cluster_key="leiden",
+        min_size=args.min_cluster_size,
+        output_key="leiden"
+    )
 
     print("Cluster sizes:")
     print(adata.obs["leiden"].value_counts())
@@ -436,6 +470,12 @@ def run_cluster(args):
                 directed=False,
                 n_iterations=2,
                 random_state=i
+            )
+            merge_small_clusters(
+                adata,
+                cluster_key=f"leiden_tmp_{i}",
+                min_size=args.min_cluster_size,
+                output_key=f"leiden_tmp_{i}"
             )
 
             assignments.append(adata.obs[f"leiden_tmp_{i}"].values)
