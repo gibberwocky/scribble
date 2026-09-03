@@ -3,6 +3,83 @@
 from pathlib import Path
 
 
+def merge_small_clusters(
+    adata,
+    cluster_key="leiden",
+    min_size=50,
+    output_key=None,
+):
+    """
+    Merge clusters smaller than min_size into the larger cluster
+    with which they have the strongest total graph connectivity.
+
+    Small clusters are processed iteratively, so a small cluster can
+    ultimately be merged into a cluster that became large through
+    an earlier merge.
+    """
+    import numpy as np
+    import pandas as pd
+    from scipy.sparse import issparse
+
+    if output_key is None:
+        output_key = f"{cluster_key}_merged"
+
+    # Start with a copy of the Leiden labels
+    labels = adata.obs[cluster_key].astype(str).copy()
+
+    # Weighted neighbour graph
+    conn = adata.obsp["connectivities"]
+
+    if not issparse(conn):
+        conn = np.asarray(conn)
+
+    while True:
+
+        # Current cluster sizes
+        sizes = labels.value_counts()
+
+        # Find clusters below threshold
+        small = sizes[sizes < min_size]
+
+        if len(small) == 0:
+            break
+
+        # Take the smallest cluster first
+        cluster = small.idxmin()
+
+        cells = np.where(labels.values == cluster)[0]
+
+        # Total connectivity from this cluster to every other cluster
+        connectivity = {}
+
+        for other in sizes.index:
+            if other == cluster:
+                continue
+
+            other_cells = np.where(labels.values == other)[0]
+
+            if issparse(conn):
+                total = conn[cells][:, other_cells].sum()
+            else:
+                total = conn[np.ix_(cells, other_cells)].sum()
+
+            connectivity[other] = total
+
+        # Find the most strongly connected cluster
+        target = max(connectivity, key=connectivity.get)
+
+        print(
+            f"Merging cluster {cluster} "
+            f"({len(cells)} cells) -> "
+            f"{target} ({sizes[target]} cells)"
+        )
+
+        # Merge
+        labels.iloc[cells] = target
+
+    adata.obs[output_key] = pd.Categorical(labels)
+
+    return adata
 
 
 def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
