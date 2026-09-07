@@ -277,6 +277,9 @@ def run_evaluate(args):
 
     out_df["merge_group"] = ""
 
+    print(out_df["cluster"].dtype)
+    print(type(next(iter(merge_groups[0]))))
+
     for idx, group in enumerate(merge_groups):
         group_label = f"group_{idx+1}"
         for cl in group:
