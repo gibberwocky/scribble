@@ -26,20 +26,8 @@ def find_merge_candidates(
     adata,
     decision_df,
     cluster_key="leiden",
-    min_connectivity=0.10
+    connectivity_percentile=90
 ):
-    """
-    Find candidate merge pairs using normalized graph connectivity.
-
-    Connectivity score is the mean of:
-
-        edges(A->B) / total_edges(A)
-        edges(B->A) / total_edges(B)
-
-    Values range approximately from 0 to 1.
-
-    Only clusters marked for 'subset' are evaluated.
-    """
 
     import numpy as np
 
@@ -54,7 +42,7 @@ def find_merge_candidates(
         .tolist()
     )
 
-    merge_pairs = []
+    pair_scores = []
 
     for i, clust_a in enumerate(subset_clusters):
 
@@ -65,8 +53,6 @@ def find_merge_candidates(
         if len(cells_a) == 0:
             continue
 
-        total_edges_a = conn[cells_a].sum()
-
         for clust_b in subset_clusters[i + 1:]:
 
             cells_b = np.where(
@@ -76,33 +62,55 @@ def find_merge_candidates(
             if len(cells_b) == 0:
                 continue
 
-            total_edges_b = conn[cells_b].sum()
-
-            if total_edges_a == 0 or total_edges_b == 0:
-                continue
-
             edges_ab = conn[cells_a][:, cells_b].sum()
-            edges_ba = conn[cells_b][:, cells_a].sum()
 
-            frac_ab = edges_ab / total_edges_a
-            frac_ba = edges_ba / total_edges_b
-
-            connectivity_score = (
-                frac_ab + frac_ba
-            ) / 2
-
-            if connectivity_score >= min_connectivity:
-
-                merge_pairs.append(
-                    (clust_a, clust_b)
+            score = (
+                edges_ab /
+                np.sqrt(
+                    len(cells_a) * len(cells_b)
                 )
+            )
 
-                print(
-                    f"MERGE "
-                    f"{clust_a} <-> {clust_b} "
-                    f"(graph connectivity="
-                    f"{connectivity_score:.3f})"
-                )
+            pair_scores.append(
+                (clust_a, clust_b, float(score))
+            )
+
+    if len(pair_scores) == 0:
+        return []
+
+    scores = [x[2] for x in pair_scores]
+
+    cutoff = np.percentile(
+        scores,
+        connectivity_percentile
+    )
+
+    print(
+        f"Merge connectivity cutoff "
+        f"({connectivity_percentile}th percentile): "
+        f"{cutoff:.4f}"
+    )
+
+    merge_pairs = []
+
+    for clust_a, clust_b, score in pair_scores:
+
+        print(
+            f"{clust_a} <-> {clust_b}: "
+            f"{score:.4f}"
+        )
+
+        if score >= cutoff:
+
+            merge_pairs.append(
+                (clust_a, clust_b)
+            )
+
+            print(
+                f"MERGE "
+                f"{clust_a} <-> {clust_b} "
+                f"(score={score:.4f})"
+            )
 
     return merge_pairs
 
@@ -251,7 +259,7 @@ def run_evaluate(args):
         adata=adata,
         decision_df=out_df,
         cluster_key=cluster_col,
-        min_connectivity=args.merge_connectivity
+        connectivity_percentile=args.merge_percentile
     )
 
     merge_groups = []

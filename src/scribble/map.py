@@ -121,6 +121,7 @@ def run_scanvi_mapping(
 
     mapped.obs["pred_final"] = mapped.obs["pred"]
 
+    # Generate neighbourhood consensus label (refered here as smoothed)
     smoothed = []
 
     for i in range(conn.shape[0]):
