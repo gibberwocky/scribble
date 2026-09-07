@@ -277,13 +277,21 @@ def run_evaluate(args):
 
     out_df["merge_group"] = ""
 
-    print(out_df["cluster"].dtype)
-    print(type(next(iter(merge_groups[0]))))
+    out_df["cluster"] = (
+        out_df["cluster"]
+        .astype(str)
+    )
 
     for idx, group in enumerate(merge_groups):
+
         group_label = f"group_{idx+1}"
+
         for cl in group:
-            out_df.loc[out_df["cluster"] == cl, "merge_group"] = group_label
+
+            out_df.loc[
+                out_df["cluster"] == str(cl),
+                "merge_group"
+            ] = group_label
 
     print(out_df["action"].value_counts())
 
