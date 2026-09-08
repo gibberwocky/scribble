@@ -36,6 +36,9 @@ sbatch --partition uoa-compute \
         --genes ${GENES}
 ```
 
+<br>
+<br>
+
 ## Pre-process foetal tissue data with scribble
 
 <br>
@@ -65,10 +68,10 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 24G --time=4:00:00 \
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/HPC431_qc_panel.png" alt="HPC431 QC panel"></td>
+    <td><img src="../img/hippo_int/tissue/HPC431_qc_panel.png" alt="HPC431 QC panel"></td>
   </tr>
   <tr>
-    <td><img src="../img/hippo_int/FH451_qc_panel.png" alt="FH451 QC panel"></td>
+    <td><img src="../img/hippo_int/tissue/FH451_qc_panel.png" alt="FH451 QC panel"></td>
   </tr>
 </table>
 
@@ -91,7 +94,7 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 4G --time=2:00:00 \
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8.png" alt="MT outliers"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8.png" alt="MT outliers"></td>
   </tr>
 </table>
 
@@ -116,13 +119,13 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 32G --time=2:00:00 \
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07.png" alt="Doublets summary"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_dblqc_exp-0.07.png" alt="Doublets summary"></td>
   </tr>
 </table>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_HPC431_doublet_hist.png" alt="HPC431 doublets"></td>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_FH451_doublet_hist.png" alt="FH451 doublets"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_HPC431_doublet_hist.png" alt="HPC431 doublets"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_FH451_doublet_hist.png" alt="FH451 doublets"></td>
   </tr>
 </table>
 
@@ -148,7 +151,7 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_pca.png" alt="PCA"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_dblqc_exp-0.07_pca.png" alt="PCA"></td>
   </tr>
 </table>
 
@@ -192,13 +195,13 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_counts.png" alt="PCA counts"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_counts.png" alt="PCA counts"></td>
   </tr>
 </table>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_vars.png" alt="PCA sample"></td>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_umap.png" alt="Pre-integration UMAP"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_pca_vars.png" alt="PCA sample"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_umap.png" alt="Pre-integration UMAP"></td>
   </tr>
 </table>
 
@@ -239,8 +242,8 @@ Example UMAPs following integration with `--npcs 20 --neighbours 15 --theta 1` a
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_npcs-20_k-15_theta-1_umap.png" alt="--npcs 20 --neighbours 15 --theta 1"></td>
-    <td><img src="../img/hippo_int/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_npcs-30_k-30_theta-2_umap.png" alt="--npcs 30 --neighbours 30 --theta 2"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_npcs-20_k-15_theta-1_umap.png" alt="--npcs 20 --neighbours 15 --theta 1"></td>
+    <td><img src="../img/hippo_int/tissue/combined_mtqc_nMADs-8_dblqc_exp-0.07_filtered_preintegration_harmony_npcs-30_k-30_theta-2_umap.png" alt="--npcs 30 --neighbours 30 --theta 2"></td>
   </tr>
 </table>
 
@@ -361,13 +364,13 @@ The below plots from `scribble cluster` are from this highest scoring run. Note,
 <br>
 <table>
   <tr>
-    <td><img src="../img/hippo_int/combined_npcs-30_k-30_theta-2_resolution_optimisation.png" alt="Resolution optimisation"></td>
+    <td><img src="../img/hippo_int/tissue/combined_npcs-30_k-30_theta-2_resolution_optimisation.png" alt="Resolution optimisation"></td>
   </tr>
 </table>
 <table>
     <tr>
-    <td><img src="../img/hippo_int/combined_npcs-30_k-30_theta-2_clusters.png" alt="Leiden clusters"></td>
-    <td><img src="../img/hippo_int/combined_npcs-30_k-30_theta-2_stability.png" alt="UMAP and stability"></td>
+    <td><img src="../img/hippo_int/tissue/combined_npcs-30_k-30_theta-2_clusters.png" alt="Leiden clusters"></td>
+    <td><img src="../img/hippo_int/tissue/combined_npcs-30_k-30_theta-2_stability.png" alt="UMAP and stability"></td>
   </tr>
 </table>
 <br>
@@ -461,6 +464,13 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
 ```
 
 This returns a UMAP with refined cluster labels in `scribble/plots` and an Excel file containing marker genes per cluster in `scribble/tables`. These should be used for cell type annotation, and any further cluster refinements will need to be made manually by importing the `scribble/adata/*_clustered_refined.h5ad` file into Python for processing.
+
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/tissue/UMAP_refine_cluster.png" alt="UMAP of refined cluster labels"></td>
+  </tr>
+</table>
 
 <br>
 
@@ -876,7 +886,12 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
 
 This returns a UMAP with refined cluster labels in `scribble/plots`, an Excel file containing marker genes per cluster in `scribble/tables`, and a refined.h5ad file in `scribble/adata`. These files should be used for annotation, any further refinement of clusters after considering marker genes will need to be performed manually in Python.
 
-
+<br>
+<table>
+  <tr>
+    <td><img src="../img/hippo_int/organoid/UMAP_refine_cluster.png" alt="UMAP of refined cluster labels"></td>
+  </tr>
+</table>
 <br>
 
 ### Update with annotations
