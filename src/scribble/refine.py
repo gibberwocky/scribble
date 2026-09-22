@@ -582,11 +582,20 @@ def run_refine(args):
             else:
                 child_path = parent_path + [child]
 
-            adata.uns["refinement_tree"][child] = {
-                "parent": parent_label,
-                "level": level,
-                "path": child_path
-            }
+            # A collapsed group that retains the parent label is a root/terminal
+            # node, not its own child.
+            if child == parent_label:
+                adata.uns["refinement_tree"][child] = {
+                    "parent": None,
+                    "level": level,
+                    "path": child_path
+                }
+            else:
+                adata.uns["refinement_tree"][child] = {
+                    "parent": parent_label,
+                    "level": level,
+                    "path": child_path
+                }
 
         # -----------------------
         # Markers
