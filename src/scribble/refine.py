@@ -588,13 +588,15 @@ def run_refine(args):
                 adata.uns["refinement_tree"][child] = {
                     "parent": None,
                     "level": level,
-                    "path": child_path
+                    "path": child_path,
+                    "node_type": "retained_parent"
                 }
             else:
                 adata.uns["refinement_tree"][child] = {
                     "parent": parent_label,
                     "level": level,
-                    "path": child_path
+                    "path": child_path,
+                    "node_type": "refined_child"
                 }
 
         # -----------------------
@@ -919,7 +921,8 @@ def run_refine(args):
             "parent": info.get("parent"),
             "level": info.get("level"),
             "root_cluster": path[0],
-            "refinement_path": " -> ".join(map(str, path))
+            "refinement_path": " -> ".join(map(str, path)),
+            "node_type": info.get("node_type")
         })
 
     if len(refinement_rows) > 0:
