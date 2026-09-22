@@ -549,11 +549,44 @@ def run_refine(args):
         # -----------------------
         # Refinement tracking
         # -----------------------
-        for parent in clusters:
-            children = refined.unique().tolist()
+        children = refined.unique().tolist()
 
-            adata.uns["refinement_tree"].setdefault(parent, [])
-            adata.uns["refinement_tree"][parent].extend(children)
+        for child in children:
+
+            # Which current parent(s) produced this child?
+            parent_label = (
+                clusters[0]
+                if len(clusters) == 1
+                else "|".join(clusters)
+            )
+
+            # Recover ancestry already associated with the parent
+            parent_info = adata.uns["refinement_tree"].get(
+                parent_label,
+                {}
+            )
+
+            if isinstance(parent_info, dict):
+                parent_path = parent_info.get(
+                    "path",
+                    [parent_label]
+                )
+            else:
+                # Backward compatibility with old tree structure
+                parent_path = [parent_label]
+
+            # Do not append parent again when a collapsed cluster
+            # retains the parent label
+            if child == parent_label:
+                child_path = parent_path.copy()
+            else:
+                child_path = parent_path + [child]
+
+            adata.uns["refinement_tree"][child] = {
+                "parent": parent_label,
+                "level": level,
+                "path": child_path
+            }
 
         # -----------------------
         # Markers
@@ -801,9 +834,16 @@ def run_refine(args):
         )
 
         # Marker sheets
+        def _cluster_sort_key(row):
+            label = str(row["refine_cluster"])
+            try:
+                return (0, int(label))
+            except ValueError:
+                return (1, label)
+
         all_clusters = sorted(
             cluster_registry,
-            key=lambda x: int(x["refine_cluster"])
+            key=_cluster_sort_key
         )
 
         for row in all_clusters:
@@ -858,16 +898,20 @@ def run_refine(args):
 
     refinement_rows = []
 
-    for parent, children in (
-        adata.uns["refinement_tree"].items()
-    ):
+    for cluster, info in adata.uns["refinement_tree"].items():
 
-        for child in children:
+        if not isinstance(info, dict):
+            continue
 
-            refinement_rows.append({
-                "parent": parent,
-                "child": child
-            })
+        path = info.get("path", [cluster])
+
+        refinement_rows.append({
+            "refine_cluster": cluster,
+            "parent": info.get("parent"),
+            "level": info.get("level"),
+            "root_cluster": path[0],
+            "refinement_path": " -> ".join(map(str, path))
+        })
 
     if len(refinement_rows) > 0:
 
