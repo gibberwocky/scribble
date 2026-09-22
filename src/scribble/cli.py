@@ -348,6 +348,8 @@ GitHub: https://github.com/gibberwocky/scribble
             "(e.g. key_markers or canonical_markers)."))
     annotate_parser.add_argument("--label", default="cell_type_major",
         help=("Field from 'annotations' to plot as cluster colour / label"))
+    annotate_parser.add_argument("--combined_label", action="store_true",
+        help="Combine cluster number with annotation label")
 
 
     # ------------- Pseudotime -------------

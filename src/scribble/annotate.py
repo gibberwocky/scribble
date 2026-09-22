@@ -154,13 +154,18 @@ def run_annotate(args):
     # --------------------------------------------------
 
     print(f"Generating {args.label} UMAP")
-    adata.obs["combined_label"] = (
-        "[" + adata.obs["refine_label"].astype(str) + "] "
-        + adata.obs[args.label].astype(str)
-    )
+
+    if args.combined_label:
+        adata.obs["Annotation"] = (
+            "[" + adata.obs["refine_label"].astype(str) + "] "
+            + adata.obs[args.label].astype(str)
+        )
+    else:
+        adata.obs["Annotation"] = adata.obs[args.label].astype(str)
+
     sc.pl.umap(
         adata,
-        color="combined_label",
+        color="Annotation",
         legend_loc="right margin",
         frameon=False,
         show=False
