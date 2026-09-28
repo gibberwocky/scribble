@@ -410,7 +410,32 @@ def run_refine(args):
         adata_sub = _run_clustering(adata_sub)
 
         if adata_sub is None:
-            print(f"[Refine] Level {level} | clusters={clusters} → TERMINAL (no substructure)")
+            parent_label = (
+                clusters[0]
+                if len(clusters) == 1
+                else "|".join(clusters)
+            )
+
+            # Recover existing ancestry if this is a recursive refinement
+            parent_info = adata.uns["refinement_tree"].get(parent_label, {})
+
+            if isinstance(parent_info, dict):
+                parent_path = parent_info.get("path", [parent_label])
+            else:
+                parent_path = [parent_label]
+
+            adata.uns["refinement_tree"][parent_label] = {
+                "parent": parent_info.get("parent")
+                if isinstance(parent_info, dict) else None,
+                "level": level,
+                "path": parent_path,
+                "node_type": "refinement_failed"
+            }
+
+            print(
+                f"[Refine] Level {level} | clusters={clusters} "
+                "→ TERMINAL (refinement failed)"
+            )
             return []
 
         # --------------------------------------------------
