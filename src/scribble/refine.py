@@ -182,6 +182,28 @@ def run_refine(args):
             min_cells=args.min_cells_per_gene
         )
 
+        print(
+            f"[HVG input] cells={adata_sub.n_obs}, "
+            f"genes={adata_sub.n_vars}"
+        )
+
+        if args.batch in adata_sub.obs:
+            print(
+                "[HVG batches]",
+                adata_sub.obs[args.batch].value_counts().to_dict()
+            )
+
+        gene_ncells = np.asarray(
+            (adata_sub.X > 0).sum(axis=0)
+        ).ravel()
+
+        print(
+            f"[HVG genes] "
+            f"n=3: {(gene_ncells == 3).sum()}, "
+            f"n<=5: {(gene_ncells <= 5).sum()}, "
+            f"n<=10: {(gene_ncells <= 10).sum()}"
+        )
+
         # preserve raw counts
         adata_sub.layers["counts"] = adata_sub.X.copy()
 
