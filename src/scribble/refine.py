@@ -63,8 +63,8 @@ def run_refine(args):
     # --------------------------------------------------
     adata.obs["refine_label"] = adata.obs["leiden"].astype(str)
 
-    if "refinement_tree" not in adata.uns:
-        adata.uns["refinement_tree"] = {}
+    # Each refine run constructs a new tree from scratch.
+    adata.uns["refinement_tree"] = {}
 
     # Refine cluster registry
     next_cluster_id = 1
@@ -504,7 +504,7 @@ def run_refine(args):
 
                 continue
 
-            cluster_id = str(next_cluster_id)
+            cluster_id = f"R{next_cluster_id}"
 
             cluster_map[cl] = cluster_id
 
@@ -847,10 +847,17 @@ def run_refine(args):
         # Marker sheets
         def _cluster_sort_key(row):
             label = str(row["refine_cluster"])
-            try:
+
+            # Original Leiden cluster
+            if label.isdigit():
                 return (0, int(label))
-            except ValueError:
-                return (1, label)
+
+            # Refinement-derived cluster
+            if label.startswith("R") and label[1:].isdigit():
+                return (1, int(label[1:]))
+
+            # Composite/retained parent such as 5|8|15|6|16
+            return (2, label)
 
         all_clusters = sorted(
             cluster_registry,
