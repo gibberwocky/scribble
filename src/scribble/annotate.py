@@ -111,8 +111,16 @@ def run_annotate(args):
             continue
 
         mapping = anno_index[col].to_dict()
-
         adata.obs[col] = adata.obs["refine_label"].map(mapping)
+
+        # Convert any columns with more than one type (e.g. str and int) to str
+        types = adata.obs[col].dropna().map(type).unique()
+        if len(types) > 1:
+            print(
+                f"WARNING: {col!r} contains mixed types: "
+                f"{[t.__name__ for t in types]}. Converting to string."
+            )
+            adata.obs[col] = adata.obs[col].astype("string")
 
     print("\nAnnotation coverage")
 
