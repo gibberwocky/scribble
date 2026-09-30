@@ -77,7 +77,8 @@ def run_annotate(args):
 
     annotations = pd.read_excel(
         annotation_file,
-        sheet_name="annotations"
+        sheet_name="annotations",
+        keep_default_na=False
     )
 
     if "refine_cluster" not in annotations.columns:
@@ -94,7 +95,6 @@ def run_annotate(args):
     annotations["refine_cluster"] = (
         annotations["refine_cluster"]
         .astype(str)
-        .apply(normalise_refine_label)
     )
 
     anno_index = annotations.set_index("refine_cluster")
@@ -103,7 +103,6 @@ def run_annotate(args):
     adata.obs["refine_label"] = (
         adata.obs["refine_label"]
         .astype(str)
-        .apply(normalise_refine_label)
     )
 
     for col in annotations.columns:

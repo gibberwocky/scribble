@@ -254,7 +254,7 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Number of repeated clustering runs used to estimate cluster stability")
     refine_parser.add_argument("--min_cells_per_group", type=int, default=500,
         help="Minimum number of cells required to refine a cluster group")
-    refine_parser.add_argument("--min_cells_per_gene", "--min_cells", dest="min_cells_per_gene", type=int, default=3,
+    refine_parser.add_argument("--min_cells_per_gene", "--min_cells", dest="min_cells_per_gene", type=int, default=10,
         help="Minimum number of cells a gene must be expressed in")
     refine_parser.add_argument("--max_refine_depth", type=int, default=2,
         help="Maximum recusrive refinement depth")
