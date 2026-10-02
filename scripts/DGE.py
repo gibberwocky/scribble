@@ -28,9 +28,7 @@ args = parser.parse_args()
 
 
 # Create directory structure
-PLOT_DIR = args.project_dir / "scribble/plots"
-TABLE_DIR = args.project_dir / "scribble/tables"
-OUTDIR = args.project_dir / "scribble/DGE"
+OUTDIR = Path(args.project_dir) / "scribble/DGE"
 DE_DIR = OUTDIR / "DE" / args.annotation
 GSEA_DIR = OUTDIR / "GSEA" / args.annotation
 PB_DIR = OUTDIR / "pseudobulk" / args.annotation
