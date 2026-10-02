@@ -732,7 +732,14 @@ def plot_size_factors(
 
 
 def calculate_library_metrics(sample_info):
-    """Calculate descriptive library-size and size-factor metrics."""
+    """
+    Calculate descriptive library-size, size-factor,
+    and nuclei-count relationships.
+    """
+
+    # --------------------------------------------------
+    # Size factors
+    # --------------------------------------------------
 
     size_factors = np.asarray(
         sample_info["size_factor"],
@@ -747,6 +754,10 @@ def calculate_library_metrics(sample_info):
     else:
         sf_ratio = np.nan
 
+    # --------------------------------------------------
+    # Library sizes
+    # --------------------------------------------------
+
     library_sizes = np.asarray(
         sample_info["library_size"],
         dtype=float,
@@ -760,59 +771,77 @@ def calculate_library_metrics(sample_info):
     else:
         library_ratio = np.nan
 
-        valid = (
-            np.isfinite(library_sizes)
-            & np.isfinite(size_factors)
-            & (library_sizes > 0)
-            & (size_factors > 0)
-        )
+    # --------------------------------------------------
+    # Library size vs size factor
+    # --------------------------------------------------
 
-        if valid.sum() >= 3:
-            correlation = np.corrcoef(
-                np.log10(library_sizes[valid]),
-                np.log10(size_factors[valid]),
-            )[0, 1]
-        else:
-            correlation = np.nan
+    valid = (
+        np.isfinite(library_sizes)
+        &
+        np.isfinite(size_factors)
+        &
+        (library_sizes > 0)
+        &
+        (size_factors > 0)
+    )
 
-        # --------------------------------------------------
-        # Relationship between number of nuclei and
-        # pseudobulk library size
-        # --------------------------------------------------
+    if valid.sum() >= 3:
+        size_factor_library_corr = np.corrcoef(
+            np.log10(
+                library_sizes[valid]
+            ),
+            np.log10(
+                size_factors[valid]
+            ),
+        )[0, 1]
+    else:
+        size_factor_library_corr = np.nan
 
-        n_cells = np.asarray(
-            sample_info["n_cells"],
-            dtype=float,
-        )
+    # --------------------------------------------------
+    # Nuclei count vs library size
+    # --------------------------------------------------
 
-        valid_cells = (
-            np.isfinite(n_cells)
-            &
-            np.isfinite(library_sizes)
-            &
-            (n_cells > 0)
-            &
-            (library_sizes > 0)
-        )
+    n_cells = np.asarray(
+        sample_info["n_cells"],
+        dtype=float,
+    )
 
-        if valid_cells.sum() >= 3:
-            cell_library_corr = np.corrcoef(
-                np.log10(
-                    n_cells[valid_cells]
-                ),
-                np.log10(
-                    library_sizes[valid_cells]
-                ),
-            )[0, 1]
-        else:
-            cell_library_corr = np.nan
+    valid_cells = (
+        np.isfinite(n_cells)
+        &
+        np.isfinite(library_sizes)
+        &
+        (n_cells > 0)
+        &
+        (library_sizes > 0)
+    )
 
-        return {
-            "library_size_ratio": library_ratio,
-            "size_factor_ratio": sf_ratio,
-            "size_factor_library_corr": correlation,
-            "cell_count_library_corr": cell_library_corr,
-        }
+    if valid_cells.sum() >= 3:
+        cell_count_library_corr = np.corrcoef(
+            np.log10(
+                n_cells[valid_cells]
+            ),
+            np.log10(
+                library_sizes[valid_cells]
+            ),
+        )[0, 1]
+    else:
+        cell_count_library_corr = np.nan
+
+    # --------------------------------------------------
+    # Return all metrics
+    # --------------------------------------------------
+
+    return {
+        "library_size_ratio": library_ratio,
+        "size_factor_ratio": sf_ratio,
+        "size_factor_library_corr": (
+            size_factor_library_corr
+        ),
+        "cell_count_library_corr": (
+            cell_count_library_corr
+        ),
+    }
 
 
 # ------------------------------------------------------------------
