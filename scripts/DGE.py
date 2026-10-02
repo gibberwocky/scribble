@@ -2147,7 +2147,7 @@ for cell_type in cell_types:
             "n_FDR_005_down": int(n_sig_down),
             "n_FDR_005_log2FC1": len(sig_large),
             "n_nominal": len(nominal),
-            "gsea_duplicate_rank_pct": d**licate_rank_pct,
+            "gsea_duplicate_rank_pct": duplicate_rank_pct,
             **gsea_summary,
         }
     )
