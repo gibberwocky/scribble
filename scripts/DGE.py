@@ -21,7 +21,7 @@ parser.add_argument("--project_dir", type=str, required=True)
 parser.add_argument("--input_file", type=str, required=True)
 parser.add_argument("--annotation", type=str, required=True)
 parser.add_argument("--min_cells_per_sample", type=int, default=20)
-parser.add_argument("--min_paired_donors", type=int, default=3)
+parser.add_argument("--min_informative_donors", type=int, default=3)
 parser.add_argument("--gsea_permutations", type=int, default=10000)
 parser.add_argument("--n_cpus", type=int, default=8)
 args = parser.parse_args()
@@ -140,57 +140,117 @@ def assess_design(meta_pb):
     """
     Assess whether sufficient treatment replication remains
     after cell-count filtering.
+
+    An informative donor is one for which at least one vehicle
+    and at least one IL17A pseudobulk remain.
+
+    This accommodates both:
+      - matched 1:1 donor pairs
+      - donors/backgrounds with replicate samples per treatment
+        (e.g. KCP)
     """
+
     n_veh = (
         meta_pb["treatment"]
         .eq("veh")
         .sum()
     )
+
     n_il17a = (
         meta_pb["treatment"]
         .eq("IL17A")
         .sum()
     )
+
     donor_treatment = pd.crosstab(
         meta_pb["donor"],
         meta_pb["treatment"],
     )
+
     veh = (
         donor_treatment["veh"]
         if "veh" in donor_treatment.columns
         else pd.Series(
             0,
-            index=donor_treatment.index
+            index=donor_treatment.index,
         )
     )
+
     il17a = (
         donor_treatment["IL17A"]
         if "IL17A" in donor_treatment.columns
         else pd.Series(
             0,
-            index=donor_treatment.index
+            index=donor_treatment.index,
         )
     )
-    paired_donors = donor_treatment.index[
-        (veh > 0) & (il17a > 0)
-    ].tolist()
-    n_paired = len(paired_donors)
+
+    informative_donors = (
+        donor_treatment.index[
+            (veh > 0) &
+            (il17a > 0)
+        ]
+        .tolist()
+    )
+
+    n_informative_donors = len(
+        informative_donors
+    )
+
+    # Number of donors represented by a simple 1:1 pair
+    paired_1to1 = (
+        (veh == 1) &
+        (il17a == 1)
+    ).sum()
+
+    # Donors having replicate samples in either treatment
+    replicated_donors = (
+        donor_treatment.index[
+            ((veh > 1) | (il17a > 1))
+            &
+            (veh > 0)
+            &
+            (il17a > 0)
+        ]
+        .tolist()
+    )
+
     eligible = (
         (n_veh >= 2)
         and
         (n_il17a >= 2)
         and
-        (n_paired >= args.min_paired_donors)
+        (
+            n_informative_donors
+            >= args.min_informative_donors
+        )
     )
+
     return {
         "eligible": eligible,
         "n_samples": len(meta_pb),
-        "n_veh": n_veh,
-        "n_IL17A": n_il17a,
-        "n_donors": meta_pb["donor"].nunique(),
-        "n_paired_donors": n_paired,
-        "paired_donors": "|".join(
-            map(str, paired_donors)
+        "n_veh": int(n_veh),
+        "n_IL17A": int(n_il17a),
+        "n_donors": int(
+            meta_pb["donor"].nunique()
+        ),
+        "n_informative_donors": int(
+            n_informative_donors
+        ),
+        "informative_donors": "|".join(
+            map(
+                str,
+                informative_donors,
+            )
+        ),
+        "n_1to1_paired_donors": int(
+            paired_1to1
+        ),
+        "replicated_donors": "|".join(
+            map(
+                str,
+                replicated_donors,
+            )
         ),
     }
 
@@ -315,19 +375,23 @@ def make_gsea_ranking(de):
             subset="gene"
         )
         .sort_values(
-            "rank",
-            ascending=False
+            ["rank", "gene"],
+            ascending=[False, True],
         )
     )
-    return ranking
+
+    duplicate_rank_pct = (
+        ranking["rank"]
+        .duplicated(
+            keep=False
+        )
+        .mean()
+        * 100
+    )
+
+    return ranking, duplicate_rank_pct
 
 
-from pathlib import Path
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 # ------------------------------------------------------------------
@@ -696,26 +760,59 @@ def calculate_library_metrics(sample_info):
     else:
         library_ratio = np.nan
 
-    valid = (
-        np.isfinite(library_sizes)
-        & np.isfinite(size_factors)
-        & (library_sizes > 0)
-        & (size_factors > 0)
-    )
+        valid = (
+            np.isfinite(library_sizes)
+            & np.isfinite(size_factors)
+            & (library_sizes > 0)
+            & (size_factors > 0)
+        )
 
-    if valid.sum() >= 3:
-        correlation = np.corrcoef(
-            np.log10(library_sizes[valid]),
-            np.log10(size_factors[valid]),
-        )[0, 1]
-    else:
-        correlation = np.nan
+        if valid.sum() >= 3:
+            correlation = np.corrcoef(
+                np.log10(library_sizes[valid]),
+                np.log10(size_factors[valid]),
+            )[0, 1]
+        else:
+            correlation = np.nan
 
-    return {
-        "library_size_ratio": library_ratio,
-        "size_factor_ratio": sf_ratio,
-        "size_factor_library_corr": correlation,
-    }
+        # --------------------------------------------------
+        # Relationship between number of nuclei and
+        # pseudobulk library size
+        # --------------------------------------------------
+
+        n_cells = np.asarray(
+            sample_info["n_cells"],
+            dtype=float,
+        )
+
+        valid_cells = (
+            np.isfinite(n_cells)
+            &
+            np.isfinite(library_sizes)
+            &
+            (n_cells > 0)
+            &
+            (library_sizes > 0)
+        )
+
+        if valid_cells.sum() >= 3:
+            cell_library_corr = np.corrcoef(
+                np.log10(
+                    n_cells[valid_cells]
+                ),
+                np.log10(
+                    library_sizes[valid_cells]
+                ),
+            )[0, 1]
+        else:
+            cell_library_corr = np.nan
+
+        return {
+            "library_size_ratio": library_ratio,
+            "size_factor_ratio": sf_ratio,
+            "size_factor_library_corr": correlation,
+            "cell_count_library_corr": cell_library_corr,
+        }
 
 
 # ------------------------------------------------------------------
@@ -1103,6 +1200,12 @@ def write_diagnostics_report(
             f"{library_metrics['size_factor_library_corr']:.3f}"
         ),
 
+        (
+            "log10(nuclei count) vs "
+            "log10(library size) correlation: "
+            f"{library_metrics['cell_count_library_corr']:.3f}"
+        ),
+
         "",
 
         "MODEL DIAGNOSTICS",
@@ -1229,6 +1332,9 @@ def build_inspection_summary(
         ),
         "size_factor_library_corr": (
             library_metrics["size_factor_library_corr"]
+        ),
+        "cell_count_library_corr": (
+            library_metrics["cell_count_library_corr"]
         ),
 
         # PCA
@@ -1493,18 +1599,36 @@ sample_counts = (
 file = (OUTDIR / f"{Path(args.input_file).stem}_{args.annotation}_counts.csv")
 sample_counts.to_csv(file)
 
-# Get raw counts for IL17A/veh samples
-adata_global = restore_counts(adata)
-adata.X= adata_global.X.copy()
-adata_de = adata[
-    adata_global.obs["treatment"].isin(
+# Restore raw counts
+adata_counts = restore_counts(
+    adata
+)
+
+# Defensive check
+if not adata_counts.obs_names.equals(
+    adata.obs_names
+):
+    raise ValueError(
+        "restore_counts() changed observation order "
+        "or observation identities."
+    )
+
+# Ensure corrected metadata is retained
+adata_counts.obs = adata.obs.copy()
+
+# Keep only treatment samples
+adata_de = adata_counts[
+    adata_counts.obs[
+        "treatment"
+    ].isin(
         ["IL17A", "veh"]
     )
 ].copy()
 
-# Verify raw count source
-X = adata_de.X
-adata_de.layers['counts'] = adata_de.X.copy()
+# Store counts explicitly
+adata_de.layers["counts"] = (
+    adata_de.X.copy()
+)
 
 # --------------------------------------------------
 # use raw counts
@@ -1554,6 +1678,54 @@ sample_design = (
 print(sample_design.to_string(index=False))
 
 # --------------------------------------------------
+# Validate sample-level metadata
+# --------------------------------------------------
+
+metadata_cols = [
+    "donor",
+    "cell_line",
+    "treatment",
+]
+
+for col in metadata_cols:
+
+    n_values = (
+        adata_de.obs
+        .groupby(
+            "sample",
+            observed=True,
+        )[col]
+        .nunique()
+    )
+
+    bad = n_values[
+        n_values != 1
+    ]
+
+    if len(bad) > 0:
+        raise ValueError(
+            f"Inconsistent {col} metadata for samples: "
+            f"{bad.index.tolist()}"
+        )
+
+unexpected_treatments = (
+    set(
+        adata_de.obs[
+            "treatment"
+        ].astype(str)
+    )
+    -
+    {"veh", "IL17A"}
+)
+
+if unexpected_treatments:
+    raise ValueError(
+        "Unexpected treatment values after subsetting: "
+        f"{unexpected_treatments}"
+    )
+
+
+# --------------------------------------------------
 # Differential expression + GSEA
 # --------------------------------------------------
 
@@ -1596,12 +1768,13 @@ for cell_type in cell_types:
         f"{design_info['n_samples']} samples; "
         f"{design_info['n_veh']} veh; "
         f"{design_info['n_IL17A']} IL17A; "
-        f"{design_info['n_paired_donors']} paired donors"
+        f"{design_info['n_informative_donors']} informative donors; "
+        f"{design_info['n_1to1_paired_donors']} 1:1 pairs"
     )
     if not design_info["eligible"]:
         print(
             f"{cell_type}: skipping DE "
-            f"due to insufficient paired replication"
+            f"due to insufficient treatment replication"
         )
         all_summary.append(
             {
@@ -1618,6 +1791,26 @@ for cell_type in cell_types:
     # Gene filtering
     # --------------------------------------------------
     pb_filtered = filter_genes(pb)
+
+    if pb_filtered.shape[1] == 0:
+        print(
+            f"{cell_type}: skipping DE; "
+            "no genes passed expression filtering"
+        )
+
+        all_summary.append(
+            {
+                "cell_type": cell_type,
+                **design_info,
+                "n_genes_tested": 0,
+                "n_FDR_005": 0,
+                "n_FDR_005_log2FC1": 0,
+                "n_nominal": 0,
+            }
+        )
+
+        continue
+
     print(
         f"{cell_type}: "
         f"{pb_filtered.shape[1]} genes retained"
@@ -1684,6 +1877,27 @@ for cell_type in cell_types:
         index=False,
     )
     # --------------------------------------------------
+    # Direction of FDR-significant DE
+    # --------------------------------------------------
+
+    n_sig_up = (
+        (
+            (de["FDR"] < 0.05)
+            &
+            (de["log2FoldChange"] > 0)
+        )
+        .sum()
+    )
+
+    n_sig_down = (
+        (
+            (de["FDR"] < 0.05)
+            &
+            (de["log2FoldChange"] < 0)
+        )
+        .sum()
+    )
+    # --------------------------------------------------
     # FDR-significant + large effect
     # --------------------------------------------------
     sig_large = de[
@@ -1723,9 +1937,18 @@ for cell_type in cell_types:
     # --------------------------------------------------
     # GSEA ranking
     # --------------------------------------------------
-    ranking = make_gsea_ranking(
-        de
+    ranking, duplicate_rank_pct = (
+        make_gsea_ranking(
+            de
+        )
     )
+
+    print(
+        f"{cell_type}: "
+        f"{duplicate_rank_pct:.2f}% "
+        "duplicated GSEA ranking values"
+    )
+
     ranking.to_csv(
         GSEA_DIR /
         f"{cell_safe}_ranking.csv",
@@ -1757,6 +1980,7 @@ for cell_type in cell_types:
                 max_size=500,
                 permutation_num=args.gsea_permutations,
                 seed=0,
+                threads=args.n_cpus,
                 outdir=str(gs_dir),
                 verbose=False,
             )
@@ -1891,13 +2115,24 @@ for cell_type in cell_types:
                 f"{len(sig_down)} IL17A-down)"
             )
         except Exception as e:
+
             print(
                 f"{cell_type}: "
                 f"{gs_name} failed"
             )
+
             print(e)
+
             gsea_summary[
                 f"{gs_name}_sig_pathways"
+            ] = np.nan
+
+            gsea_summary[
+                f"{gs_name}_sig_up"
+            ] = np.nan
+
+            gsea_summary[
+                f"{gs_name}_sig_down"
             ] = np.nan
     # --------------------------------------------------
     # Summary
@@ -1908,8 +2143,11 @@ for cell_type in cell_types:
             **design_info,
             "n_genes_tested": len(de),
             "n_FDR_005": len(sig),
+            "n_FDR_005_up": int(n_sig_up),
+            "n_FDR_005_down": int(n_sig_down),
             "n_FDR_005_log2FC1": len(sig_large),
             "n_nominal": len(nominal),
+            "gsea_duplicate_rank_pct": d**licate_rank_pct,
             **gsea_summary,
         }
     )
