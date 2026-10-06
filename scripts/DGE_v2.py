@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# This CLI supports arbitrary straightforward model adjustment formulas but simple three-part categorical contrasts only.
+# Interaction-specific hypotheses require explicit additional implementation.
 #
 # Returns:
 #   <celltype>_DE_GSEA_summary.csv                      Summary of DE and GSEA analyses
@@ -24,23 +26,23 @@
 #       *_significant.csv                               Genes with FDR < 0.05
 #       *_significant_log2FC1.csv                       Genes with FDR < 0.05 and abs(log2FoldChange) > 1
 #   GSEA/<annotation>/
-#       *cell_ranking.csv                               PyDESeq2 Wald statistics for IL17A-versus-veh contrast unfiltered for significance, rankings are input for gseapy
-#                                                       - large +ve is strong evidence gene increased in IL17A relative to veh
+#       *cell_ranking.csv                               PyDESeq2 Wald statistics for TEST-versus-REFERENCE contrast unfiltered for significance, rankings are input for gseapy
+#                                                       - large +ve is strong evidence gene increased in TEST relative to REFERENCE
 #                                                       - Near zero indicates little evidence for treatment-associated change
-#                                                       - large -ve is strong evidence gene decreased in IL17A relative to veh
+#                                                       - large -ve is strong evidence gene decreased in TEST relative to REFRENCE
 #       <celltype>/
 #           <geneset>/
 #               all_pathways.csv                        GSEA result table listing every pathway that passed GSEA size filters (min_size=10, max_size=500)
 #               gene_sets.gmt                           GSEApy gene set Gene Matrix Transposed definition file (list of genes per pathway)
 #               gseapy.gene_set.prerank.report.csv      GSEApy-generated equiavalent to all_pathways.csv
-#               significant_IL17A_down.csv              Pathways that are significantly depleted (FDR < 0.05 and NES < 0)
-#               significant_IL17A_up.csv                Pathways that are significantly enriched (FDR < 0.05 and NES > 0)
-#               top_IL17A_down.csv                      Top 25 pathways that are depleted (NES < 0, sorted by FDR)
-#               top_IL17A_up.csv                        Top 25 pathways that are enriched (NES > 0, sorted by FDR)
+#               significant...down.csv                  Pathways that are significantly depleted (FDR < 0.05 and NES < 0)
+#               significant...up.csv                    Pathways that are significantly enriched (FDR < 0.05 and NES > 0)
+#               top25...down.csv                        Top 25 pathways that are depleted (NES < 0, sorted by FDR)
+#               top25...up.csv                          Top 25 pathways that are enriched (NES > 0, sorted by FDR)
 #               <preank>/
 #                   <pathway>.pdf                       GSEA enrichment plot
-#                                                           Bottom panel:   left/red/positive indicates genes increased with IL17A
-#                                                                           right/blue/negative indicates genes decreased with IL17A (or realtively higher in veh)
+#                                                           Bottom panel:   left/red/positive indicates genes increased in TEST level
+#                                                                           right/blue/negative indicates genes decreased in TEST level (or realtively higher in REFERENCE level)
 #                                                           Middle panel:   small vertical black lines represent genes belonging to the pathway
 #                                                           Top panel:      running enrichment score
 #   inspection/<annotation>/
@@ -58,7 +60,9 @@
 #           sample_qc.csv                               Sample-level QC table
 #           size_factors.png                            Top-panel pseudobulk library size, bottom-panel PyDESeq2 size factors where dashed line indicates size factor 1
 #
+
 import argparse
+import traceback
 from pathlib import Path
 import scanpy as sc
 import numpy as np
@@ -72,30 +76,124 @@ import gseapy as gp
 from pydeseq2.dds import DeseqDataSet
 from pydeseq2.ds import DeseqStats
 from pydeseq2.default_inference import DefaultInference
+import json
 
+def safe_filename(value):
+    """Convert a string into a filesystem-safe filename component."""
+    value = str(value).strip()
+    value = re.sub(r"[^\w.-]+", "_", value)
+    value = re.sub(r"_+", "_", value)
+    return value.strip("_.")
 
-# CLI paremeters
+def get_formula_variables(formula):
+    """
+    Extract simple variable names from a Formulaic-style
+    design formula.
+
+    Intended for validation of formulas such as:
+      ~ donor + treatment
+      ~ treatment
+      ~ donor + treatment + batchInfo
+
+    Formulaic itself remains responsible for actual parsing.
+    """
+
+    tokens = re.findall(
+        r"\b[A-Za-z_]\w*\b",
+        formula
+    )
+
+    reserved = {
+        "C",
+        "I",
+    }
+
+    return {
+        token
+        for token in tokens
+        if token not in reserved
+    }
+
+# --------------------------------------------------
+# CLI parameters
+# --------------------------------------------------
 parser = argparse.ArgumentParser()
 parser.add_argument("--project_dir", type=str, required=True)
 parser.add_argument("--input_file", type=str, required=True)
 parser.add_argument("--annotation", type=str, required=True)
+parser.add_argument("--analysis_name", type=str, required=True,
+    help=("Name identifying this analysis, e.g. 'combined', 'organoid', 'KOLF2', 'ex_vivo'."),
+)
+parser.add_argument("--samples", nargs="+", default=None,
+    help=("Optional list of sample IDs to include. "
+        "If omitted, all samples containing the contrast "
+        "levels are considered.")
+)
+parser.add_argument("--formula", type=str, required=True,
+    help=("PyDESeq2 design formula, e.g. '~ donor + treatment' or '~ treatment'.")
+)
+parser.add_argument("--contrast", nargs=3, required=True,
+    metavar=("VARIABLE", "TEST_LEVEL", "REFERENCE_LEVEL",),
+    help=("PyDESeq2 contrast. Example: --contrast treatment IL17A veh")
+)
+parser.add_argument("--min_gene_count", type=int, default=10)
+parser.add_argument("--min_gene_samples", type=int, default=3)
 parser.add_argument("--min_cells_per_sample", type=int, default=20)
+parser.add_argument("--min_samples_per_group", type=int, default=2)
 parser.add_argument("--min_informative_donors", type=int, default=3)
+parser.add_argument("--require_informative_donors", action=argparse.BooleanOptionalAction, default=True,
+    help=("Require min_informative_donors donors "
+        "represented in both contrast levels. "
+        "Use --no-require_informative_donors for "
+        "an explicitly unblocked analysis.")
+)
 parser.add_argument("--gsea_permutations", type=int, default=10000)
 parser.add_argument("--n_cpus", type=int, default=8)
 args = parser.parse_args()
 
+CONTRAST_VARIABLE = args.contrast[0]
+CONTRAST_TEST = args.contrast[1]
+CONTRAST_REFERENCE = args.contrast[2]
+FORMULA_VARIABLES = get_formula_variables(args.formula)
+DONOR_IN_MODEL = ("donor" in FORMULA_VARIABLES)
+REQUIRED_MODEL_COLUMNS = (FORMULA_VARIABLES | {CONTRAST_VARIABLE})
+if (
+    CONTRAST_VARIABLE
+    not in FORMULA_VARIABLES
+):
+    raise ValueError(
+        f"Contrast variable "
+        f"'{CONTRAST_VARIABLE}' "
+        "is not present in design formula "
+        f"'{args.formula}'."
+    )
+
+RUN_INFO = {
+    "analysis_name": args.analysis_name,
+    "formula": args.formula,
+    "contrast_variable": (
+        CONTRAST_VARIABLE
+    ),
+    "contrast_test": (
+        CONTRAST_TEST
+    ),
+    "contrast_reference": (
+        CONTRAST_REFERENCE
+    ),
+}
 
 # Create directory structure
-OUTDIR = Path(args.project_dir) / "scribble/DGE"
-DE_DIR = OUTDIR / "DE" / args.annotation
-GSEA_DIR = OUTDIR / "GSEA" / args.annotation
-PB_DIR = OUTDIR / "pseudobulk" / args.annotation
+ANALYSIS_NAME = safe_filename(args.analysis_name)
+OUTDIR = (Path(args.project_dir) / "scribble" / "DGE" / ANALYSIS_NAME)
+DE_DIR = (OUTDIR / "DE" / args.annotation)
+GSEA_DIR = (OUTDIR / "GSEA" / args.annotation)
+PB_DIR = (OUTDIR / "pseudobulk" / args.annotation)
 INSPECTION_DIR = (OUTDIR / "inspection" / args.annotation)
 DE_DIR.mkdir(exist_ok=True, parents=True)
 GSEA_DIR.mkdir(exist_ok=True, parents=True)
 PB_DIR.mkdir(exist_ok=True, parents=True)
 INSPECTION_DIR.mkdir(parents=True, exist_ok=True)
+
 
 gene_sets = {
     "Hallmark": "MSigDB_Hallmark_2020",
@@ -105,17 +203,47 @@ gene_sets = {
     "Wiki": "WikiPathways_2024_Human"
 }
 
+
+# Run manifest
+run_manifest = {
+    "analysis_name": args.analysis_name,
+    "input_file": str(
+        Path(args.input_file)
+        .resolve()
+    ),
+    "annotation": args.annotation,
+    "samples": args.samples,
+    "formula": args.formula,
+    "formula_variables": sorted(FORMULA_VARIABLES),
+    "contrast_variable": (CONTRAST_VARIABLE),
+    "contrast_test": (CONTRAST_TEST),
+    "contrast_reference": (CONTRAST_REFERENCE),
+    "require_informative_donors": (args.require_informative_donors),
+    "min_gene_count": (args.min_gene_count),
+    "min_gene_samples": (args.min_gene_samples),
+    "min_cells_per_sample": (args.min_cells_per_sample),
+    "min_samples_per_group": (args.min_samples_per_group),
+    "min_informative_donors": (args.min_informative_donors),
+    "gsea_permutations": (args.gsea_permutations),
+    "n_cpus": args.n_cpus,
+    "gene_sets": gene_sets,
+}
+
+with open(
+    OUTDIR /
+    "run_manifest.json",
+    "w",
+) as handle:
+
+    json.dump(
+        run_manifest,
+        handle,
+        indent=2,
+    )
+
 # --------------------------------------------------
 # helpers
 # --------------------------------------------------
-
-def safe_filename(value):
-    """Convert a string into a filesystem-safe filename component."""
-    value = str(value).strip()
-    value = re.sub(r"[^\w.-]+", "_", value)
-    value = re.sub(r"_+", "_", value)
-    return value.strip("_.")
-
 
 def pseudobulk_celltype(
     adata,
@@ -168,18 +296,48 @@ def pseudobulk_celltype(
                 X.sum(axis=0)
             ).ravel()
         pseudobulk.append(summed)
-        obs = sample_adata.obs.iloc[0]
-        sample_meta.append(
+
+        meta_row = {
+            "sample": sample,
+            "n_cells": sample_adata.n_obs,
+            "library_size": summed.sum(),
+        }
+
+        metadata_to_retain = (
+            REQUIRED_MODEL_COLUMNS
+            |
             {
-                "sample": sample,
-                "donor": str(obs["donor"]),
-                "cell_line": str(obs["cell_line"]),
-                "treatment": str(obs["treatment"]),
-                "batchInfo": str(obs["batchInfo"]),
-                "n_cells": sample_adata.n_obs,
-                "library_size": summed.sum(),
+                "donor",
+                "cell_line",
+                "weeks",
+                "sex",
+                "age",
+                "batchInfo",
+                "treatment",
             }
         )
+
+        for col in sorted(metadata_to_retain):
+
+            if col in sample_adata.obs.columns:
+
+                values = (
+                    sample_adata.obs[col]
+                    .dropna()
+                    .unique()
+                )
+
+                if len(values) > 1:
+                    raise ValueError(
+                        f"{sample}: inconsistent {col} "
+                        "within sample"
+                    )
+
+                if len(values) == 1:
+                    meta_row[col] = values[0]
+
+        sample_meta.append(meta_row)
+
     pb = pd.DataFrame(
         pseudobulk,
         columns=subset.var_names,
@@ -197,132 +355,223 @@ def pseudobulk_celltype(
 
 def assess_design(meta_pb):
     """
-    Assess whether sufficient treatment replication remains
-    after cell-count filtering.
+    Assess whether sufficient replication remains after
+    cell-count filtering for the requested contrast.
 
-    An informative donor is one for which at least one vehicle
-    and at least one IL17A pseudobulk remain.
-
-    This accommodates both:
-      - matched 1:1 donor pairs
-      - donors/backgrounds with replicate samples per treatment
-        (e.g. KCP)
+    If donor metadata is present, also report donors represented
+    under both contrast levels.
     """
 
-    n_veh = (
-        meta_pb["treatment"]
-        .eq("veh")
-        .sum()
-    )
+    variable = CONTRAST_VARIABLE
+    test_level = CONTRAST_TEST
+    reference_level = CONTRAST_REFERENCE
 
-    n_il17a = (
-        meta_pb["treatment"]
-        .eq("IL17A")
-        .sum()
-    )
-
-    donor_treatment = pd.crosstab(
-        meta_pb["donor"],
-        meta_pb["treatment"],
-    )
-
-    veh = (
-        donor_treatment["veh"]
-        if "veh" in donor_treatment.columns
-        else pd.Series(
-            0,
-            index=donor_treatment.index,
+    if variable not in meta_pb.columns:
+        raise ValueError(
+            f"Contrast variable '{variable}' "
+            "is not present in pseudobulk metadata."
         )
+
+    # ----------------------------------------------
+    # Samples per contrast level
+    # ----------------------------------------------
+
+    groups = (
+        meta_pb[variable]
+        .astype(str)
     )
 
-    il17a = (
-        donor_treatment["IL17A"]
-        if "IL17A" in donor_treatment.columns
-        else pd.Series(
-            0,
-            index=donor_treatment.index,
-        )
+    n_test = int(
+        groups.eq(
+            test_level
+        ).sum()
     )
 
-    informative_donors = (
-        donor_treatment.index[
-            (veh > 0) &
-            (il17a > 0)
-        ]
-        .tolist()
+    n_reference = int(
+        groups.eq(
+            reference_level
+        ).sum()
     )
 
-    n_informative_donors = len(
-        informative_donors
-    )
-
-    # Number of donors represented by a simple 1:1 pair
-    paired_1to1 = (
-        (veh == 1) &
-        (il17a == 1)
-    ).sum()
-
-    # Donors having replicate samples in either treatment
-    replicated_donors = (
-        donor_treatment.index[
-            ((veh > 1) | (il17a > 1))
-            &
-            (veh > 0)
-            &
-            (il17a > 0)
-        ]
-        .tolist()
-    )
-
-    eligible = (
-        (n_veh >= 2)
-        and
-        (n_il17a >= 2)
-        and
-        (
-            n_informative_donors
-            >= args.min_informative_donors
-        )
-    )
-
-    return {
-        "eligible": eligible,
+    result = {
         "n_samples": len(meta_pb),
-        "n_veh": int(n_veh),
-        "n_IL17A": int(n_il17a),
-        "n_donors": int(
-            meta_pb["donor"].nunique()
+        f"n_{reference_level}": (
+            n_reference
         ),
-        "n_informative_donors": int(
-            n_informative_donors
-        ),
-        "informative_donors": "|".join(
-            map(
-                str,
-                informative_donors,
-            )
-        ),
-        "n_1to1_paired_donors": int(
-            paired_1to1
-        ),
-        "replicated_donors": "|".join(
-            map(
-                str,
-                replicated_donors,
-            )
+        f"n_{test_level}": (
+            n_test
         ),
     }
+
+    # ----------------------------------------------
+    # Donor-aware design assessment
+    # ----------------------------------------------
+
+    if "donor" in meta_pb.columns:
+
+        donor_group = pd.crosstab(
+            meta_pb["donor"],
+            groups,
+        )
+
+        reference_counts = (
+            donor_group[
+                reference_level
+            ]
+            if reference_level
+            in donor_group.columns
+            else pd.Series(
+                0,
+                index=donor_group.index,
+            )
+        )
+
+        test_counts = (
+            donor_group[
+                test_level
+            ]
+            if test_level
+            in donor_group.columns
+            else pd.Series(
+                0,
+                index=donor_group.index,
+            )
+        )
+
+        informative = (
+            donor_group.index[
+                (reference_counts > 0)
+                &
+                (test_counts > 0)
+            ]
+            .tolist()
+        )
+
+        n_informative = len(
+            informative
+        )
+
+        paired_1to1 = int(
+            (
+                (reference_counts == 1)
+                &
+                (test_counts == 1)
+            )
+            .sum()
+        )
+
+        replicated = (
+            donor_group.index[
+                (
+                    (
+                        reference_counts > 1
+                    )
+                    |
+                    (
+                        test_counts > 1
+                    )
+                )
+                &
+                (reference_counts > 0)
+                &
+                (test_counts > 0)
+            ]
+            .tolist()
+        )
+
+        result.update(
+            {
+                "n_donors": int(
+                    meta_pb[
+                        "donor"
+                    ]
+                    .nunique()
+                ),
+                "n_informative_donors": (
+                    n_informative
+                ),
+                "informative_donors": (
+                    "|".join(
+                        map(
+                            str,
+                            informative,
+                        )
+                    )
+                ),
+                "n_1to1_paired_donors": (
+                    paired_1to1
+                ),
+                "replicated_donors": (
+                    "|".join(
+                        map(
+                            str,
+                            replicated,
+                        )
+                    )
+                ),
+            }
+        )
+
+        if args.require_informative_donors:
+
+            if not DONOR_IN_MODEL:
+                raise ValueError(
+                    "--require_informative_donors was enabled, "
+                    "but 'donor' is not present in the model formula. "
+                    "Either include donor in the formula or use "
+                    "--no-require_informative_donors."
+                )
+
+            enough_design = (
+                n_informative
+                >= args.min_informative_donors
+            )
+
+        else:
+
+            enough_design = True
+
+    else:
+
+        if args.require_informative_donors:
+            raise ValueError(
+                "--require_informative_donors was enabled, "
+                "but donor metadata is unavailable."
+            )
+
+        enough_design = True
+
+    result["eligible"] = (
+        (
+            n_reference
+            >=
+            args.min_samples_per_group
+        )
+        and
+        (
+            n_test
+            >=
+            args.min_samples_per_group
+        )
+        and
+        enough_design
+    )
+
+    return result
+
 
 def filter_genes(pb):
     """
     Mild prefilter removing essentially uninformative genes.
 
-    Require >=10 counts in at least 3 retained pseudobulk samples.
+    Retain genes with at least args.min_gene_count counts
+    in at least args.min_gene_samples retained pseudobulk
+    samples.
     """
     keep = (
-        (pb >= 10)
+        (pb >= args.min_gene_count)
         .sum(axis=0)
-        >= 3
+        >= args.min_gene_samples
     )
     return pb.loc[:, keep]
 
@@ -331,74 +580,165 @@ def run_pydeseq2(
     meta_pb,
 ):
     """
-    Run donor-blocked IL17A vs veh differential expression
-    using PyDESeq2.
-
-    Model:
-        ~ donor + treatment
-
-    Contrast:
-        IL17A vs veh
+    Run PyDESeq2 using the user-supplied design formula
+    and contrast.
     """
-    # ----------------------------------------------
-    # Restrict metadata to model variables
-    # ----------------------------------------------
-    metadata = meta_pb[
-        [
-            "donor",
-            "treatment",
-        ]
-    ].copy()
-    # Explicit categorical values
-    metadata["donor"] = (
-        metadata["donor"]
-        .astype(str)
-    )
-    metadata["treatment"] = (
-        metadata["treatment"]
-        .astype(str)
-    )
+
+    metadata = meta_pb.copy()
+
     # ----------------------------------------------
     # Defensive alignment check
     # ----------------------------------------------
-    if not pb.index.equals(metadata.index):
+
+    if not pb.index.equals(
+        metadata.index
+    ):
         raise ValueError(
-            "Pseudobulk counts and metadata are not aligned."
+            "Pseudobulk counts and metadata "
+            "are not aligned."
         )
+
+    # ----------------------------------------------
+    # Ensure contrast variable exists
+    # ----------------------------------------------
+
+    if (
+        CONTRAST_VARIABLE
+        not in metadata.columns
+    ):
+        raise ValueError(
+            f"Contrast variable "
+            f"'{CONTRAST_VARIABLE}' "
+            "not present in metadata."
+        )
+
+
+    # Ensure contrast variable is categorical
+    metadata[CONTRAST_VARIABLE] = (
+        metadata[CONTRAST_VARIABLE]
+        .astype(str)
+    )
+
+    # Ensure contrast levels exist
+    contrast_levels = set(
+        metadata[
+            CONTRAST_VARIABLE
+        ]
+        .astype(str)
+    )
+
+    required_levels = {
+        CONTRAST_TEST,
+        CONTRAST_REFERENCE,
+    }
+
+    missing_levels = (
+        required_levels
+        -
+        contrast_levels
+    )
+
+    if missing_levels:
+        raise ValueError(
+            "Missing contrast levels: "
+            f"{sorted(missing_levels)}"
+        )
+
+    missing_model_columns = (
+        REQUIRED_MODEL_COLUMNS
+        -
+        set(metadata.columns)
+    )
+
+    if missing_model_columns:
+        raise ValueError(
+            "Required model metadata missing from "
+            "pseudobulk metadata: "
+            f"{sorted(missing_model_columns)}"
+        )
+
+    missing_model_values = (
+        metadata[
+            sorted(REQUIRED_MODEL_COLUMNS)
+        ]
+        .isna()
+        .any()
+    )
+
+    bad_columns = (
+        missing_model_values[
+            missing_model_values
+        ]
+        .index
+        .tolist()
+    )
+
+    if bad_columns:
+        raise ValueError(
+            "Missing values present in required model "
+            "metadata columns: "
+            f"{bad_columns}"
+        )
+
+
     # ----------------------------------------------
     # PyDESeq2
     # ----------------------------------------------
+
     inference = DefaultInference(
         n_cpus=args.n_cpus
     )
+
     dds = DeseqDataSet(
         counts=pb,
         metadata=metadata,
-        design="~ donor + treatment",
+        design=args.formula,
         refit_cooks=True,
         inference=inference,
         quiet=True,
     )
+
+    design_matrix = np.asarray(
+        dds.obsm[
+            "design_matrix"
+        ]
+    )
+
+    rank = np.linalg.matrix_rank(
+        design_matrix
+    )
+
+    if rank < design_matrix.shape[1]:
+        raise ValueError(
+            "Design matrix is rank-deficient: "
+            f"rank={rank}, "
+            f"columns={design_matrix.shape[1]}. "
+            f"Formula: {args.formula}"
+        )
+
     dds.deseq2()
+
     # ----------------------------------------------
-    # Explicit treatment contrast
-    #
-    # Positive log2FC means:
-    # IL17A > veh
+    # Explicit contrast
     # ----------------------------------------------
+
     ds = DeseqStats(
         dds,
         contrast=[
-            "treatment",
-            "IL17A",
-            "veh",
+            CONTRAST_VARIABLE,
+            CONTRAST_TEST,
+            CONTRAST_REFERENCE,
         ],
         inference=inference,
         quiet=True,
     )
+
     ds.summary()
+
     de = ds.results_df.copy()
+
     de.index.name = "gene"
+
     de = (
         de
         .reset_index()
@@ -410,6 +750,7 @@ def run_pydeseq2(
             }
         )
     )
+
     return de, dds, ds
 
 def make_gsea_ranking(de):
@@ -566,13 +907,18 @@ def calculate_pca(normed, sample_names, sample_info, n_genes=1000):
         index=sample_names,
     )
 
-    for col in [
+    pca_metadata_cols = {
+        CONTRAST_VARIABLE,
         "donor",
         "treatment",
         "cell_line",
         "n_cells",
         "library_size",
-    ]:
+    }
+
+    for col in sorted(
+        pca_metadata_cols
+    ):
         if col in sample_info.columns:
             pca_df[col] = sample_info[col]
 
@@ -1491,6 +1837,8 @@ def build_inspection_summary(
     }
 
 
+
+
 # ------------------------------------------------------------------
 # Main function
 # ------------------------------------------------------------------
@@ -1560,23 +1908,25 @@ def generate_de_inspection(
         explained,
         cell_type,
         cell_dir,
-        group_by="treatment",
-        filename="pca_treatment.png",
+        group_by=CONTRAST_VARIABLE,
+        filename=(f"pca_{safe_filename(CONTRAST_VARIABLE)}.png")
     )
 
-    plot_pca(
-        pca_df,
-        explained,
-        cell_type,
-        cell_dir,
-        group_by="donor",
-        filename="pca_donor.png",
-        legend_kwargs={
-            "bbox_to_anchor": (1.02, 1),
-            "loc": "upper left",
-            "fontsize": 7,
-        },
-    )
+    if "donor" in pca_df.columns:
+
+        plot_pca(
+            pca_df,
+            explained,
+            cell_type,
+            cell_dir,
+            group_by="donor",
+            filename="pca_donor.png",
+            legend_kwargs={
+                "bbox_to_anchor": (1.02, 1),
+                "loc": "upper left",
+                "fontsize": 7,
+            },
+        )
 
     # --------------------------------------------------------------
     # Correlation
@@ -1675,17 +2025,14 @@ def generate_de_inspection(
 
 
 # Import adata
-adata = sc.read(args.input_file)
+adata = sc.read_h5ad(args.input_file)
 
-# Get sample cell counts
-sample_counts = (
-    adata.obs
-    .groupby([args.annotation, "sample"], observed=True)
-    .size()
-    .unstack(fill_value=0)
-)
-file = (OUTDIR / f"{Path(args.input_file).stem}_{args.annotation}_counts.csv")
-sample_counts.to_csv(file)
+# Check samples requested are present
+if "sample" not in adata.obs.columns:
+    raise ValueError(
+        "Required column 'sample' "
+        "is not present in adata.obs."
+    )
 
 # Restore raw counts
 adata_counts = restore_counts(
@@ -1704,12 +2051,76 @@ if not adata_counts.obs_names.equals(
 # Ensure corrected metadata is retained
 adata_counts.obs = adata.obs.copy()
 
-# Keep only treatment samples
-adata_de = adata_counts[
-    adata_counts.obs[
-        "treatment"
-    ].isin(
-        ["IL17A", "veh"]
+# --------------------------------------------------
+# Select requested samples
+# --------------------------------------------------
+
+if args.samples is not None:
+
+    requested_samples = set(
+        args.samples
+    )
+
+    available_samples = set(
+        adata_counts.obs[
+            "sample"
+        ]
+        .astype(str)
+        .unique()
+    )
+
+    missing_samples = (
+        requested_samples
+        -
+        available_samples
+    )
+
+    if missing_samples:
+        raise ValueError(
+            "Requested samples not present "
+            "in AnnData: "
+            f"{sorted(missing_samples)}"
+        )
+
+    adata_de = adata_counts[
+        adata_counts.obs[
+            "sample"
+        ]
+        .astype(str)
+        .isin(
+            requested_samples
+        )
+    ].copy()
+
+else:
+
+    adata_de = (
+        adata_counts.copy()
+    )
+
+# --------------------------------------------------
+# Keep only requested contrast levels
+# --------------------------------------------------
+if (
+    CONTRAST_VARIABLE
+    not in adata_de.obs.columns
+):
+    raise ValueError(
+        f"Contrast variable "
+        f"'{CONTRAST_VARIABLE}' "
+        "not present in adata.obs."
+    )
+
+adata_de = adata_de[
+    adata_de.obs[
+        CONTRAST_VARIABLE
+    ]
+    .astype(str)
+    .isin(
+        [
+            CONTRAST_TEST,
+            CONTRAST_REFERENCE,
+        ]
     )
 ].copy()
 
@@ -1717,6 +2128,32 @@ adata_de = adata_counts[
 adata_de.layers["counts"] = (
     adata_de.X.copy()
 )
+
+if adata_de.n_obs == 0:
+    raise ValueError(
+        "No observations remain after sample "
+        "and contrast filtering."
+    )
+
+if (
+    args.annotation
+    not in adata_de.obs.columns
+):
+    raise ValueError(
+        f"Annotation column "
+        f"'{args.annotation}' "
+        "not found in adata.obs."
+    )
+
+# Get sample cell counts
+sample_counts = (
+    adata_de.obs
+    .groupby([args.annotation, "sample"], observed=True)
+    .size()
+    .unstack(fill_value=0)
+)
+file = (OUTDIR / f"{Path(args.input_file).stem}_{args.annotation}_counts.csv")
+sample_counts.to_csv(file)
 
 # --------------------------------------------------
 # use raw counts
@@ -1753,29 +2190,69 @@ print(
 # Verify metadata present for all samples
 # --------------------------------------------------
 
+sample_design_cols = [
+    "sample"
+]
+
+for col in sorted(
+    REQUIRED_MODEL_COLUMNS
+    |
+    {
+        "donor",
+        "cell_line",
+    }
+):
+
+    if (
+        col in adata_de.obs.columns
+        and
+        col not in sample_design_cols
+    ):
+        sample_design_cols.append(
+            col
+        )
+
 sample_design = (
     adata_de.obs[
-        ["sample", "donor", "cell_line", "treatment"]
+        sample_design_cols
     ]
     .drop_duplicates()
     .sort_values(
-        ["donor", "treatment", "sample"]
+        "sample"
     )
 )
 
-print(sample_design.to_string(index=False))
+print(
+    sample_design.to_string(
+        index=False
+    )
+)
+
+sample_design.to_csv(
+    OUTDIR /
+    "sample_design.csv",
+    index=False,
+)
+
 
 # --------------------------------------------------
 # Validate sample-level metadata
 # --------------------------------------------------
 
-metadata_cols = [
-    "donor",
-    "cell_line",
-    "treatment",
-]
+metadata_cols = sorted(
+    REQUIRED_MODEL_COLUMNS
+    |
+    {
+        "sample",
+        "donor",
+        "cell_line",
+    }
+)
 
 for col in metadata_cols:
+
+    if col not in adata_de.obs.columns:
+        continue
 
     n_values = (
         adata_de.obs
@@ -1783,7 +2260,9 @@ for col in metadata_cols:
             "sample",
             observed=True,
         )[col]
-        .nunique()
+        .nunique(
+            dropna=False
+        )
     )
 
     bad = n_values[
@@ -1796,21 +2275,109 @@ for col in metadata_cols:
             f"{bad.index.tolist()}"
         )
 
-unexpected_treatments = (
-    set(
-        adata_de.obs[
-            "treatment"
-        ].astype(str)
+# --------------------------------------------------
+# Check required model metadata is not missing
+# --------------------------------------------------
+
+for col in sorted(
+    REQUIRED_MODEL_COLUMNS
+):
+
+    if col not in adata_de.obs.columns:
+        raise ValueError(
+            f"Required model metadata column "
+            f"'{col}' is absent from adata.obs."
+        )
+
+    missing_samples = (
+        adata_de.obs
+        .groupby(
+            "sample",
+            observed=True,
+        )[col]
+        .apply(
+            lambda x: x.isna().all()
+        )
     )
-    -
-    {"veh", "IL17A"}
+
+    missing_samples = (
+        missing_samples[
+            missing_samples
+        ]
+        .index
+        .tolist()
+    )
+
+    if missing_samples:
+        raise ValueError(
+            f"Missing required model metadata "
+            f"'{col}' for samples: "
+            f"{missing_samples}"
+        )
+
+# --------------------------------------------------
+# Validate contrast levels
+# --------------------------------------------------
+
+observed_contrast_levels = set(
+    adata_de.obs[
+        CONTRAST_VARIABLE
+    ]
+    .astype(str)
 )
 
-if unexpected_treatments:
+expected_contrast_levels = {
+    CONTRAST_TEST,
+    CONTRAST_REFERENCE,
+}
+
+unexpected_levels = (
+    observed_contrast_levels
+    -
+    expected_contrast_levels
+)
+
+if unexpected_levels:
     raise ValueError(
-        "Unexpected treatment values after subsetting: "
-        f"{unexpected_treatments}"
+        f"Unexpected {CONTRAST_VARIABLE} levels "
+        "after contrast subsetting: "
+        f"{sorted(unexpected_levels)}"
     )
+
+missing_levels = (
+    expected_contrast_levels
+    -
+    observed_contrast_levels
+)
+
+if missing_levels:
+    raise ValueError(
+        f"Missing required {CONTRAST_VARIABLE} levels: "
+        f"{sorted(missing_levels)}"
+    )
+
+# Update manifest
+selected_samples = sorted(
+    adata_de.obs["sample"]
+    .astype(str)
+    .unique()
+    .tolist()
+)
+
+run_manifest["selected_samples"] = (selected_samples)
+run_manifest["n_selected_samples"] = (len(selected_samples))
+
+with open(
+    OUTDIR / "run_manifest.json",
+    "w",
+) as handle:
+
+    json.dump(
+        run_manifest,
+        handle,
+        indent=2,
+    )
+
 
 
 # --------------------------------------------------
@@ -1840,8 +2407,30 @@ for cell_type in cell_types:
         cell_type,
     )
     if out is None:
-        print(f"{cell_type}: no eligible pseudobulk samples")
+
+        print(
+            f"{cell_type}: "
+            "no eligible pseudobulk samples"
+        )
+
+        all_summary.append(
+            {
+                **RUN_INFO,
+                "cell_type": cell_type,
+                "analysis_status": "NO_PSEUDOBULK",
+                "inspection_status": "NOT_RUN",
+                "n_samples": 0,
+                "n_genes_tested": 0,
+                "n_FDR_005": 0,
+                f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_up": 0,
+                f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_down": 0,
+                "n_FDR_005_log2FC1": 0,
+                "n_nominal": 0,
+            }
+        )
+
         continue
+
     pb, meta_pb = out
     # --------------------------------------------------
     # Save sample-level information
@@ -1854,22 +2443,33 @@ for cell_type in cell_types:
     print(
         f"{cell_type}: "
         f"{design_info['n_samples']} samples; "
-        f"{design_info['n_veh']} veh; "
-        f"{design_info['n_IL17A']} IL17A; "
-        f"{design_info['n_informative_donors']} informative donors; "
-        f"{design_info['n_1to1_paired_donors']} 1:1 pairs"
+        f"{design_info[f'n_{CONTRAST_REFERENCE}']} "
+        f"{CONTRAST_REFERENCE}; "
+        f"{design_info[f'n_{CONTRAST_TEST}']} "
+        f"{CONTRAST_TEST}; "
+        f"{design_info.get('n_informative_donors', 'NA')} "
+        "informative donors; "
+        f"{design_info.get('n_1to1_paired_donors', 'NA')} "
+        "1:1 pairs"
     )
     if not design_info["eligible"]:
         print(
             f"{cell_type}: skipping DE "
-            f"due to insufficient treatment replication"
+            f"due to insufficient replication "
+            f"for {CONTRAST_TEST} vs "
+            f"{CONTRAST_REFERENCE}"
         )
         all_summary.append(
             {
+                **RUN_INFO,
                 "cell_type": cell_type,
                 **design_info,
+                "analysis_status": "INELIGIBLE",
+                "inspection_status": "NOT_RUN",
                 "n_genes_tested": 0,
                 "n_FDR_005": 0,
+                f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_up": 0,
+                f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_down": 0,
                 "n_FDR_005_log2FC1": 0,
                 "n_nominal": 0,
             }
@@ -1888,10 +2488,15 @@ for cell_type in cell_types:
 
         all_summary.append(
             {
+                **RUN_INFO,
                 "cell_type": cell_type,
                 **design_info,
+                "analysis_status": "NO_GENES",
+                "inspection_status": "NOT_RUN",
                 "n_genes_tested": 0,
                 "n_FDR_005": 0,
+                f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_up": 0,
+                f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_down": 0,
                 "n_FDR_005_log2FC1": 0,
                 "n_nominal": 0,
             }
@@ -1911,6 +2516,7 @@ for cell_type in cell_types:
     # --------------------------------------------------
     # Differential expression
     # --------------------------------------------------
+    inspection_status = "NOT_RUN"
     try:
         de, dds, ds = run_pydeseq2(
             pb_filtered,
@@ -1919,84 +2525,78 @@ for cell_type in cell_types:
         # --------------------------------------------------
         # Automated DE inspection/QC
         # --------------------------------------------------
+        inspection_status = "SUCCESS"
+
         try:
+
             qc = generate_de_inspection(
                 dds=dds,
                 meta_pb=meta_pb,
                 cell_type=cell_type,
             )
-            inspection_summary.append(qc)
-        except Exception as e:
+
+            inspection_summary.append(
+                qc
+            )
+
+        except Exception:
+
+            inspection_status = "FAILED"
+
             print(
                 f"{cell_type}: "
-                f"inspection output failed"
+                "inspection output failed"
             )
-            print(e)
-    except Exception as e:
+
+            traceback.print_exc()
+    except Exception:
+
         print(
             f"{cell_type}: PyDESeq2 failed"
         )
-        print(e)
+
+        traceback.print_exc()
+
+        all_summary.append(
+            {
+                **RUN_INFO,
+                "cell_type": cell_type,
+                **design_info,
+                "inspection_status": (inspection_status),
+                "analysis_status": "DE_FAILED",
+                "n_genes_tested": 0,
+                "n_FDR_005": np.nan,
+                f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_up": np.nan,
+                f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_down": np.nan,
+                "n_FDR_005_log2FC1": np.nan,
+                "n_nominal": np.nan,
+            }
+        )
+
         continue
     # --------------------------------------------------
     # Sort results
     # --------------------------------------------------
-    de = de.sort_values(
-        ["FDR", "pval"],
-        na_position="last",
-    )
+    de = de.sort_values(["FDR", "pval"], na_position="last")
     # --------------------------------------------------
     # Complete DE table
     # --------------------------------------------------
-    de.to_csv(
-        DE_DIR /
-        f"{cell_safe}_all_genes.csv",
-        index=False,
-    )
+    de.to_csv(DE_DIR / f"{cell_safe}_all_genes.csv", index=False)
     # --------------------------------------------------
     # FDR-significant DE
     # --------------------------------------------------
-    sig = de[
-        de["FDR"] < 0.05
-    ].copy()
-    sig.to_csv(
-        DE_DIR /
-        f"{cell_safe}_significant.csv",
-        index=False,
-    )
+    sig = de[de["FDR"] < 0.05].copy()
+    sig.to_csv(DE_DIR / f"{cell_safe}_significant.csv", index=False)
     # --------------------------------------------------
     # Direction of FDR-significant DE
     # --------------------------------------------------
+    n_sig_up = ( ( (de["FDR"] < 0.05) & (de["log2FoldChange"] > 0) ).sum())
+    n_sig_down = ( ( (de["FDR"] < 0.05) & (de["log2FoldChange"] < 0) ).sum())
 
-    n_sig_up = (
-        (
-            (de["FDR"] < 0.05)
-            &
-            (de["log2FoldChange"] > 0)
-        )
-        .sum()
-    )
-
-    n_sig_down = (
-        (
-            (de["FDR"] < 0.05)
-            &
-            (de["log2FoldChange"] < 0)
-        )
-        .sum()
-    )
     # --------------------------------------------------
     # FDR-significant + large effect
     # --------------------------------------------------
-    sig_large = de[
-        (de["FDR"] < 0.05)
-        &
-        (
-            np.abs(
-                de["log2FoldChange"]
-            ) > 1
-        )
-    ].copy()
+    sig_large = de[ (de["FDR"] < 0.05) & (np.abs(de["log2FoldChange"]) > 1) ].copy()
     sig_large.to_csv(
         DE_DIR /
         (
@@ -2008,15 +2608,7 @@ for cell_type in cell_types:
     # --------------------------------------------------
     # Nominal/exploratory DE
     # --------------------------------------------------
-    nominal = de[
-        (de["pval"] < 0.05)
-        &
-        (
-            np.abs(
-                de["log2FoldChange"]
-            ) > 0.5
-        )
-    ].copy()
+    nominal = de[ (de["pval"] < 0.05) & ( np.abs(de["log2FoldChange"]) > 0.5) ].copy()
     nominal.to_csv(
         DE_DIR /
         f"{cell_safe}_nominal.csv",
@@ -2026,9 +2618,7 @@ for cell_type in cell_types:
     # GSEA ranking
     # --------------------------------------------------
     ranking, duplicate_rank_pct = (
-        make_gsea_ranking(
-            de
-        )
+        make_gsea_ranking(de)
     )
 
     print(
@@ -2042,197 +2632,199 @@ for cell_type in cell_types:
         f"{cell_safe}_ranking.csv",
         index=False,
     )
+
     # --------------------------------------------------
     # GSEA
     # --------------------------------------------------
+
     gsea_summary = {}
-    for gs_name, gs_db in gene_sets.items():
+
+    if len(ranking) < 10:
+
         print(
-            f"{cell_type}: "
-            f"running {gs_name}"
+            f"{cell_type}: skipping GSEA; "
+            f"only {len(ranking)} genes have "
+            "usable Wald statistics"
         )
-        gs_dir = (
-            GSEA_DIR /
-            cell_safe /
-            gs_name
-        )
-        gs_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-        try:
-            pre_res = gp.prerank(
-                rnk=ranking,
-                gene_sets=gs_db,
-                min_size=10,
-                max_size=500,
-                permutation_num=args.gsea_permutations,
-                seed=0,
-                threads=args.n_cpus,
-                outdir=str(gs_dir),
-                verbose=False,
-            )
-            gsea_res = (
-                pre_res.res2d.copy()
-            )
-            # --------------------------------------------------
-            # Save all pathways
-            # --------------------------------------------------
-            gsea_res.to_csv(
-                gs_dir /
-                "all_pathways.csv",
-                index=False,
-            )
-            # --------------------------------------------------
-            # FDR-significant pathways
-            # --------------------------------------------------
-            sig_pathways = gsea_res[
-                gsea_res["FDR q-val"] < 0.05
-            ].copy()
-            sig_pathways.to_csv(
-                gs_dir /
-                "significant_pathways.csv",
-                index=False,
-            )
-            # --------------------------------------------------
-            # Significant pathways increased in IL17A
-            #
-            # Positive NES:
-            # genes towards the positive end of the ranking,
-            # i.e. IL17A > veh
-            # --------------------------------------------------
-            sig_up = (
-                sig_pathways[
-                    sig_pathways["NES"] > 0
-                ]
-                .sort_values(
-                    ["FDR q-val", "NES"],
-                    ascending=[True, False],
-                )
-            )
-            sig_up.to_csv(
-                gs_dir /
-                "significant_IL17A_up.csv",
-                index=False,
-            )
-            # --------------------------------------------------
-            # Significant pathways decreased in IL17A
-            #
-            # Negative NES:
-            # genes towards the negative end of the ranking,
-            # i.e. IL17A < veh / veh enriched
-            # --------------------------------------------------
-            sig_down = (
-                sig_pathways[
-                    sig_pathways["NES"] < 0
-                ]
-                .sort_values(
-                    ["FDR q-val", "NES"],
-                    ascending=[True, True],
-                )
-            )
-            sig_down.to_csv(
-                gs_dir /
-                "significant_IL17A_down.csv",
-                index=False,
-            )
-            # --------------------------------------------------
-            # Top 25 positively enriched pathways
-            #
-            # These are drawn from ALL pathways, not only those
-            # reaching FDR < 0.05, so that an inspection table
-            # is always produced.
-            #
-            # Primary ordering: FDR
-            # Secondary ordering: strongest positive NES
-            # --------------------------------------------------
-            top_up = (
-                gsea_res[
-                    gsea_res["NES"] > 0
-                ]
-                .sort_values(
-                    ["FDR q-val", "NES"],
-                    ascending=[True, False],
-                )
-                .head(25)
-                .copy()
-            )
-            top_up.to_csv(
-                gs_dir /
-                "top25_IL17A_up.csv",
-                index=False,
-            )
-            # --------------------------------------------------
-            # Top 25 negatively enriched pathways
-            #
-            # Primary ordering: FDR
-            # Secondary ordering: strongest negative NES
-            # --------------------------------------------------
-            top_down = (
-                gsea_res[
-                    gsea_res["NES"] < 0
-                ]
-                .sort_values(
-                    ["FDR q-val", "NES"],
-                    ascending=[True, True],
-                )
-                .head(25)
-                .copy()
-            )
-            top_down.to_csv(
-                gs_dir /
-                "top25_IL17A_down.csv",
-                index=False,
-            )
-            # --------------------------------------------------
-            # Summary statistics
-            # --------------------------------------------------
-            gsea_summary[
-                f"{gs_name}_sig_pathways"
-            ] = len(sig_pathways)
-            gsea_summary[
-                f"{gs_name}_sig_up"
-            ] = len(sig_up)
-            gsea_summary[
-                f"{gs_name}_sig_down"
-            ] = len(sig_down)
-            print(
-                f"{cell_type}: "
-                f"{len(sig_pathways)} significant {gs_name} pathways "
-                f"({len(sig_up)} IL17A-up, "
-                f"{len(sig_down)} IL17A-down)"
-            )
-        except Exception as e:
+
+        for gs_name in gene_sets:
+
+            gsea_summary[f"{gs_name}_sig_pathways"] = np.nan
+            gsea_summary[f"{gs_name}_sig_up"] = np.nan
+            gsea_summary[f"{gs_name}_sig_down"] = np.nan
+
+    else:
+
+        for gs_name, gs_db in gene_sets.items():
 
             print(
                 f"{cell_type}: "
-                f"{gs_name} failed"
+                f"running {gs_name}"
             )
 
-            print(e)
+            gs_dir = (GSEA_DIR / cell_safe / gs_name)
+            gs_dir.mkdir(parents=True, exist_ok=True,)
 
-            gsea_summary[
-                f"{gs_name}_sig_pathways"
-            ] = np.nan
+            try:
 
-            gsea_summary[
-                f"{gs_name}_sig_up"
-            ] = np.nan
+                pre_res = gp.prerank(
+                    rnk=ranking,
+                    gene_sets=gs_db,
+                    min_size=10,
+                    max_size=500,
+                    permutation_num=args.gsea_permutations,
+                    seed=0,
+                    threads=args.n_cpus,
+                    outdir=str(gs_dir),
+                    verbose=False,
+                )
 
-            gsea_summary[
-                f"{gs_name}_sig_down"
-            ] = np.nan
+                gsea_res = (pre_res.res2d.copy())
+
+                # --------------------------------------------------
+                # Save all pathways
+                # --------------------------------------------------
+                gsea_res.to_csv(
+                    gs_dir /
+                    "all_pathways.csv",
+                    index=False,
+                )
+
+                # --------------------------------------------------
+                # FDR-significant pathways
+                # --------------------------------------------------
+                sig_pathways = gsea_res[gsea_res["FDR q-val"] < 0.05].copy()
+                sig_pathways.to_csv(
+                    gs_dir /
+                    "significant_pathways.csv",
+                    index=False,
+                )
+
+                # --------------------------------------------------
+                # Significant pathways increased in TEST level
+                #
+                # Positive NES:
+                # genes towards the positive end of the ranking,
+                # i.e. TEST > REFERENCE
+                # --------------------------------------------------
+                sig_up = (
+                    sig_pathways[sig_pathways["NES"] > 0]
+                    .sort_values(["FDR q-val", "NES"], ascending=[True, False],)
+                )
+                sig_up.to_csv(
+                    gs_dir /
+                    f"significant_{safe_filename(CONTRAST_TEST)}_up.csv",
+                    index=False,
+                )
+
+                # --------------------------------------------------
+                # Significant pathways decreased in TEST level
+                #
+                # Negative NES:
+                # genes towards the negative end of the ranking,
+                # i.e. TEST < REFERENCE / REFERENCE enriched
+                # --------------------------------------------------
+                sig_down = (
+                    sig_pathways[sig_pathways["NES"] < 0]
+                    .sort_values(["FDR q-val", "NES"], ascending=[True, True],)
+                )
+                sig_down.to_csv(
+                    gs_dir /
+                    f"significant_{safe_filename(CONTRAST_TEST)}_down.csv",
+                    index=False,
+                )
+
+                # --------------------------------------------------
+                # Top 25 positively enriched pathways
+                #
+                # These are drawn from ALL pathways, not only those
+                # reaching FDR < 0.05, so that an inspection table
+                # is always produced.
+                #
+                # Primary ordering: FDR
+                # Secondary ordering: strongest positive NES
+                # --------------------------------------------------
+                top_up = (
+                    gsea_res[gsea_res["NES"] > 0]
+                    .sort_values(["FDR q-val", "NES"], ascending=[True, False],)
+                    .head(25)
+                    .copy()
+                )
+                top_up.to_csv(
+                    gs_dir /
+                    f"top25_{safe_filename(CONTRAST_TEST)}_up.csv",
+                    index=False,
+                )
+
+                # --------------------------------------------------
+                # Top 25 negatively enriched pathways
+                #
+                # Primary ordering: FDR
+                # Secondary ordering: strongest negative NES
+                # --------------------------------------------------
+                top_down = (
+                    gsea_res[gsea_res["NES"] < 0]
+                    .sort_values(["FDR q-val", "NES"],ascending=[True, True],)
+                    .head(25)
+                    .copy()
+                )
+                top_down.to_csv(
+                    gs_dir /
+                    f"top25_{safe_filename(CONTRAST_TEST)}_down.csv",
+                    index=False,
+                )
+
+                # --------------------------------------------------
+                # Summary statistics
+                # --------------------------------------------------
+                gsea_summary[f"{gs_name}_sig_pathways"] = len(sig_pathways)
+                gsea_summary[f"{gs_name}_sig_up"] = len(sig_up)
+                gsea_summary[f"{gs_name}_sig_down"] = len(sig_down)
+                print(
+                    f"{cell_type}: "
+                    f"{len(sig_pathways)} significant "
+                    f"{gs_name} pathways "
+                    f"({len(sig_up)} "
+                    f"{CONTRAST_TEST}-up, "
+                    f"{len(sig_down)} "
+                    f"{CONTRAST_TEST}-down)"
+                )
+
+            except Exception as e:
+
+                print(
+                    f"{cell_type}: "
+                    f"{gs_name} failed"
+                )
+
+                traceback.print_exc()
+
+                gsea_summary[
+                    f"{gs_name}_sig_pathways"
+                ] = np.nan
+
+                gsea_summary[
+                    f"{gs_name}_sig_up"
+                ] = np.nan
+
+                gsea_summary[
+                    f"{gs_name}_sig_down"
+                ] = np.nan
+
     # --------------------------------------------------
     # Summary
     # --------------------------------------------------
     all_summary.append(
         {
+            **RUN_INFO,
             "cell_type": cell_type,
             **design_info,
+            "analysis_status": "SUCCESS",
+            "inspection_status": inspection_status,
             "n_genes_tested": len(de),
             "n_FDR_005": len(sig),
-            "n_FDR_005_up": int(n_sig_up),
-            "n_FDR_005_down": int(n_sig_down),
+            f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_up": (int(n_sig_up)),
+            f"n_FDR_005_{safe_filename(CONTRAST_TEST)}_down": (int(n_sig_down)),
             "n_FDR_005_log2FC1": len(sig_large),
             "n_nominal": len(nominal),
             "gsea_duplicate_rank_pct": duplicate_rank_pct,
@@ -2248,11 +2840,13 @@ inspection_df = pd.DataFrame(
     inspection_summary
 )
 
-summary = summary.merge(
-    inspection_df,
-    on="cell_type",
-    how="left",
-)
+if not inspection_df.empty:
+
+    summary = summary.merge(
+        inspection_df,
+        on="cell_type",
+        how="left",
+    )
 
 summary.to_csv(
     OUTDIR /
