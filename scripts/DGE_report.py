@@ -1340,7 +1340,7 @@ def main():
                     )
 
                     # Heatmaps for every collection are capped and therefore
-                    # remain interpretable; Hallmark/KEGG are especially useful.
+                    # remain interpretable
                     plot_pathway_heatmap(
                         gs_df,
                         cell_type,
@@ -1512,8 +1512,8 @@ def main():
             if gene_heatmap.exists():
                 images.append(gene_heatmap)
 
-            # Prefer Hallmark and KEGG pathway heatmaps in the HTML body.
-            for gene_set in ["Hallmark", "KEGG"]:
+            # Prefer Hallmark and BP pathway heatmaps in the HTML body.
+            for gene_set in ["Hallmark", "GO_BP"]:
                 image = nes_heatmap_dir / (
                     f"{safe_filename(cell_type)}__{safe_filename(gene_set)}.png"
                 )
