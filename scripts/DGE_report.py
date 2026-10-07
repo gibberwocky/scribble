@@ -947,7 +947,6 @@ def main():
     report_dir = (
         comparison_dir
         / "reports"
-        / safe_filename(args.report_name)
     )
 
     gene_dir = report_dir / "genes"
