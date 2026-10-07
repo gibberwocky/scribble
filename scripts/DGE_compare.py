@@ -28,10 +28,9 @@ import argparse
 import re
 from itertools import combinations
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
+import json
 
 def safe_filename(value):
     value = str(value).strip()
@@ -43,15 +42,15 @@ def safe_filename(value):
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--dge_dir", required=True,
-                   help="Directory containing analysis subdirectories, e.g. project/scribble/DGE")
+        help="Directory containing analysis subdirectories, e.g. project/scribble/DGE")
     p.add_argument("--analyses", nargs="+", required=True,
-                   help="Analysis directory names to compare")
+        help="Analysis directory names to compare")
     p.add_argument("--annotation", required=True,
-                   help="Annotation level, e.g. cell_type_major or cell_type_minor")
+        help="Annotation level, e.g. cell_type_major or cell_type_minor")
     p.add_argument("--reference_analysis", required=True,
-                   help="Primary/reference analysis used for reference-relative fields")
-    p.add_argument("--output_dir", default=None,
-                   help="Optional output directory; default: <dge_dir>/comparison/<annotation>")
+        help="Primary/reference analysis used for reference-relative fields")
+    p.add_argument("--comparison_name", required=True,
+        help="Name for this comparison, e.g. 'biological_subsets' or 'organoid_model_sensitivity'.")
     return p.parse_args()
 
 
@@ -360,13 +359,35 @@ def main():
     if missing_analysis_dirs:
         raise FileNotFoundError(f"Analysis directories not found: {missing_analysis_dirs}")
 
-    outdir = Path(args.output_dir).resolve() if args.output_dir else dge_dir / "comparison" / args.annotation
+    comparison_name = safe_filename(
+        args.comparison_name
+    )
+
+    outdir = (dge_dir / "comparison" / comparison_name / args.annotation)
     de_out = outdir / "DE"
     de_by_cell = de_out / "by_cell_type"
     gsea_out = outdir / "GSEA"
     gsea_by_cell = gsea_out / "by_cell_type"
     for p in [outdir, de_out, de_by_cell, gsea_out, gsea_by_cell]:
         p.mkdir(parents=True, exist_ok=True)
+
+    # Run manifest
+    comparison_manifest = {
+        "comparison_name": args.comparison_name,
+        "annotation": args.annotation,
+        "reference_analysis": args.reference_analysis,
+        "analyses": args.analyses,
+    }
+
+    with open(
+        outdir / "comparison_manifest.json",
+        "w",
+    ) as handle:
+        json.dump(
+            comparison_manifest,
+            handle,
+            indent=2,
+        )
 
     # Analysis summary
     summary_long = collect_summaries(dge_dir, analyses, args.annotation)
