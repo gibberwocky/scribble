@@ -1,65 +1,68 @@
 #!/usr/bin/env python
-# This CLI supports arbitrary straightforward model adjustment formulas but simple three-part categorical contrasts only.
-# Interaction-specific hypotheses require explicit additional implementation.
-#
-# Returns:
-#   <celltype>_DE_GSEA_summary.csv                      Summary of DE and GSEA analyses
-#                                                       - DE: n_genes_tested, n_FDR_005, n_FDR_005_up, n_FDR_005_down, n_FDR_005_log2FC2, n_nominal
-#                                                       - GSEA: gsea_duplicate_rank_pct, Hallmark_sig_pathways, Hallmark_sig_up, Hallmark_sig_down,
-#                                                               KEGG_sig_pathways, KEGG_sig_up, KEGG_sig_down,
-#                                                               GO_BP_sig_pathways, GO_BP_sig_up, GO_BP_sig_down,
-#                                                               Reactome_sig_pathways, Reactome_sig_up, Reactome_sig_down,
-#                                                               Wiki_sig_pathways,Wiki_sig_up,Wiki_sig_down
-#                                                       - QC:   qc_status, qc_flags, n_samples_qc, n_genes_qc,
-#                                                               library_size_ratio, size_factor_ratio, size_factor_library_corr, cell_count_library_corr,
-#                                                               PC1_variance_pct, PC2_variance_pct,
-#                                                       - Fit:  n_dispersion_outliers, pct_dispersion_outliers,
-#                                                               n_cooks_outlier_genes, pct_cooks_outlier_genes,
-#                                                               n_lfc_not_converged, pct_lfc_not_converged,
-#                                                               n_MAP_not_converged, pct_MAP_not_converged,
-#                                                               n_genewise_not_converged, pct_genewise_not_converged,
-#                                                       - Cook: worst_cooks_sample, worst_sample_n_cooks_gt1, worst_cooks_q99_sample,
-#                                                               max_cooks_q99, max_cooks_sample, max_cooks_value
-#   DE/<annotation>/
-#       *_all_genes.csv                                 All genes that pass prefilter and tested by PyDESeq2: (pb >= 10).sum(axis=0) >= 3
-#       *_nominal.csv                                   Genes with pval < 0.05 and abs(log2FoldChange) > 0.5
-#       *_significant.csv                               Genes with FDR < 0.05
-#       *_significant_log2FC1.csv                       Genes with FDR < 0.05 and abs(log2FoldChange) > 1
-#   GSEA/<annotation>/
-#       *cell_ranking.csv                               PyDESeq2 Wald statistics for TEST-versus-REFERENCE contrast unfiltered for significance, rankings are input for gseapy
-#                                                       - large +ve is strong evidence gene increased in TEST relative to REFERENCE
-#                                                       - Near zero indicates little evidence for treatment-associated change
-#                                                       - large -ve is strong evidence gene decreased in TEST relative to REFRENCE
-#       <celltype>/
-#           <geneset>/
-#               all_pathways.csv                        GSEA result table listing every pathway that passed GSEA size filters (min_size=10, max_size=500)
-#               gene_sets.gmt                           GSEApy gene set Gene Matrix Transposed definition file (list of genes per pathway)
-#               gseapy.gene_set.prerank.report.csv      GSEApy-generated equiavalent to all_pathways.csv
-#               significant...down.csv                  Pathways that are significantly depleted (FDR < 0.05 and NES < 0)
-#               significant...up.csv                    Pathways that are significantly enriched (FDR < 0.05 and NES > 0)
-#               top25...down.csv                        Top 25 pathways that are depleted (NES < 0, sorted by FDR)
-#               top25...up.csv                          Top 25 pathways that are enriched (NES > 0, sorted by FDR)
-#               <preank>/
-#                   <pathway>.pdf                       GSEA enrichment plot
-#                                                           Bottom panel:   left/red/positive indicates genes increased in TEST level
-#                                                                           right/blue/negative indicates genes decreased in TEST level (or realtively higher in REFERENCE level)
-#                                                           Middle panel:   small vertical black lines represent genes belonging to the pathway
-#                                                           Top panel:      running enrichment score
-#   inspection/<annotation>/
-#       <celltype>/
-#           cooks_by_sample.png                         Indicates how influential a sample's count data is on the fitted DE model, samples should be similar
-#           diagnostics.txt                             Descriptive QC summary for PyDESeq2 fit
-#           dispersion.png                              Shows count variability in PyDESeq2 estimates for each gene relative to its average expression
-#                                                       - gene-wise is the initial dispersion estimate calcualted independently for each gene
-#                                                       - final is the dispersion estimate used by the model after PyDESeq2's dispersion trend/shrinkage procedure
-#           pca_donor.png                               Pseudobulk PCA coloured by donor
-#           pca_treatment.png                           Pseudobulk PCA coloured by treatment
-#           pca.csv                                     Sample PC1, PC2, and metadata for generating PCA plots
-#           sample_correlation.csv                      Pairwise sample Pearson correlation matrix acorss 1000 log-normalised HVGs used for PCA (above)
-#           sample_correlation.png                      Heatmap of sample correlation matrix
-#           sample_qc.csv                               Sample-level QC table
-#           size_factors.png                            Top-panel pseudobulk library size, bottom-panel PyDESeq2 size factors where dashed line indicates size factor 1
-#
+"""
+Perform DE and GSEA analyses.
+
+This CLI supports arbitrary straightforward model adjustment formulas but simple three-part categorical contrasts only.
+Interaction-specific hypotheses require explicit additional implementation.
+
+Returns:
+  <celltype>_DE_GSEA_summary.csv                      Summary of DE and GSEA analyses
+                                                      - DE: n_genes_tested, n_FDR_005, n_FDR_005_up, n_FDR_005_down, n_FDR_005_log2FC2, n_nominal
+                                                      - GSEA: gsea_duplicate_rank_pct, Hallmark_sig_pathways, Hallmark_sig_up, Hallmark_sig_down,
+                                                              KEGG_sig_pathways, KEGG_sig_up, KEGG_sig_down,
+                                                              GO_BP_sig_pathways, GO_BP_sig_up, GO_BP_sig_down,
+                                                              Reactome_sig_pathways, Reactome_sig_up, Reactome_sig_down,
+                                                              Wiki_sig_pathways,Wiki_sig_up,Wiki_sig_down
+                                                      - QC:   qc_status, qc_flags, n_samples_qc, n_genes_qc,
+                                                              library_size_ratio, size_factor_ratio, size_factor_library_corr, cell_count_library_corr,
+                                                              PC1_variance_pct, PC2_variance_pct,
+                                                      - Fit:  n_dispersion_outliers, pct_dispersion_outliers,
+                                                              n_cooks_outlier_genes, pct_cooks_outlier_genes,
+                                                              n_lfc_not_converged, pct_lfc_not_converged,
+                                                              n_MAP_not_converged, pct_MAP_not_converged,
+                                                              n_genewise_not_converged, pct_genewise_not_converged,
+                                                      - Cook: worst_cooks_sample, worst_sample_n_cooks_gt1, worst_cooks_q99_sample,
+                                                              max_cooks_q99, max_cooks_sample, max_cooks_value
+  DE/<annotation>/
+      *_all_genes.csv                                 All genes that pass prefilter and tested by PyDESeq2: (pb >= 10).sum(axis=0) >= 3
+      *_nominal.csv                                   Genes with pval < 0.05 and abs(log2FoldChange) > 0.5
+      *_significant.csv                               Genes with FDR < 0.05
+      *_significant_log2FC1.csv                       Genes with FDR < 0.05 and abs(log2FoldChange) > 1
+  GSEA/<annotation>/
+      *cell_ranking.csv                               PyDESeq2 Wald statistics for TEST-versus-REFERENCE contrast unfiltered for significance, rankings are input for gseapy
+                                                      - large +ve is strong evidence gene increased in TEST relative to REFERENCE
+                                                      - Near zero indicates little evidence for treatment-associated change
+                                                      - large -ve is strong evidence gene decreased in TEST relative to REFRENCE
+      <celltype>/
+          <geneset>/
+              all_pathways.csv                        GSEA result table listing every pathway that passed GSEA size filters (min_size=10, max_size=500)
+              gene_sets.gmt                           GSEApy gene set Gene Matrix Transposed definition file (list of genes per pathway)
+              gseapy.gene_set.prerank.report.csv      GSEApy-generated equiavalent to all_pathways.csv
+              significant...down.csv                  Pathways that are significantly depleted (FDR < 0.05 and NES < 0)
+              significant...up.csv                    Pathways that are significantly enriched (FDR < 0.05 and NES > 0)
+              top25...down.csv                        Top 25 pathways that are depleted (NES < 0, sorted by FDR)
+              top25...up.csv                          Top 25 pathways that are enriched (NES > 0, sorted by FDR)
+              <preank>/
+                  <pathway>.pdf                       GSEA enrichment plot
+                                                          Bottom panel:   left/red/positive indicates genes increased in TEST level
+                                                                          right/blue/negative indicates genes decreased in TEST level (or realtively higher in REFERENCE level)
+                                                          Middle panel:   small vertical black lines represent genes belonging to the pathway
+                                                          Top panel:      running enrichment score
+  inspection/<annotation>/
+      <celltype>/
+          cooks_by_sample.png                         Indicates how influential a sample's count data is on the fitted DE model, samples should be similar
+          diagnostics.txt                             Descriptive QC summary for PyDESeq2 fit
+          dispersion.png                              Shows count variability in PyDESeq2 estimates for each gene relative to its average expression
+                                                      - gene-wise is the initial dispersion estimate calcualted independently for each gene
+                                                      - final is the dispersion estimate used by the model after PyDESeq2's dispersion trend/shrinkage procedure
+          pca_donor.png                               Pseudobulk PCA coloured by donor
+          pca_treatment.png                           Pseudobulk PCA coloured by treatment
+          pca.csv                                     Sample PC1, PC2, and metadata for generating PCA plots
+          sample_correlation.csv                      Pairwise sample Pearson correlation matrix acorss 1000 log-normalised HVGs used for PCA (above)
+          sample_correlation.png                      Heatmap of sample correlation matrix
+          sample_qc.csv                               Sample-level QC table
+          size_factors.png                            Top-panel pseudobulk library size, bottom-panel PyDESeq2 size factors where dashed line indicates size factor 1
+"""
 
 import argparse
 import traceback
