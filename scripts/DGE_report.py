@@ -989,15 +989,15 @@ def main():
     )
 
     if not de_files:
-        rai*e FileNotFoundError(
-            "No D* comparison CSV files found in: "
-    *       f"{de_source}"
+        raise FileNotFoundError(
+            "No DE comparison CSV files found in: "
+            f"{de_source}"
         )
 
-    gsea_*ell_dirs = sorted(
+    gsea_cell_dirs = sorted(
         path
-        fo* path in gsea_source.iterdir()
-       *if path.is_dir()
+        for path in gsea_source.iterdir()
+        if path.is_dir()
     )
 
     if not gsea_cell_dirs:
