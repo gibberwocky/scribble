@@ -944,6 +944,68 @@ def main():
         )
 
     comparison_dir = Path(args.comparison_dir).resolve()
+    if not comparison_dir.exists():
+        raise FileNotFoundError(
+            "Comparison directory does not exist: "
+            f"{comparison_dir}"
+        )
+
+    # --------------------------------------------------
+    # Validate comparison inputs
+    # --------------------------------------------------
+
+    de_source = (
+        comparison_dir
+        / "DE"
+        / "by_cell_type"
+    )
+
+    gsea_source = (
+        comparison_dir
+        / "GSEA"
+        / "by_cell_type"
+    )
+
+    if not de_source.exists():
+        raise FileNotFoundError(
+            "DE comparison directory not found: "
+            f"{de_source}\n"
+            "The --comparison_dir argument should point "
+            "to the annotation-specific comparison directory "
+            "containing DE/ and GSEA/."
+        )
+
+    if not gsea_source.exists():
+        raise FileNotFoundError(
+            "GSEA comparison directory not found: "
+            f"{gsea_source}\n"
+            "The --comparison_dir argument should point "
+            "to the annotation-specific comparison directory "
+            "containing DE/ and GSEA/."
+        )
+
+    de_files = sorted(
+        de_source.glob("*.csv")
+    )
+
+    if not de_files:
+        rai*e FileNotFoundError(
+            "No D* comparison CSV files found in: "
+    *       f"{de_source}"
+        )
+
+    gsea_*ell_dirs = sorted(
+        path
+        fo* path in gsea_source.iterdir()
+       *if path.is_dir()
+    )
+
+    if not gsea_cell_dirs:
+        raise FileNotFoundError(
+            "No GSEA cell-type directories found in: "
+            f"{gsea_source}"
+        )
+
     report_dir = (
         comparison_dir
         / "reports"
@@ -995,10 +1057,9 @@ def main():
     # ------------------------------------------------------------------
     # Genes
     # ------------------------------------------------------------------
-    de_source = comparison_dir / "DE" / "by_cell_type"
     gene_frames = []
 
-    for path in sorted(de_source.glob("*.csv")):
+    for path in de_files:
         df = classify_gene_table(
             pd.read_csv(path),
             args.analyses,
@@ -1039,23 +1100,36 @@ def main():
     # ------------------------------------------------------------------
     # Pathways
     # ------------------------------------------------------------------
-    gsea_source = comparison_dir / "GSEA" / "by_cell_type"
     pathway_frames = []
 
-    for cell_dir in sorted(gsea_source.glob("*")):
-        if not cell_dir.is_dir():
-            continue
+    for cell_dir in gsea_cell_dirs:
 
-        for path in sorted(cell_dir.glob("*.csv")):
+        for path in sorted(
+            cell_dir.glob("*.csv")
+        ):
+
             df = classify_pathway_table(
                 pd.read_csv(path),
                 args.analyses,
                 args.reference_analysis,
                 args,
             )
-            df.insert(0, "gene_set", path.stem)
-            df.insert(0, "cell_type", cell_dir.name)
-            pathway_frames.append(df)
+
+            df.insert(
+                0,
+                "gene_set",
+                path.stem,
+            )
+
+            df.insert(
+                0,
+                "cell_type",
+                cell_dir.name,
+            )
+
+            pathway_frames.append(
+                df
+            )
 
     pathways = (
         pd.concat(pathway_frames, ignore_index=True, sort=False)
