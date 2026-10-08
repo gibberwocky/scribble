@@ -38,29 +38,12 @@ def numeric(series):
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument(
-        "--comparison_dir",
-        required=True,
-        help="Output directory created by compare_DGE.py.",
-    )
-    parser.add_argument(
-        "--reference_analysis",
-        required=True,
-        help="Prespecified primary/reference analysis.",
-    )
-    parser.add_argument(
-        "--analyses",
-        nargs="+",
-        required=True,
-        help="Analyses to include, in preferred display order.",
-    )
-    parser.add_argument(
-        "--report_name",
-        required=True,
-        help="Name for this interpretation report.",
-    )
+    parser.add_argument("--comparison_dir", required=True, help="Output directory created by compare_DGE.py.")
+    parser.add_argument("--reference_analysis", required=True, help="Prespecified primary/reference analysis.")
+    parser.add_argument("--analyses", nargs="+", required=True, help="Analyses to include, in preferred display order.")
+    parser.add_argument("--report_name", required=True, help="Name for this interpretation report.")
 
-    # Statistical/effect thresholds used only for reporting/triage.
+    # Statistical/effect thresholds used only for reporting/triage
     parser.add_argument("--fdr", type=float, default=0.05)
     parser.add_argument("--nominal_p", type=float, default=0.05)
     parser.add_argument("--min_abs_log2fc", type=float, default=0.5)
@@ -70,17 +53,36 @@ def parse_args():
     parser.add_argument("--min_delta_nes", type=float, default=0.5)
     parser.add_argument("--min_supporting_analyses", type=int, default=2)
 
-    # Display limits.
+    # Display limits
     parser.add_argument("--top_genes", type=int, default=20)
     parser.add_argument("--top_pathways", type=int, default=15)
     parser.add_argument("--heatmap_genes", type=int, default=25)
     parser.add_argument("--heatmap_pathways", type=int, default=25)
 
-    # Plot control.
-    parser.add_argument(
-        "--make_plots",
-        action=argparse.BooleanOptionalAction,
-        default=True,
+    # Plot control
+    parser.add_argument("--make_plots", action=argparse.BooleanOptionalAction, default=True)
+
+    # Leading-edge analysis parameters
+    parser.add_argument("--leading_edge_min_analyses", type=int, default=2,
+        help=(
+            "Minimum number of analyses in which a gene must occur "
+            "in the leading edge of concordant significant pathways "
+            "to be included in recurrent leading-edge outputs."),
+    )
+
+    parser.add_argument("--leading_edge_min_pathways", type=int, default=2,
+        help=(
+            "Minimum number of concordant significant pathways in "
+            "which a gene must occur to be included in recurrent "
+            "leading-edge outputs."
+        ),
+    )
+
+    parser.add_argument("--top_leading_edge_genes", type=int, default=25,
+        help=(
+            "Maximum number of recurrent leading-edge genes shown "
+            "per cell type in the HTML report."
+        ),
     )
 
     return parser.parse_args()
@@ -565,6 +567,451 @@ def classify_pathway_table(df, analyses, reference, args):
     return out
 
 
+def parse_leading_edge_genes(value):
+    """
+    Parse a GSEApy Lead_genes field into a set of genes.
+
+    GSEApy commonly stores leading-edge genes separated by
+    semicolons. Commas are accepted defensively as well.
+    """
+    if pd.isna(value):
+        return set()
+
+    value = str(value).strip()
+
+    if not value:
+        return set()
+
+    genes = re.split(
+        r"[;,]",
+        value,
+    )
+
+    return {
+        gene.strip()
+        for gene in genes
+        if gene.strip()
+    }
+
+
+def synthesize_leading_edges(
+    pathways,
+    analyses,
+    reference_analysis,
+    args,
+):
+    """
+    Synthesize recurrent leading-edge genes across concordant
+    significant pathways and analyses.
+
+    Only pathways classified as REFERENCE_HIT_CONCORDANT are
+    considered.
+
+    For each pathway, an analysis contributes leading-edge genes
+    only when:
+      1. the pathway is FDR-significant in that analysis;
+      2. |NES| >= args.min_abs_nes;
+      3. the NES direction matches the reference analysis.
+
+    Returns
+    -------
+    occurrences : DataFrame
+        One row per gene x pathway x analysis occurrence.
+
+    recurrent : DataFrame
+        One row per cell type x gene summarising recurrence.
+
+    pathway_summary : DataFrame
+        One row per cell type x pathway summarising leading-edge
+        overlap across analyses.
+    """
+
+    occurrence_rows = []
+    pathway_rows = []
+
+    if pathways.empty:
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+        )
+
+    selected = pathways[
+        pathways["report_category"]
+        == "REFERENCE_HIT_CONCORDANT"
+    ].copy()
+
+    if selected.empty:
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+        )
+
+    for _, row in selected.iterrows():
+
+        cell_type = row["cell_type"]
+        gene_set = row["gene_set"]
+        term = row["Term"]
+
+        ref_nes_col = (
+            f"{reference_analysis}_NES"
+        )
+
+        if (
+            ref_nes_col not in row.index
+            or pd.isna(row[ref_nes_col])
+        ):
+            continue
+
+        reference_nes = float(
+            row[ref_nes_col]
+        )
+
+        reference_direction = int(
+            np.sign(reference_nes)
+        )
+
+        if reference_direction == 0:
+            continue
+
+        genes_by_analysis = {}
+
+        for analysis in analyses:
+
+            nes_col = (
+                f"{analysis}_NES"
+            )
+
+            fdr_col = (
+                f"{analysis}_FDR q-val"
+            )
+
+            lead_col = (
+                f"{analysis}_Lead_genes"
+            )
+
+            required_columns = [
+                nes_col,
+                fdr_col,
+                lead_col,
+            ]
+
+            if not all(
+                col in row.index
+                for col in required_columns
+            ):
+                continue
+
+            nes = pd.to_numeric(
+                row[nes_col],
+                errors="coerce",
+            )
+
+            fdr = pd.to_numeric(
+                row[fdr_col],
+                errors="coerce",
+            )
+
+            if (
+                pd.isna(nes)
+                or pd.isna(fdr)
+            ):
+                continue
+
+            same_direction = (
+                np.sign(nes)
+                == reference_direction
+            )
+
+            significant = (
+                fdr < args.fdr
+            )
+
+            strong_enrichment = (
+                abs(nes)
+                >= args.min_abs_nes
+            )
+
+            if not (
+                same_direction
+                and significant
+                and strong_enrichment
+            ):
+                continue
+
+            genes = parse_leading_edge_genes(
+                row[lead_col]
+            )
+
+            if not genes:
+                continue
+
+            genes_by_analysis[
+                analysis
+            ] = genes
+
+            for gene in genes:
+
+                occurrence_rows.append(
+                    {
+                        "cell_type": (
+                            cell_type
+                        ),
+                        "gene_set": gene_set,
+                        "Term": term,
+                        "direction": (
+                            "POSITIVE"
+                            if reference_direction > 0
+                            else "NEGATIVE"
+                        ),
+                        "analysis": analysis,
+                        "gene": gene,
+                        "NES": float(nes),
+                        "FDR": float(fdr),
+                    }
+                )
+
+        if not genes_by_analysis:
+            continue
+
+        all_genes = set().union(
+            *genes_by_analysis.values()
+        )
+
+        intersection = set.intersection(
+            *genes_by_analysis.values()
+        )
+
+        n_analyses = len(
+            genes_by_analysis
+        )
+
+        pathway_rows.append(
+            {
+                "cell_type": cell_type,
+                "gene_set": gene_set,
+                "Term": term,
+                "direction": (
+                    "POSITIVE"
+                    if reference_direction > 0
+                    else "NEGATIVE"
+                ),
+                "n_contributing_analyses": (
+                    n_analyses
+                ),
+                "contributing_analyses": (
+                    "|".join(
+                        sorted(
+                            genes_by_analysis
+                        )
+                    )
+                ),
+                "n_union_leading_edge_genes": (
+                    len(all_genes)
+                ),
+                "n_shared_leading_edge_genes": (
+                    len(intersection)
+                ),
+                "shared_leading_edge_genes": (
+                    "|".join(
+                        sorted(intersection)
+                    )
+                ),
+            }
+        )
+
+    occurrences = pd.DataFrame(
+        occurrence_rows
+    )
+
+    pathway_summary = pd.DataFrame(
+        pathway_rows
+    )
+
+    if occurrences.empty:
+        return (
+            occurrences,
+            pd.DataFrame(),
+            pathway_summary,
+        )
+
+    # --------------------------------------------------
+    # Per-gene recurrence
+    # --------------------------------------------------
+
+    grouped = (
+        occurrences
+        .groupby(
+            [
+                "cell_type",
+                "gene",
+                "direction",
+            ],
+            observed=True,
+        )
+    )
+
+    recurrent = (
+        grouped
+        .agg(
+            n_occurrences=(
+                "gene",
+                "size",
+            ),
+            n_analyses=(
+                "analysis",
+                "nunique",
+            ),
+            n_pathways=(
+                "Term",
+                "nunique",
+            ),
+            n_gene_set_collections=(
+                "gene_set",
+                "nunique",
+            ),
+            mean_abs_NES=(
+                "NES",
+                lambda x:
+                np.mean(
+                    np.abs(x)
+                ),
+            ),
+            min_FDR=(
+                "FDR",
+                "min",
+            ),
+        )
+        .reset_index()
+    )
+
+    # --------------------------------------------------
+    # Record exactly which analyses/pathways support
+    # each recurrent gene.
+    # --------------------------------------------------
+
+    analyses_used = (
+        grouped["analysis"]
+        .agg(
+            lambda x:
+            "|".join(
+                sorted(
+                    set(x)
+                )
+            )
+        )
+        .reset_index(
+            name="analyses"
+        )
+    )
+
+    pathways_used = (
+        grouped["Term"]
+        .agg(
+            lambda x:
+            "|".join(
+                sorted(
+                    set(x)
+                )
+            )
+        )
+        .reset_index(
+            name="pathways"
+        )
+    )
+
+    collections_used = (
+        grouped["gene_set"]
+        .agg(
+            lambda x:
+            "|".join(
+                sorted(
+                    set(x)
+                )
+            )
+        )
+        .reset_index(
+            name="gene_set_collections"
+        )
+    )
+
+    recurrent = recurrent.merge(
+        analyses_used,
+        on=[
+            "cell_type",
+            "gene",
+            "direction",
+        ],
+        how="left",
+    )
+
+    recurrent = recurrent.merge(
+        pathways_used,
+        on=[
+            "cell_type",
+            "gene",
+            "direction",
+        ],
+        how="left",
+    )
+
+    recurrent = recurrent.merge(
+        collections_used,
+        on=[
+            "cell_type",
+            "gene",
+            "direction",
+        ],
+        how="left",
+    )
+
+    # --------------------------------------------------
+    # Reporting filter
+    # --------------------------------------------------
+
+    recurrent["reportable"] = (
+        (
+            recurrent["n_analyses"]
+            >=
+            args.leading_edge_min_analyses
+        )
+        &
+        (
+            recurrent["n_pathways"]
+            >=
+            args.leading_edge_min_pathways
+        )
+    )
+
+    recurrent = recurrent.sort_values(
+        [
+            "cell_type",
+            "reportable",
+            "n_analyses",
+            "n_pathways",
+            "n_gene_set_collections",
+            "n_occurrences",
+            "mean_abs_NES",
+        ],
+        ascending=[
+            True,
+            False,
+            False,
+            False,
+            False,
+            False,
+            False,
+        ],
+    )
+
+    return (
+        occurrences,
+        recurrent,
+        pathway_summary,
+    )
+
+
 # -----------------------------------------------------------------------------
 # Plotting
 # -----------------------------------------------------------------------------
@@ -851,6 +1298,140 @@ def plot_pathway_heatmap(
     fig.savefig(outpath, dpi=180, bbox_inches="tight")
     plt.close(fig)
 
+def plot_leading_edge_heatmap(
+    occurrences,
+    recurrent,
+    cell_type,
+    analyses,
+    outpath,
+    args,
+):
+    if (
+        occurrences.empty
+        or recurrent.empty
+    ):
+        return
+
+    recurrent_sub = (
+        recurrent[
+            (
+                recurrent["cell_type"]
+                == cell_type
+            )
+            &
+            recurrent["reportable"]
+        ]
+        .sort_values(
+            [
+                "n_analyses",
+                "n_pathways",
+                "n_occurrences",
+            ],
+            ascending=False,
+        )
+        .head(
+            args.top_leading_edge_genes
+        )
+    )
+
+    if recurrent_sub.empty:
+        return
+
+    genes = set(
+        recurrent_sub["gene"]
+    )
+
+    occurrence_sub = (
+        occurrences[
+            (
+                occurrences["cell_type"]
+                == cell_type
+            )
+            &
+            occurrences["gene"].isin(
+                genes
+            )
+        ]
+    )
+
+    if occurrence_sub.empty:
+        return
+
+    matrix = (
+        occurrence_sub
+        .groupby(
+            [
+                "gene",
+                "analysis",
+            ],
+            observed=True,
+        )["Term"]
+        .nunique()
+        .unstack(
+            fill_value=0
+        )
+    )
+
+    matrix = matrix.reindex(
+        columns=[
+            analysis
+            for analysis in analyses
+            if analysis in matrix.columns
+        ]
+    )
+
+    gene_order = (
+        recurrent_sub[
+            "gene"
+        ]
+        .tolist()
+    )
+
+    matrix = matrix.reindex(
+        gene_order
+    )
+
+    height = max(
+        4.5,
+        0.28 * len(matrix) + 2,
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(7.5, height)
+    )
+
+    sns.heatmap(
+        matrix,
+        cmap="Blues",
+        annot=True,
+        fmt="g",
+        linewidths=0.25,
+        linecolor="white",
+        ax=ax,
+    )
+
+    ax.set_title(
+        f"{cell_type}\n"
+        "Recurrent leading-edge pathway membership"
+    )
+
+    ax.set_xlabel(
+        "Analysis"
+    )
+
+    ax.set_ylabel(
+        "Gene"
+    )
+
+    fig.tight_layout()
+
+    fig.savefig(
+        outpath,
+        dpi=180,
+        bbox_inches="tight",
+    )
+
+    plt.close(fig)
 
 # -----------------------------------------------------------------------------
 # HTML documentation
@@ -882,6 +1463,16 @@ def explanatory_html(args):
         positive/test-condition end of the ranked list and negative NES values
         indicate enrichment toward the reference-condition end. Pathway FDR is
         used for formal enrichment significance.
+      </p>
+      <p>
+        <b>Recurrent leading-edge genes</b> are genes repeatedly
+        contributing to the leading edges of concordant significant
+        pathways across analyses. A gene must occur in at least
+        {args.leading_edge_min_pathways} qualifying pathways and at
+        least {args.leading_edge_min_analyses} analyses to be surfaced
+        in the recurrent leading-edge tables. These counts identify
+        recurring contributors to pathway-level responses and are not
+        additional gene-level significance tests.
       </p>
       <p>
         <b>Concordant reference hits</b> are significant in the reference
@@ -1018,6 +1609,9 @@ def main():
     gsea_plot_dir = plot_dir / "GSEA_concordance"
     gene_heatmap_dir = plot_dir / "gene_heatmaps"
     nes_heatmap_dir = plot_dir / "NES_heatmaps"
+    leading_edge_dir = (report_dir / "leading_edge")
+    leading_edge_by_cell_dir = (leading_edge_dir / "by_cell_type")
+    leading_edge_heatmap_dir = plot_dir / "leading_edge_heatmaps"
 
     for path in [
         report_dir,
@@ -1028,6 +1622,9 @@ def main():
         gsea_plot_dir,
         gene_heatmap_dir,
         nes_heatmap_dir,
+        leading_edge_dir,
+        leading_edge_by_cell_dir,
+        leading_edge_heatmap_dir
     ]:
         path.mkdir(parents=True, exist_ok=True)
 
@@ -1049,6 +1646,9 @@ def main():
         "heatmap_genes": args.heatmap_genes,
         "heatmap_pathways": args.heatmap_pathways,
         "make_plots": args.make_plots,
+        "leading_edge_min_analyses": args.leading_edge_min_analyses,
+        "leading_edge_min_pathways": args.leading_edge_min_pathways,
+        "top_leading_edge_genes": args.top_leading_edge_genes,
     }
 
     with open(report_dir / "report_manifest.json", "w") as handle:
@@ -1151,13 +1751,128 @@ def main():
         }
 
         for filename, category in pathway_outputs.items():
-            subset = pathways[
-                pathways["report_category"] == category
-            ].sort_values(
-                "report_priority",
-                ascending=False,
-            )
+            subset = pathways[pathways["report_category"] == category].sort_values(
+                "report_priority", ascending=False,)
             subset.to_csv(pathway_dir / filename, index=False)
+
+    # ------------------------------------------------------------------
+    # Cross-analysis leading-edge synthesis
+    # ------------------------------------------------------------------
+
+    (
+        leading_edge_occurrences,
+        recurrent_leading_edge,
+        leading_edge_pathways,
+    ) = synthesize_leading_edges(
+        pathways=pathways,
+        analyses=args.analyses,
+        reference_analysis=(
+            args.reference_analysis
+        ),
+        args=args,
+    )
+
+    if not leading_edge_occurrences.empty:
+
+        leading_edge_occurrences.to_csv(
+            leading_edge_dir
+            / "leading_edge_occurrences.csv",
+            index=False,
+        )
+
+    if not leading_edge_pathways.empty:
+
+        leading_edge_pathways.to_csv(
+            leading_edge_dir
+            / "concordant_pathway_leading_edge_summary.csv",
+            index=False,
+        )
+
+    if not recurrent_leading_edge.empty:
+
+        recurrent_leading_edge.to_csv(
+            leading_edge_dir
+            / "recurrent_genes_all.csv",
+            index=False,
+        )
+
+        recurrent_positive = (
+            recurrent_leading_edge[
+                (
+                    recurrent_leading_edge[
+                        "direction"
+                    ]
+                    == "POSITIVE"
+                )
+                &
+                recurrent_leading_edge[
+                    "reportable"
+                ]
+            ]
+            .copy()
+        )
+
+        recurrent_negative = (
+            recurrent_leading_edge[
+                (
+                    recurrent_leading_edge[
+                        "direction"
+                    ]
+                    == "NEGATIVE"
+                )
+                &
+                recurrent_leading_edge[
+                    "reportable"
+                ]
+            ]
+            .copy()
+        )
+
+        recurrent_positive.to_csv(
+            leading_edge_dir
+            / "recurrent_genes_positive.csv",
+            index=False,
+        )
+
+        recurrent_negative.to_csv(
+            leading_edge_dir
+            / "recurrent_genes_negative.csv",
+            index=False,
+        )
+
+        # --------------------------------------------------
+        # Per-cell-type outputs
+        # --------------------------------------------------
+
+        for cell_type, sub in (
+            recurrent_leading_edge
+            .groupby(
+                "cell_type",
+                sort=True,
+            )
+        ):
+
+            sub = sub[
+                sub["reportable"]
+            ].copy()
+
+            sub.to_csv(
+                leading_edge_by_cell_dir
+                / (
+                    f"{safe_filename(cell_type)}.csv"
+                ),
+                index=False,
+            )
+
+    else:
+
+        recurrent_positive = (
+            pd.DataFrame()
+        )
+
+        recurrent_negative = (
+            pd.DataFrame()
+        )
 
     # ------------------------------------------------------------------
     # Cell-type summary
@@ -1178,6 +1893,22 @@ def main():
         pathway_sub = (
             pathways[pathways["cell_type"] == cell_type]
             if not pathways.empty
+            else pd.DataFrame()
+        )
+        leading_edge_sub = (
+            recurrent_leading_edge[
+                (
+                    recurrent_leading_edge[
+                        "cell_type"
+                    ]
+                    == cell_type
+                )
+                &
+                recurrent_leading_edge[
+                    "reportable"
+                ]
+            ]
+            if not recurrent_leading_edge.empty
             else pd.DataFrame()
         )
 
@@ -1268,6 +1999,33 @@ def main():
                         == "POTENTIAL_SUBSET_SPECIFIC"
                     ).sum()
                 ),
+                "recurrent_leading_edge_genes": (
+                    len(
+                        leading_edge_sub
+                    )
+                ),
+
+                "recurrent_positive_leading_edge_genes": int(
+                    (
+                        leading_edge_sub[
+                            "direction"
+                        ]
+                        == "POSITIVE"
+                    ).sum()
+                    if not leading_edge_sub.empty
+                    else 0
+                ),
+
+                "recurrent_negative_leading_edge_genes": int(
+                    (
+                        leading_edge_sub[
+                            "direction"
+                        ]
+                        == "NEGATIVE"
+                    ).sum()
+                    if not leading_edge_sub.empty
+                    else 0
+                ),
             }
         )
 
@@ -1355,6 +2113,30 @@ def main():
                         args,
                     )
 
+            if (
+                not leading_edge_occurrences.empty
+                and
+                not recurrent_leading_edge.empty
+            ):
+
+                plot_leading_edge_heatmap(
+                    occurrences=(
+                        leading_edge_occurrences
+                    ),
+                    recurrent=(
+                        recurrent_leading_edge
+                    ),
+                    cell_type=cell_type,
+                    analyses=args.analyses,
+                    outpath=(
+                        leading_edge_heatmap_dir
+                        / (
+                            f"{safe_filename(cell_type)}.png"
+                        )
+                    ),
+                    args=args,
+                )
+
     # ------------------------------------------------------------------
     # HTML report
     # ------------------------------------------------------------------
@@ -1372,7 +2154,9 @@ def main():
       .data tr:nth-child(even) {background:#f7f9fb;}
       .empty {color:#66788a; font-style:italic;}
       .plot-grid {display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px;}
-      .plot-grid img {width:100%; border:1px solid #d9e2ec;}
+      .plot-card {background: #ffffff; border: 1px solid #d9e2ec; padding: 10px;}
+      .plot-card h4 {color: #334e68; margin: 0 0 8px 0; font-size: 14px;}
+      .plot-card img {width: 100%; height: auto; border: none;}
       dt {font-weight:bold; color:#334e68; margin-top:6px;}
       dd {margin-bottom:5px;}
     </style>
@@ -1503,33 +2287,167 @@ def main():
                     )
                 )
 
+        if not recurrent_leading_edge.empty:
+
+            leading_edge_sub = (
+                recurrent_leading_edge[
+                    (
+                        recurrent_leading_edge[
+                            "cell_type"
+                        ]
+                        == cell_type
+                    )
+                    &
+                    recurrent_leading_edge[
+                        "reportable"
+                    ]
+                ]
+                .copy()
+            )
+
+            if not leading_edge_sub.empty:
+
+                html_parts.append(
+                    "<h3>"
+                    "Recurrent leading-edge genes"
+                    "</h3>"
+                )
+
+                html_parts.append(
+                    "<p>"
+                    "These genes recur in the leading edges of "
+                    "concordant, FDR-significant pathways across "
+                    "multiple analyses. Recurrence can identify "
+                    "genes contributing repeatedly to coordinated "
+                    "pathway-level responses even when individual "
+                    "gene-level DE does not reach FDR significance."
+                    "</p>"
+                )
+
+                leading_edge_columns = [
+                    "gene",
+                    "direction",
+                    "n_analyses",
+                    "n_pathways",
+                    "n_gene_set_collections",
+                    "n_occurrences",
+                    "mean_abs_NES",
+                    "min_FDR",
+                    "analyses",
+                    "gene_set_collections",
+                ]
+
+                html_parts.append(
+                    html_table(
+                        leading_edge_sub,
+                        leading_edge_columns,
+                        args.top_leading_edge_genes,
+                    )
+                )
+
         if args.make_plots:
             images = []
 
-            gene_heatmap = (
-                gene_heatmap_dir / f"{safe_filename(cell_type)}.png"
-            )
-            if gene_heatmap.exists():
-                images.append(gene_heatmap)
+            # --------------------------------------------------
+            # Gene log2FC heatmap
+            # --------------------------------------------------
 
-            # Prefer Hallmark and BP pathway heatmaps in the HTML body.
-            for gene_set in ["Hallmark", "GO_BP"]:
-                image = nes_heatmap_dir / (
-                    f"{safe_filename(cell_type)}__{safe_filename(gene_set)}.png"
+            gene_heatmap = (
+                gene_heatmap_dir
+                / f"{safe_filename(cell_type)}.png"
+            )
+
+            if gene_heatmap.exists():
+                images.append(
+                    (
+                        "Selected gene effect sizes",
+                        gene_heatmap,
+                    )
                 )
+
+            # --------------------------------------------------
+            # Recurrent leading-edge gene heatmap
+            # --------------------------------------------------
+
+            leading_edge_heatmap = (
+                leading_edge_heatmap_dir
+                / f"{safe_filename(cell_type)}.png"
+            )
+
+            if leading_edge_heatmap.exists():
+                images.append(
+                    (
+                        "Recurrent leading-edge pathway membership",
+                        leading_edge_heatmap,
+                    )
+                )
+
+            # --------------------------------------------------
+            # Selected pathway NES heatmaps
+            # --------------------------------------------------
+
+            for gene_set in [
+                "Hallmark",
+                "GO_BP",
+            \]:
+
+                image = (
+                    nes_heatmap_dir
+                    / (
+                        f"{safe_filename(cell_type)}__"
+                        f"{safe_filename(gene_set)}.png"
+                    )
+                )
+
                 if image.exists():
-                    images.append(image)
+                    images.append(
+                        (
+                            f"{gene_set} pathway enrichment",
+                            image,
+                        )
+                    )
+
+            # --------------------------------------------------
+            # Embed plots in HTML
+            # --------------------------------------------------
 
             if images:
-                html_parts.append("<h3>Selected effect-size heatmaps</h3>")
-                html_parts.append("<div class='plot-grid'>")
-                for image in images:
-                    rel = image.relative_to(report_dir)
-                    html_parts.append(
-                        f"<img src='{html.escape(str(rel))}' "
-                        f"alt='{html.escape(image.stem)}'>"
+
+                html_parts.append(
+                    "<h3>Selected cross-analysis heatmaps</h3>"
+                )
+
+                html_parts.append(
+                    "<div class='plot-grid'>"
+                )
+
+                for title, image in images:
+
+                    rel = image.relative_to(
+                        report_dir
                     )
-                html_parts.append("</div>")
+
+                    html_parts.append(
+                        "<div class='plot-card'>"
+                    )
+
+                    html_parts.append(
+                        f"<h4>{html.escape(title)}</h4>"
+                    )
+
+                    html_parts.append(
+                        f"<img "
+                        f"src='{html.escape(str(rel))}' "
+                        f"alt='{html.escape(title)}'>"
+                    )
+
+                    html_parts.append(
+                        "</div>"
+                    )
+
+                html_parts.append(
+                    "</div>"
+                )
 
     html_parts.append("</body></html>")
 
