@@ -85,6 +85,20 @@ def parse_args():
         ),
     )
 
+    parser.add_argument("--leading_edge_nonribosomal_genes", type=int, default=15,
+        help=(
+            "Maximum number of non-ribosomal recurrent "
+            "leading-edge genes shown per direction."
+        ),
+    )
+
+    parser.add_argument("--leading_edge_ribosomal_genes", type=int, default=5,
+        help=(
+            "Maximum number of ribosomal recurrent "
+            "leading-edge genes shown per direction."
+        ),
+    )
+
     return parser.parse_args()
 
 
@@ -886,6 +900,15 @@ def synthesize_leading_edges(
         .reset_index()
     )
 
+    recurrent[
+        "ribosomal_gene"
+    ] = (
+        recurrent["gene"]
+        .map(
+            is_ribosomal_gene
+        )
+    )
+
     # --------------------------------------------------
     # Record exactly which analyses/pathways support
     # each recurrent gene.
@@ -1011,6 +1034,25 @@ def synthesize_leading_edges(
         pathway_summary,
     )
 
+
+def is_ribosomal_gene(gene):
+    """
+    Identify canonical ribosomal protein gene symbols.
+
+    RPL* and RPS* genes are retained in the analysis but can
+    be limited separately in interpretation plots so that a
+    broad ribosomal programme does not dominate display space.
+    """
+    gene = str(
+        gene
+    ).upper()
+
+    return bool(
+        re.match(
+            r"^RP[LS][0-9A-Z-]+$",
+            gene,
+        )
+    )
 
 # -----------------------------------------------------------------------------
 # Plotting
@@ -1302,6 +1344,7 @@ def plot_leading_edge_heatmap(
     occurrences,
     recurrent,
     cell_type,
+    direction,
     analyses,
     outpath,
     args,
@@ -1319,26 +1362,80 @@ def plot_leading_edge_heatmap(
                 == cell_type
             )
             &
+            (
+                recurrent["direction"]
+                == direction
+            )
+            &
             recurrent["reportable"]
         ]
-        .sort_values(
-            [
-                "n_analyses",
-                "n_pathways",
-                "n_occurrences",
-            ],
-            ascending=False,
-        )
-        .head(
-            args.top_leading_edge_genes
-        )
+        .copy()
     )
 
     if recurrent_sub.empty:
         return
 
+    # --------------------------------------------------
+    # Rank recurrent genes
+    # --------------------------------------------------
+
+    sort_columns = [
+        "n_analyses",
+        "n_pathways",
+        "n_gene_set_collections",
+        "n_occurrences",
+        "mean_abs_NES",
+    ]
+
+    recurrent_sub = (
+        recurrent_sub
+        .sort_values(
+            sort_columns,
+            ascending=False,
+        )
+    )
+
+    # --------------------------------------------------
+    # Select non-ribosomal and ribosomal genes
+    # separately so ribosomal programmes remain visible
+    # without dominating the display.
+    # --------------------------------------------------
+
+    non_ribosomal = (
+        recurrent_sub[
+            ~recurrent_sub[
+                "ribosomal_gene"
+            ]
+        ]
+        .head(
+            args.leading_edge_nonribosomal_genes
+        )
+    )
+
+    ribosomal = (
+        recurrent_sub[
+            recurrent_sub[
+                "ribosomal_gene"
+            ]
+        ]
+        .head(
+            args.leading_edge_ribosomal_genes
+        )
+    )
+
+    selected = pd.concat(
+        [
+            non_ribosomal,
+            ribosomal,
+        ],
+        ignore_index=True,
+    )
+
+    if selected.empty:
+        return
+
     genes = set(
-        recurrent_sub["gene"]
+        selected["gene"]
     )
 
     occurrence_sub = (
@@ -1346,6 +1443,11 @@ def plot_leading_edge_heatmap(
             (
                 occurrences["cell_type"]
                 == cell_type
+            )
+            &
+            (
+                occurrences["direction"]
+                == direction
             )
             &
             occurrences["gene"].isin(
@@ -1356,6 +1458,11 @@ def plot_leading_edge_heatmap(
 
     if occurrence_sub.empty:
         return
+
+    # --------------------------------------------------
+    # Count unique significant concordant pathways
+    # containing each gene in each analysis.
+    # --------------------------------------------------
 
     matrix = (
         occurrence_sub
@@ -1380,10 +1487,9 @@ def plot_leading_edge_heatmap(
         ]
     )
 
+    # Preserve selected ranking.
     gene_order = (
-        recurrent_sub[
-            "gene"
-        ]
+        selected["gene"]
         .tolist()
     )
 
@@ -1393,7 +1499,7 @@ def plot_leading_edge_heatmap(
 
     height = max(
         4.5,
-        0.28 * len(matrix) + 2,
+        0.30 * len(matrix) + 2,
     )
 
     fig, ax = plt.subplots(
@@ -1410,9 +1516,16 @@ def plot_leading_edge_heatmap(
         ax=ax,
     )
 
+    direction_label = (
+        "Positive"
+        if direction == "POSITIVE"
+        else "Negative"
+    )
+
     ax.set_title(
         f"{cell_type}\n"
-        "Recurrent leading-edge pathway membership"
+        f"{direction_label} recurrent leading-edge "
+        "pathway membership"
     )
 
     ax.set_xlabel(
@@ -1473,6 +1586,15 @@ def explanatory_html(args):
         in the recurrent leading-edge tables. These counts identify
         recurring contributors to pathway-level responses and are not
         additional gene-level significance tests.
+      </p>
+      <p>
+        Recurrent leading-edge genes are displayed separately for
+        positive and negative pathway enrichment. Ribosomal protein
+        genes are retained in all recurrence calculations and output
+        tables, but the number displayed in each heatmap is capped
+        separately from non-ribosomal genes. This prevents a broad
+        ribosomal programme from using most available display rows
+        while preserving the ribosomal signal for interpretation.
       </p>
       <p>
         <b>Concordant reference hits</b> are significant in the reference
@@ -1649,6 +1771,8 @@ def main():
         "leading_edge_min_analyses": args.leading_edge_min_analyses,
         "leading_edge_min_pathways": args.leading_edge_min_pathways,
         "top_leading_edge_genes": args.top_leading_edge_genes,
+        "leading_edge_nonribosomal_genes": args.leading_edge_nonribsomal_genes,
+        "leading_edge_ribosomal_genes": args.leading_edge_ribsomal_genes,
     }
 
     with open(report_dir / "report_manifest.json", "w") as handle:
@@ -2119,23 +2243,30 @@ def main():
                 not recurrent_leading_edge.empty
             ):
 
-                plot_leading_edge_heatmap(
-                    occurrences=(
-                        leading_edge_occurrences
-                    ),
-                    recurrent=(
-                        recurrent_leading_edge
-                    ),
-                    cell_type=cell_type,
-                    analyses=args.analyses,
-                    outpath=(
-                        leading_edge_heatmap_dir
-                        / (
-                            f"{safe_filename(cell_type)}.png"
-                        )
-                    ),
-                    args=args,
-                )
+                for direction in [
+                    "POSITIVE",
+                    "NEGATIVE",
+                ]:
+
+                    plot_leading_edge_heatmap(
+                        occurrences=(
+                            leading_edge_occurrences
+                        ),
+                        recurrent=(
+                            recurrent_leading_edge
+                        ),
+                        cell_type=cell_type,
+                        direction=direction,
+                        analyses=args.analyses,
+                        outpath=(
+                            leading_edge_heatmap_dir
+                            / (
+                                f"{safe_filename(cell_type)}__"
+                                f"{direction.lower()}.png"
+                            )
+                        ),
+                        args=args,
+                    )
 
     # ------------------------------------------------------------------
     # HTML report
@@ -2369,16 +2500,35 @@ def main():
             # Recurrent leading-edge gene heatmap
             # --------------------------------------------------
 
-            leading_edge_heatmap = (
+            positive_leading_edge_heatmap = (
                 leading_edge_heatmap_dir
-                / f"{safe_filename(cell_type)}.png"
+                / (
+                    f"{safe_filename(cell_type)}__"
+                    "positive.png"
+                )
             )
 
-            if leading_edge_heatmap.exists():
+            if positive_leading_edge_heatmap.exists():
                 images.append(
                     (
-                        "Recurrent leading-edge pathway membership",
-                        leading_edge_heatmap,
+                        "Positive recurrent leading-edge genes",
+                        positive_leading_edge_heatmap,
+                    )
+                )
+
+            negative_leading_edge_heatmap = (
+                leading_edge_heatmap_dir
+                / (
+                    f"{safe_filename(cell_type)}__"
+                    "negative.png"
+                )
+            )
+
+            if negative_leading_edge_heatmap.exists():
+                images.append(
+                    (
+                        "Negative recurrent leading-edge genes",
+                        negative_leading_edge_heatmap,
                     )
                 )
 
