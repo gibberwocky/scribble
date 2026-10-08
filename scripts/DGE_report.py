@@ -1578,25 +1578,6 @@ def explanatory_html(args):
         used for formal enrichment significance.
       </p>
       <p>
-        <b>Recurrent leading-edge genes</b> are genes repeatedly
-        contributing to the leading edges of concordant significant
-        pathways across analyses. A gene must occur in at least
-        {args.leading_edge_min_pathways} qualifying pathways and at
-        least {args.leading_edge_min_analyses} analyses to be surfaced
-        in the recurrent leading-edge tables. These counts identify
-        recurring contributors to pathway-level responses and are not
-        additional gene-level significance tests.
-      </p>
-      <p>
-        Recurrent leading-edge genes are displayed separately for
-        positive and negative pathway enrichment. Ribosomal protein
-        genes are retained in all recurrence calculations and output
-        tables, but the number displayed in each heatmap is capped
-        separately from non-ribosomal genes. This prevents a broad
-        ribosomal programme from using most available display rows
-        while preserving the ribosomal signal for interpretation.
-      </p>
-      <p>
         <b>Concordant reference hits</b> are significant in the reference
         analysis, exceed the report effect-size threshold, and retain the same
         direction in at least {args.min_supporting_analyses} secondary analyses.
@@ -1617,6 +1598,23 @@ def explanatory_html(args):
         small or points in the opposite direction. Neither category proves a
         statistically different treatment response between systems; formal
         evidence of such a difference requires an interaction test.
+      </p>
+      <p>
+        <b>Recurrent leading-edge genes</b> are genes repeatedly
+        contributing to the leading edges of concordant significant
+        pathways across analyses. A gene must occur in at least
+        {args.leading_edge_min_pathways} qualifying pathways and at
+        least {args.leading_edge_min_analyses} analyses to be surfaced
+        in the recurrent leading-edge tables. These counts identify
+        recurring contributors to pathway-level responses and are not
+        additional gene-level significance tests. Recurrent leading-edge
+        genes are displayed separately for positive and negative pathway
+        enrichment. Ribosomal protein genes are retained in all recurrence
+        calculations and output tables, but the number displayed in each
+        heatmap is capped separately from non-ribosomal genes. This
+        prevents a broad ribosomal programme from using most available
+        display rows while preserving the ribosomal signal for
+        interpretation.
       </p>
 
       <h3>Fields used in interpretation</h3>
@@ -2441,19 +2439,6 @@ def main():
 
                 html_parts.append(
                     "<h3>Recurrent leading-edge genes</h3>"
-                )
-
-                html_parts.append(
-                    "<p>"
-                    "These genes recur in the leading edges of "
-                    "concordant, FDR-significant pathways across "
-                    "multiple analyses. Positive and negative genes "
-                    "are shown separately according to the direction "
-                    "of pathway enrichment. Recurrence identifies "
-                    "genes contributing repeatedly to coordinated "
-                    "pathway-level responses and is not an additional "
-                    "gene-level significance test."
-                    "</p>"
                 )
 
                 leading_edge_columns = [
