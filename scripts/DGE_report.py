@@ -2279,6 +2279,7 @@ def main():
             padding-bottom:4px; margin-top:26px;}
       .note,.guide {background:#eef4f8; padding:14px 18px;
             border-left:4px solid #4472a3; margin:14px 0 24px;}
+      .small {color: #66788a; font-size: 12px;}
       .data {border-collapse:collapse; font-size:12px; width:100%; margin:8px 0 22px;}
       .data th {background:#244a73; color:white; padding:6px; position:sticky; top:0;}
       .data td {border:1px solid #d9e2ec; padding:5px;}
@@ -2439,25 +2440,24 @@ def main():
             if not leading_edge_sub.empty:
 
                 html_parts.append(
-                    "<h3>"
-                    "Recurrent leading-edge genes"
-                    "</h3>"
+                    "<h3>Recurrent leading-edge genes</h3>"
                 )
 
                 html_parts.append(
                     "<p>"
                     "These genes recur in the leading edges of "
                     "concordant, FDR-significant pathways across "
-                    "multiple analyses. Recurrence can identify "
+                    "multiple analyses. Positive and negative genes "
+                    "are shown separately according to the direction "
+                    "of pathway enrichment. Recurrence identifies "
                     "genes contributing repeatedly to coordinated "
-                    "pathway-level responses even when individual "
-                    "gene-level DE does not reach FDR significance."
+                    "pathway-level responses and is not an additional "
+                    "gene-level significance test."
                     "</p>"
                 )
 
                 leading_edge_columns = [
                     "gene",
-                    "direction",
                     "n_analyses",
                     "n_pathways",
                     "n_gene_set_collections",
@@ -2468,9 +2468,87 @@ def main():
                     "gene_set_collections",
                 ]
 
+                # --------------------------------------------------
+                # Positive leading-edge genes
+                # --------------------------------------------------
+
+                positive_leading_edge = (
+                    leading_edge_sub[
+                        leading_edge_sub[
+                            "direction"
+                        ]
+                        == "POSITIVE"
+                    ]
+                    .sort_values(
+                        [
+                            "n_analyses",
+                            "n_pathways",
+                            "n_gene_set_collections",
+                            "n_occurrences",
+                            "mean_abs_NES",
+                        ],
+                        ascending=False,
+                    )
+                )
+
+                html_parts.append(
+                    "<h4>Positive recurrent leading-edge genes</h4>"
+                )
+
+                html_parts.append(
+                    "<p class='small'>"
+                    "Genes recurring in pathways enriched toward "
+                    "the positive/test-condition end of the ranked "
+                    "gene list."
+                    "</p>"
+                )
+
                 html_parts.append(
                     html_table(
-                        leading_edge_sub,
+                        positive_leading_edge,
+                        leading_edge_columns,
+                        args.top_leading_edge_genes,
+                    )
+                )
+
+                # --------------------------------------------------
+                # Negative leading-edge genes
+                # --------------------------------------------------
+
+                negative_leading_edge = (
+                    leading_edge_sub[
+                        leading_edge_sub[
+                            "direction"
+                        ]
+                        == "NEGATIVE"
+                    ]
+                    .sort_values(
+                        [
+                            "n_analyses",
+                            "n_pathways",
+                            "n_gene_set_collections",
+                            "n_occurrences",
+                            "mean_abs_NES",
+                        ],
+                        ascending=False,
+                    )
+                )
+
+                html_parts.append(
+                    "<h4>Negative recurrent leading-edge genes</h4>"
+                )
+
+                html_parts.append(
+                    "<p class='small'>"
+                    "Genes recurring in pathways enriched toward "
+                    "the negative/reference-condition end of the "
+                    "ranked gene list."
+                    "</p>"
+                )
+
+                html_parts.append(
+                    html_table(
+                        negative_leading_edge,
                         leading_edge_columns,
                         args.top_leading_edge_genes,
                     )
