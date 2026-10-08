@@ -1772,7 +1772,7 @@ def main():
         "leading_edge_min_pathways": args.leading_edge_min_pathways,
         "top_leading_edge_genes": args.top_leading_edge_genes,
         "leading_edge_nonribosomal_genes": args.leading_edge_nonribosomal_genes,
-        "leading_edge_ribosomal_genes": args.leading_edge_ribsomal_genes,
+        "leading_edge_ribosomal_genes": args.leading_edge_ribosomal_genes,
     }
 
     with open(report_dir / "report_manifest.json", "w") as handle:
