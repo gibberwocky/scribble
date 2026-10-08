@@ -2389,7 +2389,7 @@ def main():
             for gene_set in [
                 "Hallmark",
                 "GO_BP",
-            \]:
+            ]:
 
                 image = (
                     nes_heatmap_dir
