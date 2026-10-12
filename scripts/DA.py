@@ -1048,7 +1048,7 @@ for annotation, sub in (
         index=False,
     )
 
-mdata.write(OUTDIR / "milo_results.h5mu")
+#mdata.write(OUTDIR / "milo_results.h5mu")
 
 
 # --------------------------------------------------
