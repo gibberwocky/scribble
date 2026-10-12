@@ -24,25 +24,20 @@ def get_formula_variables(formula):
     """
     Extract simple variable names from a Formulaic-style
     design formula.
-
     Intended for validation of formulas such as:
       ~ donor + treatment
       ~ treatment
       ~ donor + treatment + batchInfo
-
     Formulaic itself remains responsible for actual parsing.
     """
-
     tokens = re.findall(
         r"\b[A-Za-z_]\w*\b",
         formula
     )
-
     reserved = {
         "C",
         "I",
     }
-
     return {
         token
         for token in tokens
@@ -58,14 +53,11 @@ def plot_da_volcano(
 ):
     """
     Volcano plot showing:
-
       grey   = not nominal
       orange = nominal
       red    = significant
     """
-
     df = milo_results.copy()
-
     df["minus_log10_SpatialFDR"] = (
         -np.log10(
             np.clip(
@@ -75,7 +67,6 @@ def plot_da_volcano(
             )
         )
     )
-
     significant = (
         (
             df["SpatialFDR"]
@@ -88,7 +79,6 @@ def plot_da_volcano(
             >= min_abs_logFC
         )
     )
-
     nominal = (
         (
             df["SpatialFDR"]
@@ -103,15 +93,12 @@ def plot_da_volcano(
         &
         (~significant)
     )
-
     background = (
         ~(significant | nominal)
     )
-
     fig, ax = plt.subplots(
         figsize=(8, 6)
     )
-
     ax.scatter(
         df.loc[
             background,
@@ -130,7 +117,6 @@ def plot_da_volcano(
         ),
         rasterized=True,
     )
-
     ax.scatter(
         df.loc[
             nominal,
@@ -150,7 +136,6 @@ def plot_da_volcano(
         ),
         rasterized=True,
     )
-
     ax.scatter(
         df.loc[
             significant,
@@ -170,19 +155,16 @@ def plot_da_volcano(
         ),
         rasterized=True,
     )
-
     ax.axvline(
         min_abs_logFC,
         linestyle="--",
         color="black",
     )
-
     ax.axvline(
         -min_abs_logFC,
         linestyle="--",
         color="black",
     )
-
     # Significant threshold
     ax.axhline(
         -np.log10(
@@ -192,7 +174,6 @@ def plot_da_volcano(
         color="red",
         linewidth=1,
     )
-
     # Nominal threshold
     ax.axhline(
         -np.log10(
@@ -202,28 +183,21 @@ def plot_da_volcano(
         color="orange",
         linewidth=1,
     )
-
     ax.set_xlabel(
         "Neighborhood logFC"
     )
-
     ax.set_ylabel(
         "-log10(SpatialFDR)"
     )
-
     ax.set_title(
         "Milo differential abundance"
     )
-
     ax.legend()
-
     fig.tight_layout()
-
     fig.savefig(
         outpath,
         dpi=300,
     )
-
     plt.close(fig)
 
 
@@ -237,20 +211,17 @@ def plot_nhood_graph(
     """
     Save Milo neighbourhood graph.
     """
-
     fig = milo.plot_nhood_graph(
         mdata,
         padj_threshold=fdr_threshold,
         min_logFC=min_abs_logFC,
         return_fig=True,
     )
-
     fig.savefig(
         outpath,
         dpi=300,
         bbox_inches="tight",
     )
-
     plt.close(fig)
 
 
@@ -265,22 +236,17 @@ def plot_celltype_summary(
     """
     Horizontal barplot of positive and negative
     DA neighbourhood counts per annotation.
-
     positive_col:
         column containing positive counts
-
     negative_col:
         column containing negative counts
     """
-
     plot_df = cell_type_summary.copy()
-
     total = (
         plot_df[positive_col]
         +
         plot_df[negative_col]
     )
-
     plot_df = (
         plot_df.assign(
             total=total
@@ -293,21 +259,16 @@ def plot_celltype_summary(
             columns="total"
         )
     )
-
     if plot_df.empty:
         return
-
     fig_height = max(
         4,
         0.35 * len(plot_df),
     )
-
     fig, ax = plt.subplots(
         figsize=(8, fig_height)
     )
-
     y = plot_df.iloc[::-1]
-
     ax.barh(
         y["nhood_annotation"],
         y[positive_col],
@@ -316,7 +277,6 @@ def plot_celltype_summary(
         ),
         color="tab:red",
     )
-
     ax.barh(
         y["nhood_annotation"],
         -y[negative_col],
@@ -325,34 +285,26 @@ def plot_celltype_summary(
         ),
         color="tab:blue",
     )
-
     ax.axvline(
         0,
         color="black",
         linewidth=1,
     )
-
     ax.set_xlabel(
         xlabel
     )
-
     ax.set_ylabel(
         ""
     )
-
     ax.set_title(
         title
     )
-
     ax.legend()
-
     fig.tight_layout()
-
     fig.savefig(
         outpath,
         dpi=300,
     )
-
     plt.close(fig)
 
 
@@ -364,25 +316,19 @@ def plot_annotation_logFC(
     Boxplots of neighbourhood logFC
     grouped by annotation.
     """
-
     plot_df = milo_results.copy()
-
     counts = (
         plot_df["nhood_annotation"]
         .value_counts()
     )
-
     order = counts.index.tolist()
-
     fig_height = max(
         5,
         0.35 * len(order),
     )
-
     fig, ax = plt.subplots(
         figsize=(10, fig_height)
     )
-
     sns.boxplot(
         data=plot_df,
         x="logFC",
@@ -391,31 +337,24 @@ def plot_annotation_logFC(
         fliersize=0,
         ax=ax,
     )
-
     ax.axvline(
         0,
         linestyle="--",
     )
-
     ax.set_xlabel(
         "Neighborhood logFC"
     )
-
     ax.set_ylabel(
         ""
     )
-
     ax.set_title(
         "Neighborhood abundance shifts by annotation"
     )
-
     fig.tight_layout()
-
     fig.savefig(
         outpath,
         dpi=300,
     )
-
     plt.close(fig)
 
 
@@ -425,15 +364,12 @@ def plot_annotation_median_logFC(
 ):
     """
     Plot median neighbourhood logFC for each annotation.
-
     Positive:
         neighbourhoods enriched in TEST condition
-
     Negative:
         neighbourhoods depleted in TEST condition
         (or enriched in REFERENCE condition)
     """
-
     plot_df = (
         cell_type_summary
         .sort_values(
@@ -442,10 +378,8 @@ def plot_annotation_median_logFC(
         )
         .copy()
     )
-
     if plot_df.empty:
         return
-
     plot_df["label"] = [
         f"{annotation} (n={n})"
         for annotation, n in zip(
@@ -453,35 +387,29 @@ def plot_annotation_median_logFC(
             plot_df["n_neighborhoods"],
         )
     ]
-
     fig_height = max(
         4,
         0.35 * len(plot_df),
     )
-
     fig, ax = plt.subplots(
         figsize=(8, fig_height)
     )
-
     colors = np.where(
         plot_df["median_logFC"] > 0,
         "tab:red",
         "tab:blue",
     )
-
     ax.barh(
         plot_df["label"],
         plot_df["median_logFC"],
         color=colors,
     )
-
     ax.axvline(
         0,
         color="black",
         linestyle="--",
         linewidth=1,
     )
-
     ax.set_xlabel(
         (
             f"Median neighbourhood logFC "
@@ -489,21 +417,16 @@ def plot_annotation_median_logFC(
             f"{CONTRAST_REFERENCE})"
         )
     )
-
     ax.set_ylabel("")
-
     ax.set_title(
         "Median neighbourhood abundance shift by annotation"
     )
-
     fig.tight_layout()
-
     fig.savefig(
         outpath,
         dpi=300,
         bbox_inches="tight",
     )
-
     plt.close(fig)
 
 # --------------------------------------------------
@@ -580,8 +503,6 @@ if (
         "levels must differ."
     )
 
-
-
 RUN_INFO = {
     "analysis_name": args.analysis_name,
     "formula": args.formula,
@@ -641,16 +562,11 @@ with open(
     "run_manifest.json",
     "w",
 ) as handle:
-
     json.dump(
         run_manifest,
         handle,
         indent=2,
     )
-
-
-
-
 
 
 # Import adata
@@ -663,17 +579,13 @@ if "sample" not in adata.obs.columns:
         "is not present in adata.obs."
     )
 
-
 # --------------------------------------------------
 # Select requested samples
 # --------------------------------------------------
-
 if args.samples is not None:
-
     requested_samples = set(
         args.samples
     )
-
     available_samples = set(
         adata.obs[
             "sample"
@@ -681,20 +593,17 @@ if args.samples is not None:
         .astype(str)
         .unique()
     )
-
     missing_samples = (
         requested_samples
         -
         available_samples
     )
-
     if missing_samples:
         raise ValueError(
             "Requested samples not present "
             "in AnnData: "
             f"{sorted(missing_samples)}"
         )
-
     adata_da = adata[
         adata.obs[
             "sample"
@@ -704,14 +613,10 @@ if args.samples is not None:
             requested_samples
         )
     ].copy()
-
 else:
-
     adata_da = (
         adata.copy()
     )
-
-
 
 
 # --------------------------------------------------
@@ -851,7 +756,6 @@ sample_design_cols = [
 for col in sorted(
     REQUIRED_MODEL_COLUMNS
 ):
-
     if (
         col in adata_da.obs.columns
         and
@@ -906,7 +810,6 @@ print(
 )
 
 if DONOR_IN_MODEL:
-
     donor_summary = (
         sample_design
         .groupby(
@@ -924,7 +827,6 @@ if DONOR_IN_MODEL:
         )
         .reset_index()
     )
-
     donor_summary.to_csv(
         INSPECTION_DIR /
         "donor_design_summary.csv",
@@ -945,10 +847,8 @@ metadata_cols = [
 
 
 for col in metadata_cols:
-
     if col not in adata_da.obs.columns:
         continue
-
     n_values = (
         adata_da.obs
         .groupby(
@@ -959,11 +859,9 @@ for col in metadata_cols:
             dropna=False
         )
     )
-
     bad = n_values[
         n_values != 1
     ]
-
     if len(bad) > 0:
         raise ValueError(
             f"Inconsistent {col} metadata for samples: "
@@ -978,13 +876,11 @@ for col in metadata_cols:
 for col in sorted(
     REQUIRED_MODEL_COLUMNS
 ):
-
     if col not in adata_da.obs.columns:
         raise ValueError(
             f"Required model metadata column "
             f"'{col}' is absent from adata.obs."
         )
-
     missing_samples = (
         adata_da.obs
         .groupby(
@@ -1003,7 +899,6 @@ for col in sorted(
                 )
         )
     )
-
     missing_samples = (
         missing_samples[
             missing_samples
@@ -1011,7 +906,6 @@ for col in sorted(
         .index
         .tolist()
     )
-
     if missing_samples:
         raise ValueError(
             f"Missing required model metadata "
@@ -1041,7 +935,6 @@ with open(
     OUTDIR / "run_manifest.json",
     "w",
 ) as handle:
-
     json.dump(
         run_manifest,
         handle,
@@ -1090,9 +983,13 @@ milo.make_nhoods(mdata, prop=args.nhood_prop)
 print("Counting neighbourhoods...")
 milo.count_nhoods(mdata, sample_col="sample")
 
+nhood_sizes = np.asarray(nhoods.sum(axis=0)).ravel()
 print()
 print("Neighbourhoods:")
-print(mdata.mod["milo"].var['Nhood_size'].describe())
+print(
+    pd.Series(nhood_sizes)
+    .describe()
+)
 print()
 
 
@@ -1120,16 +1017,39 @@ milo.annotate_nhoods(mdata, anno_col=args.annotation)
 milo_results = (mdata.mod["milo"].var.copy())
 milo_results.index.name = ("neighborhood_id")
 milo_results.reset_index(inplace=True)
+milo_results["Nhood_size"] = nhood_sizes
+
+milo_results.to_csv(
+    NHOOD_DIR /
+    "all_neighborhoods.csv",
+    index=False,
+)
 
 
 print()
-print("DA summary")
+print("Neighbourhood summary")
+
 print(
-    milo_results["SpatialFDR"]
+    pd.Series(
+        np.asarray(
+            mdata["rna"]
+            .obsm["nhoods"]
+            .sum(axis=0)
+        ).ravel()
+    ).describe()
+)
+
+print()
+
+print("P-value summary")
+
+print(
+    milo_results["PValue"]
     .describe()
 )
 
 print()
+
 print(
     milo_results[
         [
@@ -1140,30 +1060,27 @@ print(
         ]
     ]
     .sort_values(
-        "SpatialFDR"
+        "PValue"
     )
     .head(20)
 )
 
-print()
-print(
-    milo_results["PValue"]
-    .describe()
-)
 
 print()
+
+print("Neighbourhood size - P-value summary")
+
 print(
-    milo_results["PValue"]
-    .sort_values()
-    .head(20)
+    milo_results
+    .groupby(
+        pd.qcut(
+            milo_results["Nhood_size"],
+            10
+        )
+    )["PValue"]
+    .median()
 )
 
-
-milo_results.to_csv(
-    NHOOD_DIR /
-    "all_neighborhoods.csv",
-    index=False,
-)
 
 significant_nhoods = (
     milo_results[
