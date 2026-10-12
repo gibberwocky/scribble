@@ -2199,11 +2199,6 @@ sample_design_cols = [
 
 for col in sorted(
     REQUIRED_MODEL_COLUMNS
-    |
-    {
-        "donor",
-        "cell_line",
-    }
 ):
 
     if (
@@ -2225,6 +2220,7 @@ sample_design = (
     )
 )
 
+
 print(
     sample_design.to_string(
         index=False
@@ -2242,15 +2238,13 @@ sample_design.to_csv(
 # Validate sample-level metadata
 # --------------------------------------------------
 
-metadata_cols = sorted(
+metadata_cols = [
+    "sample",
+] + sorted(
     REQUIRED_MODEL_COLUMNS
-    |
-    {
-        "sample",
-        "donor",
-        "cell_line",
-    }
+    - {"sample"}
 )
+
 
 for col in metadata_cols:
 
