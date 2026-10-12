@@ -983,6 +983,7 @@ milo.make_nhoods(mdata, prop=args.nhood_prop)
 print("Counting neighbourhoods...")
 milo.count_nhoods(mdata, sample_col="sample")
 
+nhoods = mdata["rna"].obsm["nhoods"]
 nhood_sizes = np.asarray(nhoods.sum(axis=0)).ravel()
 print()
 print("Neighbourhoods:")
