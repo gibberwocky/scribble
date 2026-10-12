@@ -851,7 +851,7 @@ rank = np.linalg.matrix_rank(
     design_matrix.values
 )
 
-if rank < design_matrix.shape[1\]:
+if rank < design_matrix.shape[1]:
     raise ValueError(
         "Design matrix is not full rank.\n"
         f"Rank: {rank}\n"
