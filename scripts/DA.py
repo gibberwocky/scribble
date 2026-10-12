@@ -1090,6 +1090,22 @@ milo.make_nhoods(mdata, prop=args.nhood_prop)
 print("Counting neighbourhoods...")
 milo.count_nhoods(mdata, sample_col="sample")
 
+print(
+    "Neighbourhoods:",
+    mdata.mod["milo"].n_vars
+)
+
+print()
+
+print(
+    mdata.mod["milo"].var[
+        "Nhood_size"
+    ].describe()
+)
+
+print()
+
+
 print("Running DA...")
 print()
 print("Milo design:")
@@ -1137,6 +1153,20 @@ print(
     )
     .head(20)
 )
+
+print()
+print(
+    milo_results["PValue"]
+    .describe()
+)
+
+print()
+print(
+    milo_results["PValue"]
+    .sort_values()
+    .head(20)
+)
+
 
 milo_results.to_csv(
     NHOOD_DIR /
