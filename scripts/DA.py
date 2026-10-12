@@ -53,10 +53,15 @@ def plot_da_volcano(
     milo_results,
     outpath,
     fdr_threshold=0.05,
+    nominal_fdr_threshold=0.25,
     min_abs_logFC=0.5,
 ):
     """
-    Volcano-style overview of neighbourhood DA.
+    Volcano plot showing:
+
+      grey   = not nominal
+      orange = nominal
+      red    = significant
     """
 
     df = milo_results.copy()
@@ -72,9 +77,35 @@ def plot_da_volcano(
     )
 
     significant = (
-        (df["SpatialFDR"] < fdr_threshold)
+        (
+            df["SpatialFDR"]
+            < fdr_threshold
+        )
         &
-        (df["logFC"].abs() >= min_abs_logFC)
+        (
+            df["logFC"]
+            .abs()
+            >= min_abs_logFC
+        )
+    )
+
+    nominal = (
+        (
+            df["SpatialFDR"]
+            < nominal_fdr_threshold
+        )
+        &
+        (
+            df["logFC"]
+            .abs()
+            >= min_abs_logFC
+        )
+        &
+        (~significant)
+    )
+
+    background = (
+        ~(significant | nominal)
     )
 
     fig, ax = plt.subplots(
@@ -82,36 +113,94 @@ def plot_da_volcano(
     )
 
     ax.scatter(
-        df.loc[~significant, "logFC"],
-        df.loc[~significant, "minus_log10_SpatialFDR"],
+        df.loc[
+            background,
+            "logFC",
+        ],
+        df.loc[
+            background,
+            "minus_log10_SpatialFDR",
+        ],
         s=8,
         alpha=0.3,
+        color="lightgrey",
+        label=(
+            f"FDR ≥ "
+            f"{nominal_fdr_threshold}"
+        ),
         rasterized=True,
     )
 
     ax.scatter(
-        df.loc[significant, "logFC"],
-        df.loc[significant, "minus_log10_SpatialFDR"],
-        s=10,
+        df.loc[
+            nominal,
+            "logFC",
+        ],
+        df.loc[
+            nominal,
+            "minus_log10_SpatialFDR",
+        ],
+        s=12,
         alpha=0.8,
+        color="orange",
+        label=(
+            f"Nominal "
+            f"(FDR < "
+            f"{nominal_fdr_threshold})"
+        ),
+        rasterized=True,
+    )
+
+    ax.scatter(
+        df.loc[
+            significant,
+            "logFC",
+        ],
+        df.loc[
+            significant,
+            "minus_log10_SpatialFDR",
+        ],
+        s=18,
+        alpha=0.9,
+        color="red",
+        label=(
+            f"Significant "
+            f"(FDR < "
+            f"{fdr_threshold})"
+        ),
         rasterized=True,
     )
 
     ax.axvline(
         min_abs_logFC,
         linestyle="--",
+        color="black",
     )
 
     ax.axvline(
         -min_abs_logFC,
         linestyle="--",
+        color="black",
     )
 
+    # Significant threshold
     ax.axhline(
         -np.log10(
             fdr_threshold
         ),
         linestyle="--",
+        color="red",
+        linewidth=1,
+    )
+
+    # Nominal threshold
+    ax.axhline(
+        -np.log10(
+            nominal_fdr_threshold
+        ),
+        linestyle=":",
+        color="orange",
+        linewidth=1,
     )
 
     ax.set_xlabel(
@@ -125,6 +214,8 @@ def plot_da_volcano(
     ax.set_title(
         "Milo differential abundance"
     )
+
+    ax.legend()
 
     fig.tight_layout()
 
@@ -166,19 +257,41 @@ def plot_nhood_graph(
 def plot_celltype_summary(
     cell_type_summary,
     outpath,
+    positive_col,
+    negative_col,
+    title,
+    xlabel,
 ):
     """
-    Significant positive and negative
-    neighbourhood counts per annotation.
+    Horizontal barplot of positive and negative
+    DA neighbourhood counts per annotation.
+
+    positive_col:
+        column containing positive counts
+
+    negative_col:
+        column containing negative counts
     """
 
+    plot_df = cell_type_summary.copy()
+
+    total = (
+        plot_df[positive_col]
+        +
+        plot_df[negative_col]
+    )
+
     plot_df = (
-        cell_type_summary
+        plot_df.assign(
+            total=total
+        )
         .sort_values(
-            "n_significant",
+            "total",
             ascending=False,
         )
-        .copy()
+        .drop(
+            columns="total"
+        )
     )
 
     if plot_df.empty:
@@ -193,25 +306,34 @@ def plot_celltype_summary(
         figsize=(8, fig_height)
     )
 
+    y = plot_df.iloc[::-1]
+
     ax.barh(
-        plot_df.iloc[::-1]["nhood_annotation"],
-        plot_df.iloc[::-1]["n_positive"],
-        label="Positive",
+        y["nhood_annotation"],
+        y[positive_col],
+        label=(
+            f"{CONTRAST_TEST}-higher"
+        ),
+        color="tab:red",
     )
 
     ax.barh(
-        plot_df.iloc[::-1]["nhood_annotation"],
-        -plot_df.iloc[::-1]["n_negative"],
-        label="Negative",
+        y["nhood_annotation"],
+        -y[negative_col],
+        label=(
+            f"{CONTRAST_REFERENCE}-higher"
+        ),
+        color="tab:blue",
     )
 
     ax.axvline(
         0,
+        color="black",
         linewidth=1,
     )
 
     ax.set_xlabel(
-        "Significant neighbourhoods"
+        xlabel
     )
 
     ax.set_ylabel(
@@ -219,7 +341,7 @@ def plot_celltype_summary(
     )
 
     ax.set_title(
-        "Differential abundance by annotation"
+        title
     )
 
     ax.legend()
@@ -297,6 +419,93 @@ def plot_annotation_logFC(
     plt.close(fig)
 
 
+def plot_annotation_median_logFC(
+    cell_type_summary,
+    outpath,
+):
+    """
+    Plot median neighbourhood logFC for each annotation.
+
+    Positive:
+        neighbourhoods enriched in TEST condition
+
+    Negative:
+        neighbourhoods depleted in TEST condition
+        (or enriched in REFERENCE condition)
+    """
+
+    plot_df = (
+        cell_type_summary
+        .sort_values(
+            "median_logFC",
+            ascending=True,
+        )
+        .copy()
+    )
+
+    if plot_df.empty:
+        return
+
+    plot_df["label"] = (
+        plot_df["nhood_annotation"]
+        + " (n="
+        + plot_df["n_neighborhoods"]
+            .astype(str)
+        + ")"
+    )
+
+    fig_height = max(
+        4,
+        0.35 * len(plot_df),
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(8, fig_height)
+    )
+
+    colors = np.where(
+        plot_df["median_logFC"] > 0,
+        "tab:red",
+        "tab:blue",
+    )
+
+    ax.barh(
+        plot_df["label"],
+        plot_df["median_logFC"],
+        color=colors,
+    )
+
+    ax.axvline(
+        0,
+        color="black",
+        linestyle="--",
+        linewidth=1,
+    )
+
+    ax.set_xlabel(
+        (
+            f"Median neighbourhood logFC "
+            f"({CONTRAST_TEST} vs "
+            f"{CONTRAST_REFERENCE})"
+        )
+    )
+
+    ax.set_ylabel("")
+
+    ax.set_title(
+        "Median neighbourhood abundance shift by annotation"
+    )
+
+    fig.tight_layout()
+
+    fig.savefig(
+        outpath,
+        dpi=300,
+        bbox_inches="tight",
+    )
+
+    plt.close(fig)
+
 # --------------------------------------------------
 # CLI parameters
 # --------------------------------------------------
@@ -335,6 +544,8 @@ parser.add_argument("--nhood_prop", type=float, default=0.1,
     help="Proportion of cells used as neighbourhood seeds.")
 parser.add_argument("--fdr_threshold", type=float, default=0.05,
     help="SpatialFDR threshold for significant neighbourhood exports.")
+parser.add_argument("--nominal_fdr_threshold", type=float, default=0.25,
+    help="Relaxed SpatialFDR threshold used for exploratory / nominal neighbourhood summaries.")
 parser.add_argument("--min_abs_logFC", type=float, default=0.5,
     help="Minimum absolute neighbourhood logFC for significant exports.")
 parser.add_argument("--random_seed", type=int, default=0,
@@ -420,6 +631,7 @@ run_manifest = {
     "n_neighbors": args.n_neighbors,
     "nhood_prop": args.nhood_prop,
     "fdr_threshold": args.fdr_threshold,
+    "nominal_fdr_threshold": args.nominal_fdr_threshold,
     "min_abs_logFC": args.min_abs_logFC,
     "random_seed": args.random_seed
 }
@@ -903,6 +1115,29 @@ milo_results = (mdata.mod["milo"].var.copy())
 milo_results.index.name = ("neighborhood_id")
 milo_results.reset_index(inplace=True)
 
+print()
+print("DA summary")
+print(
+    milo_results["SpatialFDR"]
+    .describe()
+)
+
+print()
+print(
+    milo_results[
+        [
+            "logFC",
+            "PValue",
+            "SpatialFDR",
+            "nhood_annotation",
+        ]
+    ]
+    .sort_values(
+        "SpatialFDR"
+    )
+    .head(20)
+)
+
 milo_results.to_csv(
     NHOOD_DIR /
     "all_neighborhoods.csv",
@@ -912,16 +1147,29 @@ milo_results.to_csv(
 significant_nhoods = (
     milo_results[
         (
-            milo_results[
-                "SpatialFDR"
-            ]
+            milo_results["SpatialFDR"]
             < args.fdr_threshold
         )
         &
         (
-            milo_results[
-                "logFC"
-            ].abs()
+            milo_results["logFC"]
+            .abs()
+            >= args.min_abs_logFC
+        )
+    ]
+    .copy()
+)
+
+nominal_nhoods = (
+    milo_results[
+        (
+            milo_results["SpatialFDR"]
+            < args.nominal_fdr_threshold
+        )
+        &
+        (
+            milo_results["logFC"]
+            .abs()
             >= args.min_abs_logFC
         )
     ]
@@ -931,6 +1179,60 @@ significant_nhoods = (
 significant_nhoods.to_csv(
     NHOOD_DIR /
     "significant_neighborhoods.csv",
+    index=False,
+)
+
+nominal_nhoods.to_csv(
+    NHOOD_DIR /
+    "nominal_neighborhoods.csv",
+    index=False,
+)
+
+significant_positive = (
+    significant_nhoods[
+        significant_nhoods["logFC"] > 0
+    ]
+)
+
+significant_negative = (
+    significant_nhoods[
+        significant_nhoods["logFC"] < 0
+    ]
+)
+
+nominal_positive = (
+    nominal_nhoods[
+        nominal_nhoods["logFC"] > 0
+    ]
+)
+
+nominal_negative = (
+    nominal_nhoods[
+        nominal_nhoods["logFC"] < 0
+    ]
+)
+
+significant_positive.to_csv(
+    NHOOD_DIR /
+    f"significant_{safe_filename(CONTRAST_TEST)}_up.csv",
+    index=False,
+)
+
+significant_negative.to_csv(
+    NHOOD_DIR /
+    f"significant_{safe_filename(CONTRAST_TEST)}_down.csv",
+    index=False,
+)
+
+nominal_positive.to_csv(
+    NHOOD_DIR /
+    f"nominal_{safe_filename(CONTRAST_TEST)}_up.csv",
+    index=False,
+)
+
+nominal_negative.to_csv(
+    NHOOD_DIR /
+    f"nominal_{safe_filename(CONTRAST_TEST)}_down.csv",
     index=False,
 )
 
@@ -971,7 +1273,7 @@ cell_type_summary = (
             ).sum(),
         ),
 
-        n_positive=(
+        n_significant_positive=(
             "logFC",
             lambda x:
             (
@@ -987,7 +1289,7 @@ cell_type_summary = (
             ).sum(),
         ),
 
-        n_negative=(
+        n_significant_negative=(
             "logFC",
             lambda x:
             (
@@ -999,6 +1301,46 @@ cell_type_summary = (
                         "SpatialFDR"
                     ]
                     < args.fdr_threshold
+                )
+            ).sum(),
+        ),
+
+        n_nominal=(
+            "SpatialFDR",
+            lambda x:
+            (
+                x < args.nominal_fdr_threshold
+            ).sum(),
+        ),
+
+        n_nominal_positive=(
+            "logFC",
+            lambda x:
+            (
+                (x > 0)
+                &
+                (
+                    milo_results.loc[
+                        x.index,
+                        "SpatialFDR"
+                    ]
+                    < args.nominal_fdr_threshold
+                )
+            ).sum(),
+        ),
+
+        n_nominal_negative=(
+            "logFC",
+            lambda x:
+            (
+                (x < 0)
+                &
+                (
+                    milo_results.loc[
+                        x.index,
+                        "SpatialFDR"
+                    ]
+                    < args.nominal_fdr_threshold
                 )
             ).sum(),
         ),
@@ -1067,6 +1409,7 @@ plot_da_volcano(
         "DA_volcano.png"
     ),
     fdr_threshold=args.fdr_threshold,
+    nominal_fdr_threshold=args.nominal_fdr_threshold,
     min_abs_logFC=args.min_abs_logFC,
 )
 
@@ -1085,7 +1428,33 @@ plot_celltype_summary(
     cell_type_summary=cell_type_summary,
     outpath=(
         PLOTS_DIR /
-        "celltype_summary.png"
+        "celltype_summary_significant.png"
+    ),
+    positive_col="n_positive",
+    negative_col="n_negative",
+    title=(
+        "Significant differential abundance "
+        "by annotation"
+    ),
+    xlabel=(
+        "Significant neighbourhoods"
+    ),
+)
+
+plot_celltype_summary(
+    cell_type_summary=cell_type_summary,
+    outpath=(
+        PLOTS_DIR /
+        "celltype_summary_nominal.png"
+    ),
+    positive_col="n_nominal_positive",
+    negative_col="n_nominal_negative",
+    title=(
+        "Nominal differential abundance "
+        "by annotation"
+    ),
+    xlabel=(
+        "Nominal neighbourhoods"
     ),
 )
 
@@ -1098,6 +1467,13 @@ plot_annotation_logFC(
 )
 
 
+plot_annotation_median_logFC(
+    cell_type_summary=cell_type_summary,
+    outpath=(
+        PLOTS_DIR /
+        "annotation_median_logFC.png"
+    ),
+)
 
 # --------------------------------------------------
 # Update manifest
