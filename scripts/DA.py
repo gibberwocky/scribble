@@ -446,13 +446,13 @@ def plot_annotation_median_logFC(
     if plot_df.empty:
         return
 
-    plot_df["label"] = (
-        plot_df["nhood_annotation"]
-        + " (n="
-        + plot_df["n_neighborhoods"]
-            .astype(str)
-        + ")"
-    )
+    plot_df["label"] = [
+        f"{annotation} (n={n})"
+        for annotation, n in zip(
+            plot_df["nhood_annotation"].astype(str),
+            plot_df["n_neighborhoods"],
+        )
+    ]
 
     fig_height = max(
         4,
