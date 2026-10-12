@@ -1430,8 +1430,8 @@ plot_celltype_summary(
         PLOTS_DIR /
         "celltype_summary_significant.png"
     ),
-    positive_col="n_positive",
-    negative_col="n_negative",
+    positive_col="n_significant_positive",
+    negative_col="n_significant_negative",
     title=(
         "Significant differential abundance "
         "by annotation"
