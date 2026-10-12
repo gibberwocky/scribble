@@ -3,6 +3,7 @@
 import argparse
 import traceback
 from pathlib import Path
+import re
 import scanpy as sc
 import pertpy as pt
 import pandas as pd
@@ -10,7 +11,7 @@ import patsy
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+import json
 
 def safe_filename(value):
     value = str(value).strip()
