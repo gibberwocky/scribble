@@ -1090,21 +1090,6 @@ milo.make_nhoods(mdata, prop=args.nhood_prop)
 print("Counting neighbourhoods...")
 milo.count_nhoods(mdata, sample_col="sample")
 
-print(
-    "Neighbourhoods:",
-    mdata.mod["milo"].n_vars
-)
-
-print()
-
-print(
-    mdata.mod["milo"].var[
-        "Nhood_size"
-    ].describe()
-)
-
-print()
-
 
 print("Running DA...")
 print()
@@ -1130,6 +1115,14 @@ milo.annotate_nhoods(mdata, anno_col=args.annotation)
 milo_results = (mdata.mod["milo"].var.copy())
 milo_results.index.name = ("neighborhood_id")
 milo_results.reset_index(inplace=True)
+
+
+print("Neighbourhoods:")
+print(milo_results['Nhood_size'].describe())
+
+print()
+
+
 
 print()
 print("DA summary")
