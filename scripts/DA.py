@@ -461,10 +461,6 @@ parser.add_argument("--embedding", required=True,
 )
 parser.add_argument("--basis", default="X_umap",
     help="Embedding used for Milo graph visualisation.")
-parser.add_argument("--unrefined", action="store_true",
-    help="Disable Milo's refined = True that collapses overlapping areas.")
-parser.add_argument("--refinement_scheme", default="graph",
-    help="Geometric refinement scheme used by Milo")
 parser.add_argument("--npcs", type=int, default=30,
     help="Number of dimensions for Scanpy graph construction.")
 parser.add_argument("--neighbors", type=int, default=30,
@@ -558,8 +554,6 @@ run_manifest = {
     "neighbors": args.neighbors,
     "npcs": args.npcs,
     "nhood_prop": args.nhood_prop,
-    "refinement_scheme": args.refinement_scheme,
-    "unrefined": args.unrefined,
     "fdr_threshold": args.fdr_threshold,
     "nominal_fdr_threshold": args.nominal_fdr_threshold,
     "min_abs_logFC": args.min_abs_logFC,
@@ -990,12 +984,7 @@ milo = pt.tl.Milo()
 mdata = milo.load(adata_da)
 
 print("Creating neighbourhoods...")
-milo.make_nhoods(mdata,
-    prop=args.nhood_prop,
-    k=args.neighbors,
-    d=args.npcs,
-    refined = args.unrefined,
-    refinement_scheme = args.refinement_scheme)
+milo.make_nhoods(mdata, prop=args.nhood_prop)
 
 print("Counting neighbourhoods...")
 milo.count_nhoods(mdata, sample_col="sample")
@@ -1044,6 +1033,7 @@ milo_results.to_csv(
 )
 
 
+# Rule of thumb: want negihbourhood size to be 5*n_samples.
 print()
 print("Neighbourhood summary")
 
