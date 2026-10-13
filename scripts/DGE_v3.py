@@ -919,7 +919,7 @@ def run_edger(
         f"""
         dge <- edgeR::DGEList(counts)
 
-        dge <- edgeR::calcNormFactors(
+        dge <- edgeR::normLibSizes(
             dge
         )
 
@@ -1327,6 +1327,8 @@ def generate_edger_inspection(
             qlf=qlf,
         )
     )
+    print("\nEDGE R FIT NAMES")
+    print(list(fit.names))
 
     model_diagnostics = (
         add_model_percentages(
