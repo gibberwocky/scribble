@@ -714,9 +714,18 @@ def run_pydeseq2(
     Differential expression with PyDESeq2.
     """
 
-    metadata = validate_model_inputs(
-        counts,
-        metadata,
+    metadata = validate_model_inputs(counts, metadata)
+    metadata[
+        CONTRAST_VARIABLE
+    ] = pd.Categorical(
+        metadata[
+            CONTRAST_VARIABLE
+        ],
+        categories=[
+            CONTRAST_REFERENCE,
+            CONTRAST_TEST,
+        ],
+        ordered=True,
     )
 
     inference = DefaultInference(
@@ -872,6 +881,18 @@ def run_edger(
     """
 
     metadata = validate_model_inputs(pb, meta_pb)
+    metadata[
+        CONTRAST_VARIABLE
+    ] = pd.Categorical(
+        metadata[
+            CONTRAST_VARIABLE
+        ],
+        categories=[
+            CONTRAST_REFERENCE,
+            CONTRAST_TEST,
+        ],
+        ordered=True,
+    )
 
     edgeR = importr("edgeR")
 
