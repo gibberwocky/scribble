@@ -64,6 +64,9 @@ Returns:
           size_factors.png                            Top-panel pseudobulk library size, bottom-panel PyDESeq2 size factors where dashed line indicates size factor 1
 """
 
+import os, sys
+os.environ['R_HOME'] = sys.exec_prefix+"/lib/R/"
+
 import argparse
 import traceback
 from pathlib import Path
