@@ -461,7 +461,13 @@ parser.add_argument("--embedding", required=True,
 )
 parser.add_argument("--basis", default="X_umap",
     help="Embedding used for Milo graph visualisation.")
-parser.add_argument("--n_neighbors", type=int, default=30,
+parser.add_argument("--unrefined", action="store_true",
+    help="Disable Milo's refined = True that collapses overlapping areas.")
+parser.add_argument("--refinement_scheme", default="graph",
+    help="Geometric refinement scheme used by Milo")
+parser.add_argument("--npcs", type=int, default=30,
+    help="Number of dimensions for Scanpy graph construction.")
+parser.add_argument("--neighbors", type=int, default=30,
     help="Number of neighbours for Scanpy graph construction.")
 parser.add_argument("--nhood_prop", type=float, default=0.1,
     help="Proportion of cells used as neighbourhood seeds.")
@@ -549,8 +555,11 @@ run_manifest = {
     "solver": args.solver,
     "embedding": args.embedding,
     "basis": args.basis,
-    "n_neighbors": args.n_neighbors,
+    "neighbors": args.neighbors,
+    "npcs": args.npcs,
     "nhood_prop": args.nhood_prop,
+    "refinement_scheme": args.refinement_scheme,
+    "unrefined": args.unrefined,
     "fdr_threshold": args.fdr_threshold,
     "nominal_fdr_threshold": args.nominal_fdr_threshold,
     "min_abs_logFC": args.min_abs_logFC,
@@ -969,7 +978,10 @@ if rank < design_matrix.shape[1]:
 # --------------------------------------------------
 # Build neighbour graph
 # --------------------------------------------------
-sc.pp.neighbors(adata_da, use_rep=args.embedding)
+sc.pp.neighbors(adata_da,
+    n_pcs=args.npcs,
+    n_neighbors=args.neighbors,
+    use_rep=args.embedding)
 
 # --------------------------------------------------
 # Milo
@@ -978,7 +990,12 @@ milo = pt.tl.Milo()
 mdata = milo.load(adata_da)
 
 print("Creating neighbourhoods...")
-milo.make_nhoods(mdata, prop=args.nhood_prop)
+milo.make_nhoods(mdata,
+    prop=args.nhood_prop,
+    k=args.neighbors,
+    d=args.npcs,
+    refined = args.unrefined,
+    refinement_scheme = args.refinement_scheme)
 
 print("Counting neighbourhoods...")
 milo.count_nhoods(mdata, sample_col="sample")
