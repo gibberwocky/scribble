@@ -83,10 +83,11 @@ from pydeseq2.dds import DeseqDataSet
 from pydeseq2.ds import DeseqStats
 from pydeseq2.default_inference import DefaultInference
 import json
+import rpy2.robjects as ro
+from rpy2.robjects.packages import importr
+from rpy2.robjects.conversion import localconverter
 from rpy2.robjects import pandas2ri
 from rpy2.robjects import Formula
-import rpy2.robjects as ro
-from rpy2.robjects.conversion import localconverter
 
 def safe_filename(value):
     """Convert a string into a filesystem-safe filename component."""
@@ -872,7 +873,7 @@ def run_edger(
 
     metadata = validate_model_inputs(pb, meta_pb)
 
-    edgeR = ro.packages.importr("edgeR")
+    edgeR = importr("edgeR")
 
 
     with localconverter(
