@@ -137,7 +137,7 @@ def plot_da_volcano(
     milo_results,
     outpath,
     fdr_threshold=0.05,
-    nominal_fdr_threshold=0.25,
+    nominal_p_threshold=0.01,
     min_abs_logFC=0.5,
 ):
     """
@@ -147,10 +147,10 @@ def plot_da_volcano(
       red    = significant
     """
     df = milo_results.copy()
-    df["minus_log10_SpatialFDR"] = (
+    df["minus_log10_PValue"] = (
         -np.log10(
             np.clip(
-                df["SpatialFDR"],
+                df["PValue"],
                 1e-300,
                 None,
             )
@@ -170,8 +170,8 @@ def plot_da_volcano(
     )
     nominal = (
         (
-            df["SpatialFDR"]
-            < nominal_fdr_threshold
+            df["PValue"]
+            < nominal_p_threshold
         )
         &
         (
@@ -195,14 +195,14 @@ def plot_da_volcano(
         ],
         df.loc[
             background,
-            "minus_log10_SpatialFDR",
+            "minus_log10_PValue",
         ],
         s=8,
         alpha=0.3,
         color="lightgrey",
         label=(
-            f"FDR ≥ "
-            f"{nominal_fdr_threshold}"
+            f"P ≥ "
+            f"{nominal_p_threshold}"
         ),
         rasterized=True,
     )
@@ -213,15 +213,15 @@ def plot_da_volcano(
         ],
         df.loc[
             nominal,
-            "minus_log10_SpatialFDR",
+            "minus_log10_PValue",
         ],
         s=12,
         alpha=0.8,
         color="orange",
         label=(
             f"Nominal "
-            f"(FDR < "
-            f"{nominal_fdr_threshold})"
+            f"(P < "
+            f"{nominal_p_threshold})"
         ),
         rasterized=True,
     )
@@ -232,7 +232,7 @@ def plot_da_volcano(
         ],
         df.loc[
             significant,
-            "minus_log10_SpatialFDR",
+            "minus_log10_PValue",
         ],
         s=18,
         alpha=0.9,
@@ -266,7 +266,7 @@ def plot_da_volcano(
     # Nominal threshold
     ax.axhline(
         -np.log10(
-            nominal_fdr_threshold
+            nominal_p_threshold
         ),
         linestyle=":",
         color="orange",
@@ -276,7 +276,7 @@ def plot_da_volcano(
         "Neighborhood logFC"
     )
     ax.set_ylabel(
-        "-log10(SpatialFDR)"
+        "-log10(P)"
     )
     ax.set_title(
         "Milo differential abundance"
@@ -730,7 +730,7 @@ parser.add_argument("--nhood_prop", type=float, default=0.1,
     help="Proportion of cells used as neighbourhood seeds.")
 parser.add_argument("--fdr_threshold", type=float, default=0.05,
     help="SpatialFDR threshold for significant neighbourhood exports.")
-parser.add_argument("--nominal_fdr_threshold", type=float, default=0.25,
+parser.add_argument("--nominal_p_threshold", type=float, default=0.01,
     help="Relaxed SpatialFDR threshold used for exploratory / nominal neighbourhood summaries.")
 parser.add_argument("--min_abs_logFC", type=float, default=0.5,
     help="Minimum absolute neighbourhood logFC for significant exports.")
@@ -816,7 +816,7 @@ run_manifest = {
     "npcs": args.npcs,
     "nhood_prop": args.nhood_prop,
     "fdr_threshold": args.fdr_threshold,
-    "nominal_fdr_threshold": args.nominal_fdr_threshold,
+    "nominal_p_threshold": args.nominal_p_threshold,
     "min_abs_logFC": args.min_abs_logFC,
     "random_seed": args.random_seed
 }
@@ -986,25 +986,6 @@ sample_counts = (
 )
 file = (OUTDIR / f"{Path(args.input_file).stem}_{args.annotation}_counts.csv")
 sample_counts.to_csv(file)
-
-
-sample_metadata = (
-    adata_da.obs[
-        [
-            "sample",
-            CONTRAST_VARIABLE,
-            *sorted(FORMULA_VARIABLES),
-        ]
-    ]
-    .drop_duplicates()
-    .sort_values("sample")
-)
-
-sample_metadata.to_csv(
-    INSPECTION_DIR /
-    "sample_metadata.csv",
-    index=False,
-)
 
 
 
@@ -1397,8 +1378,8 @@ significant_nhoods = (
 nominal_nhoods = (
     milo_results[
         (
-            milo_results["SpatialFDR"]
-            < args.nominal_fdr_threshold
+            milo_results["PValue"]
+            < args.nominal_p_threshold
         )
         &
         (
@@ -1540,10 +1521,10 @@ cell_type_summary = (
         ),
 
         n_nominal=(
-            "SpatialFDR",
+            "PValue",
             lambda x:
             (
-                x < args.nominal_fdr_threshold
+                x < args.nominal_p_threshold
             ).sum(),
         ),
 
@@ -1556,9 +1537,9 @@ cell_type_summary = (
                 (
                     milo_results.loc[
                         x.index,
-                        "SpatialFDR"
+                        "PValue"
                     ]
-                    < args.nominal_fdr_threshold
+                    < args.nominal_p_threshold
                 )
             ).sum(),
         ),
@@ -1572,9 +1553,9 @@ cell_type_summary = (
                 (
                     milo_results.loc[
                         x.index,
-                        "SpatialFDR"
+                        "PValue"
                     ]
-                    < args.nominal_fdr_threshold
+                    < args.nominal_p_threshold
                 )
             ).sum(),
         ),
@@ -1643,7 +1624,7 @@ plot_da_volcano(
         "DA_volcano.png"
     ),
     fdr_threshold=args.fdr_threshold,
-    nominal_fdr_threshold=args.nominal_fdr_threshold,
+    nominal_p_threshold=args.nominal_p_threshold,
     min_abs_logFC=args.min_abs_logFC,
 )
 
