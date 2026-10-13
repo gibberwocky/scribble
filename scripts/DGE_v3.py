@@ -724,8 +724,7 @@ def run_pydeseq2(
         categories=[
             CONTRAST_REFERENCE,
             CONTRAST_TEST,
-        ],
-        ordered=True,
+        ]
     )
 
     inference = DefaultInference(
@@ -890,8 +889,7 @@ def run_edger(
         categories=[
             CONTRAST_REFERENCE,
             CONTRAST_TEST,
-        ],
-        ordered=True,
+        ]
     )
 
     edgeR = importr("edgeR")
