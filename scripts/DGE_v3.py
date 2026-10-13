@@ -1233,13 +1233,45 @@ def calculate_edger_model_diagnostics(
     summary schema.
     """
 
-    dispersion = np.asarray(
-        fit.rx2(
-            "tagwise.dispersion"
-        )
-    )
+    print("\nEDGE R FIT NAMES")
+    print(list(fit.names))
 
-    n_genes = dispersion.size
+    try:
+        dispersion = np.asarray(
+            fit.rx2(
+                "tagwise.dispersion"
+            )
+        )
+
+        n_genes = dispersion.size
+
+        print(
+            "\nDISPERSION TYPE:",
+            type(dispersion)
+        )
+
+        print(
+            "DISPERSION SIZE:",
+            dispersion.size
+        )
+
+        print(
+            "FIRST 10 VALUES:"
+        )
+
+        print(
+            dispersion[:10]
+        )
+
+    except Exception as e:
+
+        print(
+            "FAILED TO EXTRACT DISPERSION"
+        )
+
+        print(e)
+
+        dispersion = np.array([])
 
     diagnostics = {
 
