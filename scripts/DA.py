@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-#
+
+import os, sys
+os.environ['R_HOME'] = sys.exec_prefix+"/lib/R/"
+
 import argparse
 import traceback
 from pathlib import Path
@@ -43,6 +46,92 @@ def get_formula_variables(formula):
         for token in tokens
         if token not in reserved
     }
+
+def summarize_annotation_pvalues(
+    milo_results,
+    outpath,
+):
+    """
+    Summarise enrichment of low-p
+    neighbourhoods by annotation.
+    """
+
+    summary = (
+        milo_results
+        .groupby(
+            "nhood_annotation",
+            observed=True,
+        )
+        .agg(
+            n_neighbourhoods=(
+                "PValue",
+                "size",
+            ),
+
+            n_p_lt_005=(
+                "PValue",
+                lambda x:
+                (
+                    x < 0.05
+                ).sum(),
+            ),
+
+            n_p_lt_010=(
+                "PValue",
+                lambda x:
+                (
+                    x < 0.10
+                ).sum(),
+            ),
+
+            median_pvalue=(
+                "PValue",
+                "median",
+            ),
+
+            median_logFC=(
+                "logFC",
+                "median",
+            ),
+
+            mean_logFC=(
+                "logFC",
+                "mean",
+            ),
+        )
+        .reset_index()
+    )
+
+    summary["pct_p_lt_005"] = (
+        100
+        * summary["n_p_lt_005"]
+        / summary["n_neighbourhoods"]
+    )
+
+    summary["pct_p_lt_010"] = (
+        100
+        * summary["n_p_lt_010"]
+        / summary["n_neighbourhoods"]
+    )
+
+    summary = (
+        summary
+        .sort_values(
+            [
+                "pct_p_lt_005",
+                "n_p_lt_005",
+            ],
+            ascending=False,
+        )
+    )
+
+    summary.to_csv(
+        outpath,
+        index=False,
+    )
+
+    return summary
+
 
 def plot_da_volcano(
     milo_results,
@@ -429,6 +518,178 @@ def plot_annotation_median_logFC(
     )
     plt.close(fig)
 
+
+def plot_pvalue_histogram(
+    milo_results,
+    outpath,
+    bins=50,
+):
+    """
+    Histogram of neighbourhood DA p-values.
+
+    Uniform distribution:
+        little evidence for DA.
+
+    Left-skew:
+        enrichment of low p-values.
+    """
+
+    fig, ax = plt.subplots(
+        figsize=(6, 5)
+    )
+
+    ax.hist(
+        milo_results["PValue"],
+        bins=bins,
+        edgecolor="black",
+    )
+
+    ax.set_xlabel(
+        "Neighbourhood P-value"
+    )
+
+    ax.set_ylabel(
+        "Count"
+    )
+
+    ax.set_title(
+        "Milo p-value distribution"
+    )
+
+    fig.tight_layout()
+
+    fig.savefig(
+        outpath,
+        dpi=300,
+    )
+
+    plt.close(fig)
+
+
+def plot_annotation_pvalue_enrichment(
+    annotation_summary,
+    outpath,
+):
+    """
+    Plot proportion of neighbourhoods
+    with P < 0.05 for each annotation.
+    """
+
+    plot_df = (
+        annotation_summary
+        .sort_values(
+            "pct_p_lt_005",
+            ascending=True,
+        )
+    )
+
+    fig_height = max(
+        4,
+        0.35 * len(plot_df),
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(8, fig_height)
+    )
+
+    ax.barh(
+        plot_df["nhood_annotation"],
+        plot_df["pct_p_lt_005"],
+    )
+
+    ax.set_xlabel(
+        "% neighbourhoods with P < 0.05"
+    )
+
+    ax.set_ylabel("")
+
+    ax.set_title(
+        "Low-p neighbourhood enrichment"
+    )
+
+    fig.tight_layout()
+
+    fig.savefig(
+        outpath,
+        dpi=300,
+    )
+
+    plt.close(fig)
+
+
+def plot_pvalue_qq(
+    milo_results,
+    outpath,
+):
+    """
+    QQ plot of observed vs expected
+    neighbourhood p-values.
+
+    Strong upward deviation:
+        enrichment of low p-values.
+    """
+
+    observed = np.sort(
+        milo_results["PValue"]
+        .dropna()
+        .values
+    )
+
+    n = len(observed)
+
+    expected = (
+        np.arange(
+            1,
+            n + 1,
+        )
+        / (n + 1)
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(6, 6)
+    )
+
+    ax.scatter(
+        -np.log10(expected),
+        -np.log10(observed),
+        s=8,
+        alpha=0.6,
+    )
+
+    max_val = max(
+        -np.log10(expected).max(),
+        -np.log10(observed).max(),
+    )
+
+    ax.plot(
+        [0, max_val],
+        [0, max_val],
+        linestyle="--",
+        color="black",
+    )
+
+    ax.set_xlabel(
+        "Expected -log10(P)"
+    )
+
+    ax.set_ylabel(
+        "Observed -log10(P)"
+    )
+
+    ax.set_title(
+        "Milo QQ plot"
+    )
+
+    fig.tight_layout()
+
+    fig.savefig(
+        outpath,
+        dpi=300,
+    )
+
+    plt.close(fig)
+
+
 # --------------------------------------------------
 # CLI parameters
 # --------------------------------------------------
@@ -663,7 +924,6 @@ adata_da = adata_da[
 # --------------------------------------------------
 # Validate contrast levels
 # --------------------------------------------------
-
 observed_contrast_levels = set(
     adata_da.obs[
         CONTRAST_VARIABLE
@@ -752,10 +1012,7 @@ sample_metadata.to_csv(
 # Verify metadata present for all samples
 # --------------------------------------------------
 
-sample_design_cols = [
-    "sample"
-]
-
+sample_design_cols = ["sample"]
 for col in sorted(
     REQUIRED_MODEL_COLUMNS
 ):
@@ -1032,6 +1289,14 @@ milo_results.to_csv(
     index=False,
 )
 
+annotation_p_summary = (
+    summarize_annotation_pvalues(
+        milo_results,
+        CELLTYPE_DIR
+        / "annotation_pvalue_summary.csv",
+    )
+)
+
 
 # Rule of thumb: want negihbourhood size to be 5*n_samples.
 print()
@@ -1054,6 +1319,29 @@ print("P-value summary")
 print(
     milo_results["PValue"]
     .describe()
+)
+
+print()
+
+print(
+    "P < 0.05:",
+    (
+        milo_results["PValue"] < 0.05
+    ).sum()
+)
+
+print(
+    "P < 0.10:",
+    (
+        milo_results["PValue"] < 0.10
+    ).sum()
+)
+
+print(
+    "P < 0.20:",
+    (
+        milo_results["PValue"] < 0.20
+    ).sum()
 )
 
 print()
@@ -1420,6 +1708,25 @@ plot_annotation_median_logFC(
         "annotation_median_logFC.png"
     ),
 )
+
+plot_pvalue_histogram(
+    milo_results,
+    PLOTS_DIR /
+    "pvalue_histogram.png",
+)
+
+plot_pvalue_qq(
+    milo_results,
+    PLOTS_DIR /
+    "pvalue_qq.png",
+)
+
+plot_annotation_pvalue_enrichment(
+    annotation_p_summary,
+    PLOTS_DIR /
+    "annotation_pvalue_enrichment.png",
+)
+
 
 # --------------------------------------------------
 # Update manifest
