@@ -22,6 +22,16 @@ def safe_filename(value):
     value = re.sub(r"_+", "_", value)
     return value.strip("_.")
 
+def checkpoint(name):
+    print(
+        f"CHECKPOINT: {name}",
+        flush=True,
+    )
+    with open(
+        OUTDIR / f"{name}.checkpoint",
+        "w",
+    ) as handle:
+        handle.write("done\n")
 
 def get_formula_variables(formula):
     """
@@ -730,7 +740,7 @@ parser.add_argument("--nhood_prop", type=float, default=0.1,
     help="Proportion of cells used as neighbourhood seeds.")
 parser.add_argument("--fdr_threshold", type=float, default=0.05,
     help="SpatialFDR threshold for significant neighbourhood exports.")
-parser.add_argument("--nominal_p_threshold", type=float, default=0.01,
+parser.add_argument("--nominal_p_threshold", type=float, default=0.001,
     help="Relaxed SpatialFDR threshold used for exploratory / nominal neighbourhood summaries.")
 parser.add_argument("--min_abs_logFC", type=float, default=0.5,
     help="Minimum absolute neighbourhood logFC for significant exports.")
@@ -835,6 +845,7 @@ with open(
 
 # Import adata
 adata = sc.read_h5ad(args.input_file)
+checkpoint("Data load complete")
 
 # Check samples requested are present
 if "sample" not in adata.obs.columns:
@@ -881,7 +892,7 @@ else:
     adata_da = (
         adata.copy()
     )
-
+checkpoint("Sample filtering complete")
 
 # --------------------------------------------------
 # Keep only requested contrast levels
@@ -977,6 +988,8 @@ if (
         "not found in adata.obs."
     )
 
+checkpoint("Contrast level validation complete")
+
 # Get sample cell counts
 sample_counts = (
     adata_da.obs
@@ -986,6 +999,7 @@ sample_counts = (
 )
 file = (OUTDIR / f"{Path(args.input_file).stem}_{args.annotation}_counts.csv")
 sample_counts.to_csv(file)
+
 
 
 
@@ -1154,7 +1168,7 @@ for col in sorted(
             f"{missing_samples}"
         )
 
-
+checkpoint("Metadata validation complete")
 
 # --------------------------------------------------
 # Update manifest
@@ -1205,7 +1219,7 @@ if rank < design_matrix.shape[1]:
         f"Columns: {design_matrix.shape[1]}"
     )
 
-
+checkpoint("Design matrix validation complete")
 
 # --------------------------------------------------
 # Build neighbour graph
@@ -1214,6 +1228,8 @@ sc.pp.neighbors(adata_da,
     n_pcs=args.npcs,
     n_neighbors=args.neighbors,
     use_rep=args.embedding)
+
+checkpoint("Neighbour graph construction complete")
 
 # --------------------------------------------------
 # Milo
@@ -1237,6 +1253,7 @@ print(
 )
 print()
 
+checkpoint("Neighbourhood definitions complete")
 
 print("Running DA...")
 print()
@@ -1263,6 +1280,8 @@ milo_results = (mdata.mod["milo"].var.copy())
 milo_results.index.name = ("neighborhood_id")
 milo_results.reset_index(inplace=True)
 milo_results["Nhood_size"] = nhood_sizes
+
+checkpoint("Milo run complete")
 
 milo_results.to_csv(
     NHOOD_DIR /
@@ -1605,8 +1624,8 @@ for annotation, sub in (
         index=False,
     )
 
-#mdata.write(OUTDIR / "milo_results.h5mu")
 
+checkpoint("Table generation complete")
 
 # --------------------------------------------------
 # Plots
@@ -1708,6 +1727,7 @@ plot_annotation_pvalue_enrichment(
     "annotation_pvalue_enrichment.png",
 )
 
+checkpoint("Plot generation complete")
 
 # --------------------------------------------------
 # Update manifest
@@ -1742,3 +1762,7 @@ with open(
         handle,
         indent=2,
     )
+
+checkpoint("Manifest generation complete")
+
+checkpoint("Analysis complete")
