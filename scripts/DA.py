@@ -16,6 +16,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import json
 from datetime import datetime
+import threading
+import atexit
+
+def exiting():
+    checkpoint("ATEXIT REACHED")
+
+atexit.register(exiting)
 
 def safe_filename(value):
     value = str(value).strip()
@@ -1763,6 +1770,22 @@ with open(
     )
 
 checkpoint("Manifest generation complete")
+
+checkpoint("Thread dump")
+for thread in threading.enumerate():
+    checkpoint(
+        f"{thread.name} "
+        f"daemon={thread.daemon} "
+        f"alive={thread.is_alive()}"
+    )
+
+checkpoint("Joining worker threads")
+for thread in threading.enumerate():
+    if thread is threading.main_thread():
+        continue
+    if not thread.daemon:
+        checkpoint(f"Joining {thread.name}")
+        thread.join(timeout=5)
 
 checkpoint("Analysis complete")
 sys.stdout.flush()
