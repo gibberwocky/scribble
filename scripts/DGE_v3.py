@@ -798,6 +798,59 @@ def format_pydeseq2_results(
     return de
 
 
+def assess_edger_qc(
+    diagnostics,
+):
+
+    flags = []
+
+    if (
+        diagnostics[
+            "median_bcv"
+        ]
+        > 0.5
+    ):
+        flags.append(
+            "HIGH_MEDIAN_BCV"
+        )
+
+    if (
+        diagnostics[
+            "max_bcv"
+        ]
+        > 2
+    ):
+        flags.append(
+            "EXTREME_BCV"
+        )
+
+    if (
+        diagnostics[
+            "pct_AveLogCPM_lt0"
+        ]
+        > 50
+    ):
+        flags.append(
+            "LOW_EXPRESSION"
+        )
+
+    if not flags:
+
+        review_status = "OK"
+
+    elif len(flags) == 1:
+
+        review_status = "CHECK"
+
+    else:
+
+        review_status = "REVIEW"
+
+    return (
+        review_status,
+        flags,
+    )
+
 def format_edger_results(
     de,
     counts,
@@ -826,20 +879,6 @@ def format_edger_results(
             f"{list(de.columns)}"
         )
 
-    print("\nEDGE R RESULT COLUMNS")
-    print(de.columns.tolist())
-
-    print("\nF SUMMARY")
-    print(de["F"].describe())
-
-    print(
-        de.loc[
-            de["F"].isna()
-            |
-            (de["F"] < 0),
-            ["F"]
-        ].head(20)
-    )
 
     valid_f = (
         pd.to_numeric(
@@ -851,6 +890,11 @@ def format_edger_results(
         np.sign(de["logFC"])
         *
         np.sqrt(valid_f.clip(lower=0))
+    )
+
+    de["stat"] = (
+        de["stat"]
+        .fillna(0)
     )
 
     de = (
@@ -1033,13 +1077,6 @@ def run_edger(
             )
         )
 
-    print(
-        "\nedgeR result columns:"
-    )
-
-    print(
-        results_df.columns.tolist()
-    )
 
     de = format_edger_results(results_df, pb)
     fit = ro.r("fit")
@@ -1229,159 +1266,10 @@ def prepare_edger_inspection_data(
         sample_info,
     )
 
-def calculate_edger_model_diagnostics(
-    dge,
-    fit,
-):
-    """
-    Generate edgeR model diagnostics.
 
-    Returns the same keys expected by the shared
-    inspection framework, while providing edgeR-
-    specific metrics where available.
-    """
-
-    # ------------------------------------------
-    # Dispersion estimates
-    # ------------------------------------------
-
-    try:
-
-        dispersion = np.asarray(
-            dge.rx2(
-                "tagwise.dispersion"
-            ),
-            dtype=float,
-        )
-
-        dispersion = dispersion[
-            np.isfinite(
-                dispersion
-            )
-        ]
-
-    except Exception:
-
-        dispersion = np.array(
-            [],
-            dtype=float,
-        )
-
-    # ------------------------------------------
-    # Gene count
-    # ------------------------------------------
-
-    if dispersion.size > 0:
-
-        n_genes = int(
-            dispersion.size
-        )
-
-    else:
-
-        try:
-
-            counts = np.asarray(
-                dge.rx2(
-                    "counts"
-                )
-            )
-
-            n_genes = int(
-                counts.shape[0]
-            )
-
-        except Exception:
-
-            n_genes = np.nan
-
-    # ------------------------------------------
-    # Dispersion diagnostics
-    # ------------------------------------------
-
-    if dispersion.size > 0:
-
-        dispersion_cutoff = np.quantile(
-            dispersion,
-            0.99,
-        )
-
-        n_dispersion_outliers = int(
-            np.sum(
-                dispersion
-                >
-                dispersion_cutoff
-            )
-        )
-
-        median_dispersion = float(
-            np.median(
-                dispersion
-            )
-        )
-
-        mean_dispersion = float(
-            np.mean(
-                dispersion
-            )
-        )
-
-        max_dispersion = float(
-            np.max(
-                dispersion
-            )
-        )
-
-    else:
-
-        n_dispersion_outliers = np.nan
-
-        median_dispersion = np.nan
-
-        mean_dispersion = np.nan
-
-        max_dispersion = np.nan
-
-    return {
-
-        # ----------------------------------
-        # Required by existing framework
-        # ----------------------------------
-
-        "n_genes": n_genes,
-
-        "n_dispersion_outliers":
-            n_dispersion_outliers,
-
-        "n_cooks_outlier_genes":
-            np.nan,
-
-        "n_lfc_not_converged":
-            np.nan,
-
-        "n_MAP_not_converged":
-            np.nan,
-
-        "n_genewise_not_converged":
-            np.nan,
-
-        # ----------------------------------
-        # edgeR-specific
-        # ----------------------------------
-
-        "median_dispersion":
-            median_dispersion,
-
-        "mean_dispersion":
-            mean_dispersion,
-
-        "max_dispersion":
-            max_dispersion,
-    }
 
 def generate_edger_inspection(
     dge,
-    fit,
     counts,
     meta_pb,
     cell_type,
@@ -1407,12 +1295,9 @@ def generate_edger_inspection(
 
     model_diagnostics = (
         calculate_edger_model_diagnostics(
-            dge=dge,
-            fit=fit,
+            dge=dge
         )
     )
-    print("\nEDGE R FIT NAMES")
-    print(list(fit.names))
 
     model_diagnostics = (
         add_model_percentages(
@@ -1587,11 +1472,18 @@ def generate_inspection(
     # Automated triage
     # --------------------------------------------------------------
 
-    review_status, flags = (
-        assess_qc(
-            model_diagnostics,
+    if method == "edger":
+        review_status, flags = (
+            assess_edger_qc(
+                model_diagnostics
+            )
         )
-    )
+    else:
+        review_status, flags = (
+            assess_qc(
+                model_diagnostics,
+            )
+        )
 
     # --------------------------------------------------------------
     # Report
@@ -1688,6 +1580,32 @@ def write_edger_diagnostics_report(
             "Maximum tagwise dispersion: "
             f"{model_diagnostics['max_dispersion']:.4f}"
         ),
+
+        (
+            "Median BCV: "
+            f"{model_diagnostics['median_bcv']:.4f}"
+        ),
+
+        (
+            "Mean BCV: "
+            f"{model_diagnostics['mean_bcv']:.4f}"
+        ),
+
+        (
+            "Maximum BCV: "
+            f"{model_diagnostics['max_bcv']:.4f}"
+        ),
+
+        (
+            "Median AveLogCPM: "
+            f"{model_diagnostics['median_AveLogCPM']:.3f}"
+        ),
+
+        (
+            "Genes with AveLogCPM < 0: "
+            f"{model_diagnostics['pct_AveLogCPM_lt0']:.2f}%"
+        ),
+
 
         "",
 
@@ -2139,6 +2057,175 @@ def calculate_library_metrics(sample_info):
     }
 
 
+def calculate_edger_model_diagnostics(
+    dge,
+):
+    """
+    Collect edgeR model diagnostics.
+
+    Returns a dictionary compatible with the
+    existing inspection framework while also
+    exposing edgeR-specific metrics.
+    """
+
+    # ------------------------------------------
+    # Tagwise dispersions
+    # ------------------------------------------
+
+    dispersion = np.asarray(
+        dge.rx2(
+            "tagwise.dispersion"
+        ),
+        dtype=float,
+    )
+
+    dispersion = dispersion[
+        np.isfinite(
+            dispersion
+        )
+        &
+        (
+            dispersion > 0
+        )
+    ]
+
+    if dispersion.size == 0:
+
+        raise ValueError(
+            "No valid tagwise dispersions "
+            "found in edgeR DGEList."
+        )
+
+    # ------------------------------------------
+    # Average logCPM
+    # ------------------------------------------
+
+    ave_log_cpm = np.asarray(
+        dge.rx2(
+            "AveLogCPM"
+        ),
+        dtype=float,
+    )
+
+    ave_log_cpm = ave_log_cpm[
+        np.isfinite(
+            ave_log_cpm
+        )
+    ]
+
+    # ------------------------------------------
+    # BCV
+    # ------------------------------------------
+
+    bcv = np.sqrt(
+        dispersion
+    )
+
+    # ------------------------------------------
+    # Diagnostics
+    # ------------------------------------------
+
+    diagnostics = {
+
+        # ----------------------------------
+        # Required by shared framework
+        # ----------------------------------
+
+        "n_genes":
+            int(
+                dispersion.size
+            ),
+
+        "n_dispersion_outliers":
+            int(
+                np.sum(
+                    dispersion
+                    >
+                    np.quantile(
+                        dispersion,
+                        0.99,
+                    )
+                )
+            ),
+
+        "n_cooks_outlier_genes":
+            np.nan,
+
+        "n_lfc_not_converged":
+            np.nan,
+
+        "n_MAP_not_converged":
+            np.nan,
+
+        "n_genewise_not_converged":
+            np.nan,
+
+        # ----------------------------------
+        # edgeR-specific
+        # ----------------------------------
+
+        "median_dispersion":
+            float(
+                np.median(
+                    dispersion
+                )
+            ),
+
+        "mean_dispersion":
+            float(
+                np.mean(
+                    dispersion
+                )
+            ),
+
+        "max_dispersion":
+            float(
+                np.max(
+                    dispersion
+                )
+            ),
+
+        "median_bcv":
+            float(
+                np.median(
+                    bcv
+                )
+            ),
+
+        "mean_bcv":
+            float(
+                np.mean(
+                    bcv
+                )
+            ),
+
+        "max_bcv":
+            float(
+                np.max(
+                    bcv
+                )
+            ),
+
+        "median_AveLogCPM":
+            float(
+                np.median(
+                    ave_log_cpm
+                )
+            ),
+
+        "pct_AveLogCPM_lt0":
+            float(
+                100
+                *
+                np.mean(
+                    ave_log_cpm < 0
+                )
+            ),
+    }
+
+    return diagnostics
+
+
 # ------------------------------------------------------------------
 # Dispersion
 # ------------------------------------------------------------------
@@ -2259,6 +2346,16 @@ def plot_edger_dispersion(
         )
     )
 
+    bcv = np.sqrt(
+        np.clip(
+            tagwise_dispersion[
+                valid
+            ],
+            a_min=0,
+            a_max=None,
+        )
+    )
+
     fig, ax = plt.subplots(
         figsize=(7, 6)
     )
@@ -2267,9 +2364,7 @@ def plot_edger_dispersion(
         ave_log_cpm[
             valid
         ],
-        tagwise_dispersion[
-            valid
-        ],
+        bcv,
         s=5,
         alpha=0.3,
     )
@@ -2283,12 +2378,12 @@ def plot_edger_dispersion(
     )
 
     ax.set_ylabel(
-        "Tagwise dispersion"
+        "Biological coefficient of variation"
     )
 
     ax.set_title(
         f"{cell_type}\n"
-        "edgeR dispersion estimates"
+        "edgeR BCV estimates"
     )
 
     fig.tight_layout()
@@ -2803,7 +2898,53 @@ def build_inspection_summary(
         "pct_genewise_not_converged": (
             model_diagnostics["pct_genewise_not_converged"]
         ),
+        "median_dispersion":
+            model_diagnostics.get(
+                "median_dispersion",
+                np.nan,
+            ),
 
+        "mean_dispersion":
+            model_diagnostics.get(
+                "mean_dispersion",
+                np.nan,
+            ),
+
+        "max_dispersion":
+            model_diagnostics.get(
+                "max_dispersion",
+                np.nan,
+            ),
+
+        "median_bcv":
+            model_diagnostics.get(
+                "median_bcv",
+                np.nan,
+            ),
+
+        "mean_bcv":
+            model_diagnostics.get(
+                "mean_bcv",
+                np.nan,
+            ),
+
+        "max_bcv":
+            model_diagnostics.get(
+                "max_bcv",
+                np.nan,
+            ),
+
+        "median_AveLogCPM":
+            model_diagnostics.get(
+                "median_AveLogCPM",
+                np.nan,
+            ),
+
+        "pct_AveLogCPM_lt0":
+            model_diagnostics.get(
+                "pct_AveLogCPM_lt0",
+                np.nan,
+            ),
         # Cook's descriptive context
         "worst_cooks_sample": (
             cooks_metrics["worst_cooks_sample"]
@@ -3424,7 +3565,6 @@ for cell_type in cell_types:
 
                 qc = generate_edger_inspection(
                     dge=dge,
-                    fit=fit,
                     counts=pb_filtered,
                     meta_pb=meta_pb,
                     cell_type=cell_type,
