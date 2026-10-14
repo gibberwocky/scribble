@@ -1799,6 +1799,7 @@ checkpoint(f"PID={os.getpid()}")
 checkpoint("Analysis complete")
 sys.stdout.flush()
 sys.stderr.flush()
-sys.exit(0)
+
+os._exit(0)
 
 #cat /proc/3720985/status | grep Threads
