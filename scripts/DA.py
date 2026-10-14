@@ -2,6 +2,10 @@
 
 import os, sys
 os.environ['R_HOME'] = sys.exec_prefix+"/lib/R/"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import argparse
 import traceback
@@ -809,6 +813,9 @@ CELLTYPE_DIR.mkdir(exist_ok=True, parents=True)
 PLOTS_DIR.mkdir(exist_ok=True, parents=True)
 INSPECTION_DIR.mkdir(parents=True, exist_ok=True)
 CHECKPOINT_FILE = (OUTDIR / "checkpoints.log")
+if CHECKPOINT_FILE.exists():
+    CHECKPOINT_FILE.unlink()
+
 
 # Run manifest
 run_manifest = {
@@ -1791,3 +1798,5 @@ checkpoint("Analysis complete")
 sys.stdout.flush()
 sys.stderr.flush()
 sys.exit(0)
+
+#cat /proc/3720985/status | grep Threads
