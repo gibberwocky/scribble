@@ -1794,6 +1794,8 @@ for thread in threading.enumerate():
         checkpoint(f"Joining {thread.name}")
         thread.join(timeout=5)
 
+checkpoint(f"PID={os.getpid()}")
+
 checkpoint("Analysis complete")
 sys.stdout.flush()
 sys.stderr.flush()
