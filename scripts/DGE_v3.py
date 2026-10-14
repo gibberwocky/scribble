@@ -87,7 +87,7 @@ import rpy2.robjects as ro
 from rpy2.robjects.packages import importr
 from rpy2.robjects.conversion import localconverter
 from rpy2.robjects import pandas2ri
-from rpy2.robjects import Formula
+
 
 def safe_filename(value):
     """Convert a string into a filesystem-safe filename component."""
@@ -769,32 +769,34 @@ def run_pydeseq2(
 
     return de, dds, ds
 
-def format_de_results(
+
+def format_pydeseq2_results(
     results,
 ):
     """
-    Standardise DE result table.
+    Convert PyDESeq2 output to the
+    common DE result schema used
+    throughout the pipeline.
     """
 
-    results = results.copy()
+    de = results.copy()
 
-    results.index.name = "gene"
+    de.index.name = "gene"
 
-    results = (
-        results
+    de = (
+        de
         .reset_index()
         .rename(
             columns={
                 "pvalue": "pval",
-                "PValue": "pval",
                 "padj": "FDR",
-                "FDR": "FDR",
-                "logFC": "log2FoldChange",
+                "stat": "stat",
             }
         )
     )
 
-    return results
+    return de
+
 
 def format_edger_results(
     de,
@@ -824,14 +826,31 @@ def format_edger_results(
             f"{list(de.columns)}"
         )
 
+    print("\nEDGE R RESULT COLUMNS")
+    print(de.columns.tolist())
+
+    print("\nF SUMMARY")
+    print(de["F"].describe())
+
+    print(
+        de.loc[
+            de["F"].isna()
+            |
+            (de["F"] < 0),
+            ["F"]
+        ].head(20)
+    )
+
+    valid_f = (
+        pd.to_numeric(
+            de["F"],
+            errors="coerce"
+        )
+    )
     de["stat"] = (
-        np.sign(
-            de["logFC"]
-        )
+        np.sign(de["logFC"])
         *
-        np.sqrt(
-            de["F"]
-        )
+        np.sqrt(valid_f.clip(lower=0))
     )
 
     de = (
@@ -891,9 +910,6 @@ def run_edger(
             CONTRAST_TEST,
         ]
     )
-
-    edgeR = importr("edgeR")
-
 
     with localconverter(
         ro.default_converter
@@ -1025,23 +1041,14 @@ def run_edger(
         results_df.columns.tolist()
     )
 
-    de = format_edger_results(
-        results_df,
-        pb,
-    )
-
-    fit = ro.r(
-        "fit"
-    )
-
-    qlf = ro.r(
-        "qlf"
-    )
+    de = format_edger_results(results_df, pb)
+    fit = ro.r("fit")
+    dge = ro.r("dge")
 
     return (
         de,
+        dge,
         fit,
-        qlf,
     )
 
 def make_gsea_ranking(de):
@@ -1121,8 +1128,7 @@ def prepare_deseq2_inspection_data(dds, meta_pb):
 
 
 def prepare_edger_inspection_data(
-    fit,
-    qlf,
+    dge,
     counts,
     meta_pb,
 ):
@@ -1155,12 +1161,12 @@ def prepare_edger_inspection_data(
     # ------------------------------------------
 
     norm_factors = np.asarray(
-        fit.rx2("samples")
+        dge.rx2("samples")
         .rx2("norm.factors")
     )
 
     lib_sizes = np.asarray(
-        fit.rx2("samples")
+        dge.rx2("samples")
         .rx2("lib.size")
     )
 
@@ -1224,111 +1230,158 @@ def prepare_edger_inspection_data(
     )
 
 def calculate_edger_model_diagnostics(
+    dge,
     fit,
-    qlf,
 ):
     """
-    Generate edgeR-compatible model
-    diagnostics matching the DESeq2
-    summary schema.
+    Generate edgeR model diagnostics.
+
+    Returns the same keys expected by the shared
+    inspection framework, while providing edgeR-
+    specific metrics where available.
     """
 
-    print("\nEDGE R FIT NAMES")
-    print(list(fit.names))
+    # ------------------------------------------
+    # Dispersion estimates
+    # ------------------------------------------
 
     try:
+
         dispersion = np.asarray(
-            fit.rx2(
+            dge.rx2(
                 "tagwise.dispersion"
+            ),
+            dtype=float,
+        )
+
+        dispersion = dispersion[
+            np.isfinite(
+                dispersion
             )
+        ]
+
+    except Exception:
+
+        dispersion = np.array(
+            [],
+            dtype=float,
         )
 
-        n_genes = dispersion.size
+    # ------------------------------------------
+    # Gene count
+    # ------------------------------------------
 
-        print(
-            "\nDISPERSION TYPE:",
-            type(dispersion)
-        )
+    if dispersion.size > 0:
 
-        print(
-            "DISPERSION SIZE:",
+        n_genes = int(
             dispersion.size
         )
 
-        print(
-            "FIRST 10 VALUES:"
+    else:
+
+        try:
+
+            counts = np.asarray(
+                dge.rx2(
+                    "counts"
+                )
+            )
+
+            n_genes = int(
+                counts.shape[0]
+            )
+
+        except Exception:
+
+            n_genes = np.nan
+
+    # ------------------------------------------
+    # Dispersion diagnostics
+    # ------------------------------------------
+
+    if dispersion.size > 0:
+
+        dispersion_cutoff = np.quantile(
+            dispersion,
+            0.99,
         )
 
-        print(
-            dispersion[:10]
+        n_dispersion_outliers = int(
+            np.sum(
+                dispersion
+                >
+                dispersion_cutoff
+            )
         )
 
-    except Exception as e:
-
-        print(
-            "FAILED TO EXTRACT DISPERSION"
+        median_dispersion = float(
+            np.median(
+                dispersion
+            )
         )
 
-        print(e)
+        mean_dispersion = float(
+            np.mean(
+                dispersion
+            )
+        )
 
-        dispersion = np.array([])
+        max_dispersion = float(
+            np.max(
+                dispersion
+            )
+        )
 
-    diagnostics = {
+    else:
+
+        n_dispersion_outliers = np.nan
+
+        median_dispersion = np.nan
+
+        mean_dispersion = np.nan
+
+        max_dispersion = np.nan
+
+    return {
 
         # ----------------------------------
-        # General
+        # Required by existing framework
         # ----------------------------------
 
         "n_genes": n_genes,
 
-        # ----------------------------------
-        # Dispersion
-        # ----------------------------------
+        "n_dispersion_outliers":
+            n_dispersion_outliers,
 
-        "n_dispersion_outliers": int(
-            np.sum(
-                dispersion >
-                np.quantile(
-                    dispersion,
-                    0.99,
-                )
-            )
-        ),
+        "n_cooks_outlier_genes":
+            np.nan,
 
-        # ----------------------------------
-        # Not available for edgeR
-        # ----------------------------------
+        "n_lfc_not_converged":
+            np.nan,
 
-        "n_cooks_outlier_genes": np.nan,
+        "n_MAP_not_converged":
+            np.nan,
 
-        "n_lfc_not_converged": np.nan,
-
-        "n_MAP_not_converged": np.nan,
-
-        "n_genewise_not_converged": np.nan,
+        "n_genewise_not_converged":
+            np.nan,
 
         # ----------------------------------
-        # Additional edgeR diagnostics
+        # edgeR-specific
         # ----------------------------------
 
-        "median_dispersion": float(
-            np.nanmedian(
-                dispersion
-            )
-        ),
+        "median_dispersion":
+            median_dispersion,
 
-        "max_dispersion": float(
-            np.nanmax(
-                dispersion
-            )
-        ),
+        "mean_dispersion":
+            mean_dispersion,
+
+        "max_dispersion":
+            max_dispersion,
     }
 
-    return diagnostics
-
 def generate_edger_inspection(
+    dge,
     fit,
-    qlf,
     counts,
     meta_pb,
     cell_type,
@@ -1347,16 +1400,15 @@ def generate_edger_inspection(
         cooks,
         sample_info,
     ) = prepare_edger_inspection_data(
-        fit=fit,
-        qlf=qlf,
+        dge=dge,
         counts=counts,
         meta_pb=meta_pb,
     )
 
     model_diagnostics = (
         calculate_edger_model_diagnostics(
+            dge=dge,
             fit=fit,
-            qlf=qlf,
         )
     )
     print("\nEDGE R FIT NAMES")
@@ -1379,7 +1431,7 @@ def generate_edger_inspection(
     )
 
     plot_edger_dispersion(
-        fit,
+        dge,
         cell_type,
         cell_dir,
     )
@@ -2172,7 +2224,7 @@ def plot_dispersion(
 
 
 def plot_edger_dispersion(
-    fit,
+    dge,
     cell_type,
     cell_dir,
 ):
@@ -2182,13 +2234,13 @@ def plot_edger_dispersion(
     """
 
     ave_log_cpm = np.asarray(
-        fit.rx2(
+        dge.rx2(
             "AveLogCPM"
         )
     )
 
     tagwise_dispersion = np.asarray(
-        fit.rx2(
+        dge.rx2(
             "tagwise.dispersion"
         )
     )
@@ -3338,12 +3390,12 @@ for cell_type in cell_types:
     inspection_status = "NOT_RUN"
     try:
         if args.method == "pydeseq2":
-            de, model_fit, model_stats = run_pydeseq2(
+            de, dds, ds = run_pydeseq2(
                 pb_filtered,
                 meta_pb,
             )
         elif args.method =="edger":
-            de, model_fit, model_stats = run_edger(
+            de, dge, fit = run_edger(
                 pb_filtered,
                 meta_pb,
             )
@@ -3362,7 +3414,7 @@ for cell_type in cell_types:
             if args.method == "pydeseq2":
 
                 qc = generate_deseq2_inspection(
-                    dds=model_fit,
+                    dds=dds,
                     meta_pb=meta_pb,
                     cell_type=cell_type,
                     method=args.method
@@ -3371,8 +3423,8 @@ for cell_type in cell_types:
             elif args.method == "edger":
 
                 qc = generate_edger_inspection(
-                    fit=model_fit,
-                    qlf=model_stats,
+                    dge=dge,
+                    fit=fit,
                     counts=pb_filtered,
                     meta_pb=meta_pb,
                     cell_type=cell_type,
