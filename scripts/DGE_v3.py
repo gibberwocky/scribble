@@ -819,9 +819,19 @@ def assess_edger_qc(
 
     if (
         diagnostics[
+            "pct_dispersion_outliers"
+        ]
+        > 5
+    ):
+        flags.append(
+            "DISPERSION_OUTLIERS"
+        )
+
+    if (
+        diagnostics[
             "median_bcv"
         ]
-        > 0.5
+        > 0.3
     ):
         flags.append(
             "HIGH_MEDIAN_BCV"
@@ -831,7 +841,7 @@ def assess_edger_qc(
         diagnostics[
             "max_bcv"
         ]
-        > 2
+        > 1.25
     ):
         flags.append(
             "EXTREME_BCV"
@@ -841,7 +851,7 @@ def assess_edger_qc(
         diagnostics[
             "pct_AveLogCPM_lt0"
         ]
-        > 50
+        > 25
     ):
         flags.append(
             "LOW_EXPRESSION"
@@ -2134,6 +2144,30 @@ def calculate_edger_model_diagnostics(
         dispersion
     )
 
+    median_dispersion = np.median(
+        dispersion
+    )
+
+    mad_dispersion = np.median(
+        np.abs(
+            dispersion -
+            median_dispersion
+        )
+    )
+
+    dispersion_outlier_threshold = (
+        median_dispersion
+        +
+        5 * mad_dispersion
+    )
+
+    n_dispersion_outliers = int(
+        np.sum(
+            dispersion >
+            dispersion_outlier_threshold
+        )
+    )
+
     # ------------------------------------------
     # Diagnostics
     # ------------------------------------------
@@ -2150,16 +2184,7 @@ def calculate_edger_model_diagnostics(
             ),
 
         "n_dispersion_outliers":
-            int(
-                np.sum(
-                    dispersion
-                    >
-                    np.quantile(
-                        dispersion,
-                        0.99,
-                    )
-                )
-            ),
+            n_dispersion_outliers,
 
         "n_cooks_outlier_genes":
             np.nan,
@@ -2179,9 +2204,7 @@ def calculate_edger_model_diagnostics(
 
         "median_dispersion":
             float(
-                np.median(
-                    dispersion
-                )
+                median_dispersion
             ),
 
         "mean_dispersion":
