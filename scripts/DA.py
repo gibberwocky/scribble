@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
+from datetime import datetime
 
 def safe_filename(value):
     value = str(value).strip()
@@ -22,16 +23,14 @@ def safe_filename(value):
     value = re.sub(r"_+", "_", value)
     return value.strip("_.")
 
-def checkpoint(name):
-    print(
-        f"CHECKPOINT: {name}",
-        flush=True,
-    )
-    with open(
-        OUTDIR / f"{name}.checkpoint",
-        "w",
-    ) as handle:
-        handle.write("done\n")
+def checkpoint(message):
+    timestamp = (datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    entry = (f"[{timestamp}] "f"{message}\n")
+    print(entry.strip(), flush=True)
+    with open(CHECKPOINT_FILE, "a",) as handle:
+        handle.write(entry)
+        handle.flush()
+        os.fsync(handle.fileno())
 
 def get_formula_variables(formula):
     """
@@ -802,7 +801,7 @@ NHOOD_DIR.mkdir(exist_ok=True, parents=True)
 CELLTYPE_DIR.mkdir(exist_ok=True, parents=True)
 PLOTS_DIR.mkdir(exist_ok=True, parents=True)
 INSPECTION_DIR.mkdir(parents=True, exist_ok=True)
-
+CHECKPOINT_FILE = (OUTDIR / "checkpoints.log")
 
 # Run manifest
 run_manifest = {
@@ -1766,3 +1765,6 @@ with open(
 checkpoint("Manifest generation complete")
 
 checkpoint("Analysis complete")
+sys.stdout.flush()
+sys.stderr.flush()
+sys.exit(0)
