@@ -83,6 +83,7 @@ from pydeseq2.dds import DeseqDataSet
 from pydeseq2.ds import DeseqStats
 from pydeseq2.default_inference import DefaultInference
 import json
+from datetime import datetime
 import rpy2.robjects as ro
 from rpy2.robjects.packages import importr
 from rpy2.robjects.conversion import localconverter
@@ -95,6 +96,15 @@ def safe_filename(value):
     value = re.sub(r"[^\w.-]+", "_", value)
     value = re.sub(r"_+", "_", value)
     return value.strip("_.")
+
+def checkpoint(message):
+    timestamp = (datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    entry = (f"[{timestamp}] "f"{message}\n")
+    print(entry.strip(), flush=True)
+    with open(CHECKPOINT_FILE, "a",) as handle:
+        handle.write(entry)
+        handle.flush()
+        os.fsync(handle.fileno())
 
 def get_formula_variables(formula):
     """
@@ -206,6 +216,9 @@ DE_DIR.mkdir(exist_ok=True, parents=True)
 GSEA_DIR.mkdir(exist_ok=True, parents=True)
 PB_DIR.mkdir(exist_ok=True, parents=True)
 INSPECTION_DIR.mkdir(parents=True, exist_ok=True)
+CHECKPOINT_FILE = (OUTDIR / "checkpoints.log")
+if CHECKPOINT_FILE.exists():
+    CHECKPOINT_FILE.unlink()
 
 
 gene_sets = {
@@ -3044,6 +3057,7 @@ def generate_deseq2_inspection(
 
 # Import adata
 adata = sc.read_h5ad(args.input_file)
+checkpoint("Data load complete")
 
 # Check samples requested are present
 if "sample" not in adata.obs.columns:
@@ -3115,6 +3129,8 @@ else:
     adata_de = (
         adata_counts.copy()
     )
+
+checkpoint("Sample filtering complete")
 
 # --------------------------------------------------
 # Keep only requested contrast levels
@@ -3203,6 +3219,8 @@ print(
     f"min={count_values.min()},",
     f"max={count_values.max()}"
 )
+
+checkpoint("Counts validation complete")
 
 # --------------------------------------------------
 # Verify metadata present for all samples
@@ -3327,6 +3345,8 @@ for col in sorted(
             f"{missing_samples}"
         )
 
+checkpoint("Metadata validation complete")
+
 # --------------------------------------------------
 # Validate contrast levels
 # --------------------------------------------------
@@ -3368,6 +3388,14 @@ if missing_levels:
         f"{sorted(missing_levels)}"
     )
 
+
+checkpoint("Contrast level validation complete")
+
+
+# --------------------------------------------------
+# Update manifest
+# --------------------------------------------------
+
 # Update manifest
 selected_samples = sorted(
     adata_de.obs["sample"]
@@ -3390,6 +3418,7 @@ with open(
         indent=2,
     )
 
+checkpoint("Manifest generation complete")
 
 
 # --------------------------------------------------
@@ -3680,6 +3709,8 @@ for cell_type in cell_types:
         index=False,
     )
 
+    checkpoint(f"DE analysis of {cell_type} complete")
+
     # --------------------------------------------------
     # GSEA
     # --------------------------------------------------
@@ -3858,6 +3889,8 @@ for cell_type in cell_types:
                     f"{gs_name}_sig_down"
                 ] = np.nan
 
+    checkpoint(f"GSEA analysis of {cell_type} complete")
+
     # --------------------------------------------------
     # Summary
     # --------------------------------------------------
@@ -3900,3 +3933,10 @@ summary.to_csv(
     f"{args.annotation}_DE_GSEA_summary.csv",
     index=False,
 )
+
+
+
+
+checkpoint("Analysis complete")
+sys.stdout.flush()
+sys.stderr.flush()
