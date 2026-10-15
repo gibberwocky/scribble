@@ -631,22 +631,15 @@ def plot_celltype_summary(
         +
         plot_df[negative_col]
     )
-    plot_df = (
-        plot_df.assign(
-            total=total
-        )
-        .sort_values(
-            "total",
-            ascending=False,
-        )
-        .drop(
-            columns="total"
-        )
+    plot_df = plot_df.assign(
+        total=total
     )
+
     # Remove annotations with no significant neighbourhoods
     plot_df = plot_df[
         plot_df["total"] > 0
     ]
+
     if plot_df.empty:
         fig, ax = plt.subplots(figsize=(6, 2))
         ax.text(
@@ -661,6 +654,18 @@ def plot_celltype_summary(
         fig.savefig(outpath, dpi=300)
         plt.close(fig)
         return
+
+    plot_df = (
+        plot_df
+        .sort_values(
+            "total",
+            ascending=False,
+        )
+        .drop(
+            columns="total"
+        )
+    )
+
     fig_height = max(
         4,
         0.35 * len(plot_df),
