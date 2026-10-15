@@ -175,7 +175,7 @@ def classify_direction(values):
 
 
 def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
-    metrics = ["baseMean", "log2FoldChange", "lfcSE", "Wald_stat", "pval", "FDR"]
+    metrics = ["baseMean", "log2FoldChange", "lfcSE", "stat", "pval", "FDR"]
     merged = None
 
     for analysis in analyses:
