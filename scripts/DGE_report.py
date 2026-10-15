@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument("--fdr", type=float, default=0.05)
     parser.add_argument("--nominal_p", type=float, default=0.05)
     parser.add_argument("--min_abs_log2fc", type=float, default=0.5)
-    parser.add_argument("--min_abs_wald", type=float, default=2.0)
+    parser.add_argument("--min_abs_stat", type=float, default=2.0)
     parser.add_argument("--min_delta_log2fc", type=float, default=0.5)
     parser.add_argument("--min_abs_nes", type=float, default=1.5)
     parser.add_argument("--min_delta_nes", type=float, default=0.5)
@@ -168,8 +168,8 @@ def gene_pair_evidence(df, analysis, reference, args):
     ref_p = numeric(df[f"{reference}_pval"])
     sec_p = numeric(df[f"{analysis}_pval"])
 
-    ref_wald = numeric(df[f"{reference}_Wald_stat"])
-    sec_wald = numeric(df[f"{analysis}_Wald_stat"])
+    ref_stat = numeric(df[f"{reference}_stat"])
+    sec_stat = numeric(df[f"{analysis}_stat"])
 
     available = ref_lfc.notna() & sec_lfc.notna()
     same_direction = available & (np.sign(ref_lfc) == np.sign(sec_lfc))
@@ -177,13 +177,13 @@ def gene_pair_evidence(df, analysis, reference, args):
 
     sec_meaningful = (
         sec_lfc.abs().ge(args.min_abs_log2fc)
-        & sec_wald.abs().ge(args.min_abs_wald)
+        & sec_stat.abs().ge(args.min_abs_stat)
         & (sec_fdr.lt(args.fdr) | sec_p.lt(args.nominal_p))
     )
 
     ref_meaningful = (
         ref_lfc.abs().ge(args.min_abs_log2fc)
-        & ref_wald.abs().ge(args.min_abs_wald)
+        & ref_stat.abs().ge(args.min_abs_stat)
         & (ref_fdr.lt(args.fdr) | ref_p.lt(args.nominal_p))
     )
 
@@ -229,7 +229,7 @@ def classify_gene_table(df, analyses, reference, args):
     required = [
         f"{reference}_log2FoldChange",
         f"{reference}_lfcSE",
-        f"{reference}_Wald_stat",
+        f"{reference}_stat",
         f"{reference}_pval",
         f"{reference}_FDR",
     ]
@@ -272,7 +272,7 @@ def classify_gene_table(df, analyses, reference, args):
     ref_lfc = numeric(out[f"{reference}_log2FoldChange"])
     ref_fdr = numeric(out[f"{reference}_FDR"])
     ref_p = numeric(out[f"{reference}_pval"])
-    ref_wald = numeric(out[f"{reference}_Wald_stat"])
+    ref_stat = numeric(out[f"{reference}_stat"])
 
     out["reference_significant"] = ref_fdr.lt(args.fdr)
     out["reference_reportable_effect"] = (
@@ -280,7 +280,7 @@ def classify_gene_table(df, analyses, reference, args):
     )
     out["reference_nominal_support"] = (
         ref_p.lt(args.nominal_p)
-        & ref_wald.abs().ge(args.min_abs_wald)
+        & ref_stat.abs().ge(args.min_abs_stat)
     )
 
     supporting = pd.DataFrame(index=out.index)
@@ -294,7 +294,7 @@ def classify_gene_table(df, analyses, reference, args):
 
         required_pair = [
             f"{analysis}_log2FoldChange",
-            f"{analysis}_Wald_stat",
+            f"{analysis}_stat",
             f"{analysis}_pval",
             f"{analysis}_FDR",
         ]
@@ -1566,7 +1566,7 @@ def explanatory_html(args):
       <p>
         For genes, positive log2FoldChange values indicate higher expression
         in the test condition and negative values indicate lower expression.
-        lfcSE is the uncertainty of the log2 fold-change estimate. Wald_stat
+        lfcSE is the uncertainty of the log2 fold-change estimate. stat
         represents the model coefficient relative to its uncertainty. FDR is
         the multiple-testing-adjusted P value used for formal gene-level
         significance.
@@ -1633,7 +1633,7 @@ def explanatory_html(args):
         <li>FDR: {args.fdr}</li>
         <li>Nominal P threshold: {args.nominal_p}</li>
         <li>Minimum |log2FC|: {args.min_abs_log2fc}</li>
-        <li>Minimum |Wald statistic|: {args.min_abs_wald}</li>
+        <li>Minimum |statistic|: {args.min_abs_stat}</li>
         <li>Minimum |delta log2FC|: {args.min_delta_log2fc}</li>
         <li>Minimum |NES|: {args.min_abs_nes}</li>
         <li>Minimum |delta NES|: {args.min_delta_nes}</li>
@@ -1756,7 +1756,7 @@ def main():
         "fdr": args.fdr,
         "nominal_p": args.nominal_p,
         "min_abs_log2fc": args.min_abs_log2fc,
-        "min_abs_wald": args.min_abs_wald,
+        "min_abs_stat": args.min_abs_stat,
         "min_delta_log2fc": args.min_delta_log2fc,
         "min_abs_nes": args.min_abs_nes,
         "min_delta_nes": args.min_delta_nes,
