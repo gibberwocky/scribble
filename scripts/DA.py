@@ -20,8 +20,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import json
 from datetime import datetime
-
-
+from matplotlib.ticker import PercentFormatter
+rom matplotlib.ticker import MaxNLocator
 
 def safe_filename(value):
     value = str(value).strip()
@@ -305,7 +305,287 @@ def plot_da_volcano(
     plt.close(fig)
 
 
-def plot_nhood_graph(
+def plot_all_nhood_graphs(
+    milo,
+    mdata,
+    outdir,
+    fdr_threshold=0.1,
+    nominal_threshold=0.05,
+    min_abs_logFC=0.0,
+):
+    """
+    Generate multiple DA neighbourhood graph visualisations:
+
+    1. FDR-significant neighbourhoods (current Milo plot)
+    2. Nominally significant neighbourhoods
+    3. Signed -log10(P) neighbourhood evidence map
+    4. Effect size + evidence neighbourhood map
+    """
+
+    # Standard FDR plot
+    plot_nhood_graph_fdr(
+        milo,
+        mdata,
+        outdir / "nhood_graph_fdr.png",
+        fdr_threshold,
+        min_abs_logFC,
+    )
+
+    # Nominal significance plot
+    plot_nhood_graph_nominal(
+        mdata,
+        outdir / "nhood_graph_nominal.png",
+        nominal_threshold,
+        min_abs_logFC,
+    )
+
+    # Continuous significance map
+    plot_nhood_graph_signed_logp(
+        mdata,
+        outdir / "nhood_graph_signed_logp.png",
+    )
+
+    # Effect size + evidence plot
+    plot_nhood_graph_effect_size(
+        mdata=mdata,
+        outpath=(
+            PLOTS_DIR /
+            "nhood_graph_effect_size.png"
+        ),
+    )
+
+
+def get_nhood_graph_data(mdata):
+    """
+    Extract neighbourhood graph coordinates and DA statistics.
+    """
+
+    nhood_adata = mdata["milo"]
+
+    if "X_milo_graph" in nhood_adata.varm:
+        coords = nhood_adata.varm["X_milo_graph"]
+    elif "X_umap" in nhood_adata.varm:
+        coords = nhood_adata.varm["X_umap"]
+    else:
+        raise ValueError(
+            "Could not locate neighbourhood graph coordinates."
+        )
+
+    results = nhood_adata.var.copy()
+
+    return coords, results
+
+def plot_nhood_graph_effect_size(
+    mdata,
+    outpath,
+    min_point_size=10,
+    max_point_size=250,
+):
+    """
+    Plot all neighbourhoods.
+
+    Colour:
+        logFC
+
+    Point size:
+        -log10(PValue)
+
+    Useful for exploring weak DA signals where
+    nothing survives multiple-testing correction.
+    """
+
+    coords, da = get_nhood_graph_data(mdata)
+
+    pvals = np.clip(
+        da["PValue"].values,
+        1e-300,
+        1.0,
+    )
+
+    evidence = -np.log10(pvals)
+
+    if np.nanmax(evidence) > 0:
+        sizes = (
+            min_point_size
+            + (
+                evidence / np.nanmax(evidence)
+            ) * (
+                max_point_size - min_point_size
+            )
+        )
+    else:
+        sizes = np.full(
+            len(evidence),
+            min_point_size,
+        )
+
+    vmax = np.nanpercentile(
+        np.abs(da["logFC"]),
+        99,
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(8, 6)
+    )
+
+    sc = ax.scatter(
+        coords[:, 0],
+        coords[:, 1],
+        c=da["logFC"],
+        s=sizes,
+        cmap="RdBu_r",
+        vmin=-vmax,
+        vmax=vmax,
+        alpha=0.8,
+        linewidth=0,
+    )
+
+    cbar = plt.colorbar(
+        sc,
+        ax=ax,
+    )
+    cbar.set_label("logFC")
+
+    ax.set_title(
+        "DA Effect Size and Statistical Evidence"
+    )
+
+    ax.axis("off")
+
+    fig.savefig(
+        outpath,
+        dpi=300,
+        bbox_inches="tight",
+    )
+
+    plt.close(fig)
+
+def plot_nhood_graph_nominal(
+    mdata,
+    outpath,
+    nominal_threshold=0.05,
+    min_abs_logFC=0.0,
+):
+    """
+    Colour neighbourhoods passing nominal significance.
+    """
+
+    coords, da = get_nhood_graph_data(mdata)
+
+    mask = (
+        (da["PValue"] < nominal_threshold)
+        & (np.abs(da["logFC"]) >= min_abs_logFC)
+    )
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    ax.scatter(
+        coords[:, 0],
+        coords[:, 1],
+        color="lightgrey",
+        s=40,
+        alpha=0.6,
+        linewidth=0,
+    )
+
+    vmax = np.nanpercentile(
+        np.abs(da.loc[mask, "logFC"]),
+        95,
+    ) if mask.sum() else 1
+
+    sc = ax.scatter(
+        coords[mask, 0],
+        coords[mask, 1],
+        c=da.loc[mask, "logFC"],
+        cmap="RdBu_r",
+        vmin=-vmax,
+        vmax=vmax,
+        s=50,
+        linewidth=0,
+    )
+
+    plt.colorbar(
+        sc,
+        ax=ax,
+        label="logFC",
+    )
+
+    ax.set_title(
+        f"DA logFC (P < {nominal_threshold})"
+    )
+
+    ax.axis("off")
+
+    fig.savefig(
+        outpath,
+        dpi=300,
+        bbox_inches="tight",
+    )
+
+    plt.close(fig)
+
+def plot_nhood_graph_signed_logp(
+    mdata,
+    outpath,
+):
+    """
+    Continuous DA evidence map.
+
+    score = sign(logFC) * -log10(PValue)
+    """
+
+    coords, da = get_nhood_graph_data(mdata)
+
+    pvals = np.clip(
+        da["PValue"].values,
+        1e-300,
+        1.0,
+    )
+
+    score = (
+        np.sign(da["logFC"].values)
+        * (-np.log10(pvals))
+    )
+
+    vmax = np.nanpercentile(
+        np.abs(score),
+        99,
+    )
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    sc = ax.scatter(
+        coords[:, 0],
+        coords[:, 1],
+        c=score,
+        cmap="RdBu_r",
+        vmin=-vmax,
+        vmax=vmax,
+        s=40,
+        linewidth=0,
+    )
+
+    plt.colorbar(
+        sc,
+        ax=ax,
+        label="sign(logFC) × -log10(P)",
+    )
+
+    ax.set_title(
+        "Continuous DA Evidence"
+    )
+
+    ax.axis("off")
+
+    fig.savefig(
+        outpath,
+        dpi=300,
+        bbox_inches="tight",
+    )
+
+    plt.close(fig)
+
+def plot_nhood_graph_fdr(
     milo,
     mdata,
     outpath,
@@ -389,11 +669,35 @@ def plot_celltype_summary(
         ),
         color="tab:blue",
     )
+
     ax.axvline(
         0,
         color="black",
         linewidth=1,
     )
+    # Force integer ticks for count data
+    max_count = max(
+        plot_df[positive_col].max(),
+        plot_df[negative_col].max(),
+    )
+    max_count = max(1, max_count)
+    ax.set_xlim(
+        -max_count - 0.5,
+        max_count + 0.5,
+    )
+    ax.xaxis.set_major_locator(
+        MaxNLocator(integer=True)
+    )
+    for container in ax.containers:
+        labels = [
+            f"{abs(int(bar.get_width()))}"
+            for bar in container
+        ]
+        ax.bar_label(
+            container,
+            labels=labels,
+            padding=3,
+        )
     ax.set_xlabel(
         xlabel
     )
@@ -598,6 +902,11 @@ def plot_annotation_pvalue_enrichment(
         )
     )
 
+    # Remove cell types with no counts
+    plot_df = plot_df[
+        plot_df["n_p_lt_005"] > 0
+    ]
+
     fig_height = max(
         4,
         0.35 * len(plot_df),
@@ -607,13 +916,34 @@ def plot_annotation_pvalue_enrichment(
         figsize=(8, fig_height)
     )
 
-    ax.barh(
+    bars = ax.barh(
         plot_df["nhood_annotation"],
         plot_df["pct_p_lt_005"],
     )
+    ax.xaxis.set_major_formatter(
+        PercentFormatter(xmax=100)
+    )
+
+    labels = [
+        (
+            f"{pct:.1f}% "
+            f"({sig}/{total})"
+        )
+        for pct, sig, total in zip(
+            plot_df["pct_p_lt_005"],
+            plot_df["n_p_lt_005"],
+            plot_df["n_neighbourhoods"],
+        )
+    ]
+
+    ax.bar_label(
+        bars,
+        labels=labels,
+        padding=3,
+    )
 
     ax.set_xlabel(
-        "% neighbourhoods with P < 0.05"
+        "Neighbourhoods with P < 0.05 (%)"
     )
 
     ax.set_ylabel("")
@@ -1655,14 +1985,12 @@ plot_da_volcano(
     min_abs_logFC=args.min_abs_logFC,
 )
 
-plot_nhood_graph(
+plot_all_nhood_graphs(
     milo=milo,
     mdata=mdata,
-    outpath=(
-        PLOTS_DIR /
-        "nhood_graph.png"
-    ),
+    outdir=PLOTS_DIR,
     fdr_threshold=args.fdr_threshold,
+    nominal_threshold=args.nominal_p_threshold,
     min_abs_logFC=args.min_abs_logFC,
 )
 
@@ -1679,7 +2007,7 @@ plot_celltype_summary(
         "by annotation"
     ),
     xlabel=(
-        "Significant neighbourhoods"
+        "Number of FDR-significant neighbourhoods"
     ),
 )
 
@@ -1696,7 +2024,7 @@ plot_celltype_summary(
         "by annotation"
     ),
     xlabel=(
-        "Nominal neighbourhoods"
+        "Number of nominally significant neighbourhoods"
     ),
 )
 
