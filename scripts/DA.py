@@ -649,18 +649,18 @@ def plot_celltype_summary(
     ]
     if plot_df.empty:
         fig, ax = plt.subplots(figsize=(6, 2))
-            ax.text(
-                0.5,
-                0.5,
-                "No neighbourhoods detected meeting significance criteria",
-                ha="center",
-                va="center",
-                fontsize=12,
-            )
-            ax.axis("off")
-            fig.savefig(outpath, dpi=300)
-            plt.close(fig)
-            return
+        ax.text(
+            0.5,
+            0.5,
+            "No neighbourhoods detected meeting significance criteria",
+            ha="center",
+            va="center",
+            fontsize=12,
+        )
+        ax.axis("off")
+        fig.savefig(outpath, dpi=300)
+        plt.close(fig)
+        return
     fig_height = max(
         4,
         0.35 * len(plot_df),
