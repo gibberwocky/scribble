@@ -21,7 +21,7 @@ import seaborn as sns
 import json
 from datetime import datetime
 from matplotlib.ticker import PercentFormatter
-rom matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator
 
 def safe_filename(value):
     value = str(value).strip()
