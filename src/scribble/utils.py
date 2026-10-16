@@ -292,3 +292,5 @@ def compute_cluster_summary(
             .astype(str)
             .map(dominant_fractions)
         )
+
+    return summary
