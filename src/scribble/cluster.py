@@ -291,6 +291,12 @@ def run_cluster(args):
     from scipy import sparse
     import random
     from scribble.import_data import setup_environment
+    from scribble.utils import (
+        compute_cluster_stability,
+        summarise_cluster_reassignments,
+        build_reassignment_strings,
+        compute_cluster_summary,
+    )
 
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
@@ -310,6 +316,7 @@ def run_cluster(args):
     fine_file = TABLE_DIR / f"{output_prefix}_res_fine.tsv"
     stats_file = TABLE_DIR / f"{output_prefix}_cluster_summary.tsv"
     cell_file = TABLE_DIR / f"{output_prefix}_cluster_cells.tsv"
+    reassignment_file = TABLE_DIR / f"{output_prefix}_cluster_reassignments.tsv"
     cluster_file = PLOT_DIR / f"{output_prefix}_clusters.png"
     vars_file = PLOT_DIR / f"{output_prefix}_vars.png"
     stability_file = PLOT_DIR / f"{output_prefix}_stability.png"
@@ -452,175 +459,92 @@ def run_cluster(args):
     print(adata.obs["leiden"].value_counts())
 
     # --------------------------------------------------
-    # Stability via overlap mapping (label-invariant, fast)
+    # Stability analysis
     # --------------------------------------------------
     if args.n_repeats > 1:
-        print(f"Computing cluster stability ({args.n_repeats} repeats)...")
 
-        assignments = []
+        print(
+            f"Computing cluster stability "
+            f"({args.n_repeats} repeats)..."
+        )
 
-        # Collect all clustering runs
-        for i in range(args.n_repeats):
+        stability_results = compute_cluster_stability(
+            adata=adata,
+            resolution=args.resolution,
+            n_repeats=args.n_repeats,
+            cluster_key="leiden",
+        )
 
-            sc.tl.leiden(
-                adata,
-                resolution=args.resolution,
-                key_added=f"leiden_tmp_{i}",
-                flavor="igraph",
-                directed=False,
-                n_iterations=2,
-                random_state=i
-            )
-            merge_small_clusters(
-                adata,
-                cluster_key=f"leiden_tmp_{i}",
-                min_size=args.min_cluster_size,
-                output_key=f"leiden_tmp_{i}"
-            )
+        adata.obs["cluster_stability"] = (
+            stability_results["cell_stability"]
+        )
 
-            assignments.append(adata.obs[f"leiden_tmp_{i}"].values)
+        reassignment_df = summarise_cluster_reassignments(
+            final_labels=adata.obs["leiden"].astype(str).values,
+            aligned_assignments=stability_results[
+                "aligned_assignments"
+            ],
+        )
 
-        assignments = np.array(assignments)  # (runs, cells)
-
-        # --------------------------------------------------
-        # Use first run as reference (only for mapping)
-        # --------------------------------------------------
-        ref_labels = assignments[0]
-
-        aligned_assignments = [ref_labels]
-
-        for i in range(1, assignments.shape[0]):
-            cur = assignments[i]
-
-            contingency = pd.crosstab(cur, ref_labels)
-            mapping = contingency.idxmax(axis=1).to_dict()
-
-            cur_series = pd.Series(cur)
-            aligned = cur_series.map(mapping).fillna(cur_series).to_numpy()
-
-            aligned_assignments.append(aligned)
-
-        aligned_assignments = np.array(aligned_assignments)
-
-        # --------------------------------------------------
-        # Compute per-cell stability
-        # --------------------------------------------------
-        # transpose → (cells, runs)
-        df_assign = pd.DataFrame(aligned_assignments.T)
-
-        # most frequent label count per cell (vectorised)
-        stability = df_assign.apply(
-            lambda row: row.value_counts().max(),
-            axis=1
-        ).values
-
-        stability = stability / args.n_repeats
-
-        adata.obs["cluster_stability"] = stability
-
-        print(f"Mean stability: {np.mean(stability):.3f}")
-
-        # cleanup
-        for i in range(args.n_repeats):
-            del adata.obs[f"leiden_tmp_{i}"]
+        reassignment_df.to_csv(
+            reassignment_file,
+            sep="\t",
+            index=False,
+        )
 
     # --------------------------------------------------
     # Export stats
     # --------------------------------------------------
-    if args.n_repeats > 1:
+    if "cluster_stability" in adata.obs:
 
         print(f"Exporting cluster stats → {stats_file}")
 
-        adata.obs[["leiden", "cluster_stability"]].to_csv(cell_file, sep="\t")
-
-        cluster_summary = (
-            adata.obs
-            .groupby("leiden", observed=True)
-            .agg(
-                n_cells=("leiden", "size"),
-                mean_stability=("cluster_stability", "mean"),
-                median_stability=("cluster_stability", "median")
-            )
+        # Cell-level stability table
+        adata.obs[
+            ["leiden", "cluster_stability"]
+        ].to_csv(
+            cell_file,
+            sep="\t",
+            index=True,
         )
 
-        cluster_summary["fraction"] = cluster_summary["n_cells"] / adata.n_obs
-        cluster_summary.index = cluster_summary.index.astype(str)
-
-        sample_counts = (
-            adata.obs
-            .groupby(["leiden", "sample"], observed=True)
-            .size()
-            .unstack(fill_value=0)
+        # Cluster summary
+        cluster_summary = compute_cluster_summary(
+            adata=adata,
+            cluster_key="leiden",
+            stability_key="cluster_stability",
         )
 
-        sample_counts.index = sample_counts.index.astype(str)
-        sample_counts.columns = sample_counts.columns.astype(str)
+        # Add reassignment summary strings
+        summary_strings = build_reassignment_strings(
+            reassignment_df
+        )
 
-        # reset indices → convert to columns
-        cluster_summary = cluster_summary.reset_index()
-        sample_counts = sample_counts.reset_index()
+        cluster_summary["reassignment_summary"] = (
+            cluster_summary["cluster"]
+            .astype(str)
+            .map(summary_strings)
+            .fillna("")
+        )
 
-        # ensure string keys
-        cluster_summary["leiden"] = cluster_summary["leiden"].astype(str)
-        sample_counts["leiden"] = sample_counts["leiden"].astype(str)
+        # Write cluster summary
+        cluster_summary.to_csv(
+            stats_file,
+            sep="\t",
+            index=False,
+        )
 
-        # merge
-        cluster_summary = pd.merge(
-            cluster_summary,
-            sample_counts,
-            on="leiden",
-            how="outer"
-        ).fillna(0)
+        print(
+            f"Exported cluster summary → {stats_file}"
+        )
 
-        cluster_summary.rename(columns={"leiden": "cluster"}, inplace=True)
+        print(
+            f"Exported reassignment matrix → "
+            f"{reassignment_file}"
+        )
 
-        # --------------------------------------------------
-        # Compute sample entropy (mixing metric)
-        # --------------------------------------------------
 
-        # Identify sample columns (all columns that came from sample_counts)
-        exclude_cols = {
-            "cluster",
-            "n_cells",
-            "mean_stability",
-            "median_stability",
-            "fraction",
-            "resolution",
-            "embedding",
-            "n_repeats",
-            "sample_entropy",
-            "low_stability",
-            "low_mixing"
-        }
 
-        sample_cols = [col for col in cluster_summary.columns if col not in exclude_cols]
-
-        def compute_entropy_row(row):
-            values = row[sample_cols].to_numpy(dtype=float)
-
-            total = values.sum()
-            if total == 0:
-                return 0.0
-
-            probs = values / total
-            return entropy(probs)
-
-        cluster_summary["sample_entropy"] = cluster_summary.apply(compute_entropy_row, axis=1)
-
-        # flags
-        cluster_summary["low_stability"] = cluster_summary["mean_stability"] < 0.7
-        cluster_summary["low_mixing"] = cluster_summary["sample_entropy"] < 0.5
-
-        # metadata
-        cluster_summary["resolution"] = args.resolution
-        cluster_summary["embedding"] = args.embedding
-        cluster_summary["n_repeats"] = args.n_repeats
-
-        cluster_summary.reset_index(drop=True, inplace=True)
-
-        cluster_summary = cluster_summary.sort_values("n_cells", ascending=False)
-
-        cluster_summary.to_csv(stats_file, sep="\t", index=False)
 
     # --------------------------------------------------
     # UMAP
