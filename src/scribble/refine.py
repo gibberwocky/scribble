@@ -528,26 +528,6 @@ def run_refine(args):
             )
 
         if adata_sub is None:
-            ...
-            return []
-
-        if "cluster_reassignments" in adata_sub.uns:
-
-            tmp = (
-                adata_sub.uns[
-                    "cluster_reassignments"
-                ]
-                .copy()
-            )
-
-            tmp["level"] = level
-            tmp["parent_clusters"] = (
-                "|".join(clusters)
-            )
-
-            master_reassignments.append(tmp)
-
-        if adata_sub is None:
             parent_label = (
                 clusters[0]
                 if len(clusters) == 1
@@ -575,6 +555,24 @@ def run_refine(args):
                 "→ TERMINAL (refinement failed)"
             )
             return []
+
+        if "cluster_reassignments" in adata_sub.uns:
+
+            tmp = (
+                adata_sub.uns[
+                    "cluster_reassignments"
+                ]
+                .copy()
+            )
+
+            tmp["level"] = level
+            tmp["parent_clusters"] = (
+                "|".join(clusters)
+            )
+
+            master_reassignments.append(tmp)
+
+
 
         # --------------------------------------------------
         # Parent node markers
@@ -704,7 +702,7 @@ def run_refine(args):
             parent_label = (
                 clusters[0]
                 if len(clusters) == 1
-                else "|".join(clusters)
+                else "_".join(sorted(clusters))
             )
 
             refined.loc[collapsed] = parent_label
@@ -713,6 +711,16 @@ def run_refine(args):
             adata_sub.obs_names,
             "refine_label"
         ] = refined.values
+
+        print(
+            f"[ASSIGN] parent={clusters}"
+        )
+
+        print(
+            pd.Series(refined)
+            .value_counts()
+            .sort_index()
+        )
 
         if "cluster_stability" in adata_sub.obs:
             adata.obs.loc[
@@ -914,6 +922,11 @@ def run_refine(args):
                     adata_sub.obs["leiden_refined"].astype(str) == cluster_label
                 ].unique().tolist()
 
+                print(
+                    f"[RECURSION CHECK] local={cluster_label} "
+                    f"global={child_labels}"
+                )
+
                 new_tasks.append({
                     "clusters": child_labels,
                     "level": level + 1
@@ -926,11 +939,14 @@ def run_refine(args):
     # MAIN LOOP (safe recursion)
     # --------------------------------------------------
 
+
     if len(tasks) > 0:
 
+        print("\n[INITIAL TASKS]")
         i = 0
         while i < len(tasks):
 
+            print(tasks[i])
             new_tasks = _refine_task(tasks[i])
             tasks.extend(new_tasks)
 
@@ -939,6 +955,14 @@ def run_refine(args):
     # --------------------------------------------------
     # Store final refine IDs
     # --------------------------------------------------
+    print("\n[FINAL LABEL COUNTS]")
+    print(
+        adata.obs["refine_label"]
+        .astype(str)
+        .value_counts()
+        .sort_index()
+    )
+
     final_labels = sorted(
         adata.obs["refine_label"]
         .astype(str)
