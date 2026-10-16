@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+
 def restore_counts(adata):
     import scanpy as sc
     import pandas as pd
@@ -33,6 +34,94 @@ def restore_counts(adata):
     )
 
 
+def compute_cluster_stability(
+    adata,
+    resolution,
+    min_cluster_size,
+    n_repeats
+):
+    import numpy as np
+    import pandas as pd
+    import scanpy as sc
+
+    assignments = []
+
+    for i in range(n_repeats):
+
+        sc.tl.leiden(
+            adata,
+            resolution=resolution,
+            key_added=f"leiden_stab_{i}",
+            flavor="igraph",
+            directed=False,
+            n_iterations=2,
+            random_state=i
+        )
+
+        labels = (
+            adata.obs[f"leiden_stab_{i}"]
+            .astype(str)
+            .values
+        )
+
+        assignments.append(labels)
+
+    assignments = np.array(assignments)
+
+    ref_labels = assignments[0]
+    aligned_assignments = [ref_labels]
+
+    for i in range(1, assignments.shape[0]):
+        cur = assignments[i]
+
+        contingency = pd.crosstab(
+            cur,
+            ref_labels
+        )
+
+        mapping = (
+            contingency
+            .idxmax(axis=1)
+            .to_dict()
+        )
+
+        aligned = (
+            pd.Series(cur)
+            .map(mapping)
+            .fillna(pd.Series(cur))
+            .to_numpy()
+        )
+
+        aligned_assignments.append(aligned)
+
+    aligned_assignments = np.array(
+        aligned_assignments
+    )
+
+    df_assign = pd.DataFrame(
+        aligned_assignments.T
+    )
+
+    stability = (
+        df_assign
+        .apply(
+            lambda row: row.value_counts().max(),
+            axis=1
+        )
+        .values
+        / n_repeats
+    )
+
+    for i in range(n_repeats):
+        del adata.obs[f"leiden_stab_{i}"]
+
+    return stability
+
+def entropy_row(row):
+    vals = row.to_numpy(dtype=float)
+    probs = vals / vals.sum()
+    return entropy(probs)
+
 def run_refine(args):
     import scanpy as sc
     import pandas as pd
@@ -45,6 +134,7 @@ def run_refine(args):
 
     from scribble.import_data import setup_environment
     from scribble.cluster import optimise_resolution
+    from scipy.stats import entropy
 
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
@@ -285,6 +375,20 @@ def run_refine(args):
             n_iterations=2,
             random_state=0
         )
+
+        if args.n_repeats > 1:
+
+            stability = compute_cluster_stability(
+                adata=adata_sub,
+                resolution=res,
+                min_cluster_size=args.min_cells_per_cluster,
+                n_repeats=args.n_repeats
+            )
+
+            adata_sub.obs["cluster_stability"] = stability
+
+        return adata_sub
+
 
         return adata_sub
 
@@ -855,6 +959,35 @@ def run_refine(args):
         adata.obs["refine_label"]
         .astype(str)
     )
+    refine_summary = (
+        adata_global.obs
+        .groupby("refine_cluster", observed=True)
+        .agg(
+            n_cells=("refine_cluster", "size"),
+            mean_stability=("cluster_stability", "mean"),
+            median_stability=("cluster_stability", "median"),
+        )
+    )
+    sample_counts = (
+        adata_global.obs
+        .groupby(
+            ["refine_cluster", "sample"],
+            observed=True
+        )
+        .size()
+        .unstack(fill_value=0)
+    )
+    refine_summary["sample_entropy"] = (
+        sample_counts.apply(
+            entropy_row,
+            axis=1
+        )
+    )
+    refine_summary.to_csv(
+        TABLE_DIR / "refine_cluster_summary.tsv",
+        sep="\t"
+    )
+
     global_markers = _compute_markers(
         adata_global,
         "refine_cluster",
