@@ -117,10 +117,6 @@ def compute_cluster_stability(
 
     return stability
 
-def entropy_row(row):
-    vals = row.to_numpy(dtype=float)
-    probs = vals / vals.sum()
-    return entropy(probs)
 
 def run_refine(args):
     import scanpy as sc
@@ -225,6 +221,11 @@ def run_refine(args):
     # --------------------------------------------------
     # INTERNAL FUNCTIONS
     # --------------------------------------------------
+
+    def _entropy_row(row):
+        vals = row.to_numpy(dtype=float)
+        probs = vals / vals.sum()
+        return entropy(probs)
 
     def _robust_hvg(adata_sub):
         """
@@ -979,7 +980,7 @@ def run_refine(args):
     )
     refine_summary["sample_entropy"] = (
         sample_counts.apply(
-            entropy_row,
+            _entropy_row,
             axis=1
         )
     )
