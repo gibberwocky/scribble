@@ -7,6 +7,7 @@ def classify_cluster(row, thresholds):
     n = row["n_cells"]
     stability = row["mean_stability"]
     entropy = row["sample_entropy"]
+    fraction = row.get("fraction_of_dataset", 0)
 
     reassignment_fraction = row.get(
         "dominant_reassignment_fraction",
@@ -31,13 +32,10 @@ def classify_cluster(row, thresholds):
             "medium",
         )
 
-    if (
-        n > thresholds["large_cells"]
-        and stability < thresholds["high_stability"]
-    ):
+    if fraction >= thresholds["large_cluster_fraction"]:
         return (
             "subset",
-            "heterogeneous_large_cluster",
+            "large_cluster_requires_inspection",
             "high",
         )
 
@@ -180,7 +178,11 @@ def run_evaluate(args):
             mean_stability = df["mean_stability"].mean()
             mean_entropy = df["sample_entropy"].mean()
             instability_burden = (1.0 - df["mean_stability"]).mean()
-            mean_reassignment = (df["dominant_reassignment_fraction"].fillna(0).mean())
+            weighted_mean_reassignment = np.average(
+                df["dominant_reassignment_fraction"]
+                .fillna(0),
+                weights=df["n_cells"]
+            )
             n_merge_candidates = (
                 df["dominant_reassignment_fraction"]
                 .fillna(0)
@@ -200,7 +202,7 @@ def run_evaluate(args):
             score = (
                 mean_stability
                 - instability_burden
-                - mean_reassignment
+                - weighted_mean_reassignment
                 - 0.20 * n_merge_candidates
                 - 0.1 * cluster_penalty
             )
@@ -212,7 +214,7 @@ def run_evaluate(args):
                 "mean_stability": mean_stability,
                 "mean_entropy": mean_entropy,
                 "instability_burden": instability_burden,
-                "mean_reassignment": mean_reassignment,
+                "mean_reassignment": weighted_mean_reassignment,
                 "n_merge_candidates": n_merge_candidates,
                 "n_clusters": n_clusters
             })
@@ -231,7 +233,7 @@ def run_evaluate(args):
             "mean_stability",
             "mean_entropy",
             "instability_burden",
-            "mean_reassignment",
+            "weighted_mean_reassignment",
             "n_merge_candidates",
             "n_clusters"
         ]])
@@ -263,7 +265,7 @@ def run_evaluate(args):
     # ----------------------------
     thresholds = {
         "min_cells": args.min_cells,
-        "large_cells": args.large_cells,
+        "large_cluster_fraction": args.large_cluster_fraction,
         "low_stability": args.low_stability,
         "high_stability": args.high_stability,
         "low_entropy": args.low_entropy,
@@ -286,12 +288,23 @@ def run_evaluate(args):
             f"reassign={row.get('dominant_reassignment_fraction', 0):.2f}"
         )
 
+        suggested_merge_target = ""
+
+        if action == "merge":
+            suggested_merge_target = row.get(
+                "dominant_reassignment",
+                ""
+            )
+
         decisions.append({
             "cluster": row["cluster"],
+            "n_cells": row["n_cells"],
+            "fraction_of_dataset": (row["n_cells"] / summary_df["n_cells"].sum()),
             "action": action,
             "reason": reason,
             "detail": detail,
             "priority": priority,
+            "suggested_merge_target": suggested_merge_target,
         })
 
     out_df = pd.DataFrame(decisions)
