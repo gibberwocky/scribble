@@ -567,18 +567,6 @@ def run_refine(args):
 
             tmp["level"] = level
 
-            tmp["cluster"] = (
-                "|".join(clusters)
-                + ":"
-                + tmp["cluster"].astype(str)
-            )
-
-            tmp["destination"] = (
-                "|".join(clusters)
-                + ":"
-                + tmp["destination"].astype(str)
-            )
-
             tmp["parent_clusters"] = (
                 "|".join(clusters)
             )
@@ -852,16 +840,9 @@ def run_refine(args):
 
                     tmp["refine_cluster"] = node_label
 
-                    tmp["cluster"] = (
-                        "|".join(clusters)
-                        + ":"
-                        + tmp["cluster"].astype(str)
-                    )
-
-                    tmp["destination"] = (
-                        "|".join(clusters)
-                        + ":"
-                        + tmp["destination"].astype(str)
+                    print(
+                        "[REASSIGNMENT COLS]",
+                        tmp.columns.tolist()
                     )
 
                     tmp["parent_clusters"] = (
