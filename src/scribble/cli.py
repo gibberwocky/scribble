@@ -204,7 +204,7 @@ GitHub: https://github.com/gibberwocky/scribble
     evaluate_parser.add_argument("--merge_percentile", type=float, default=90,
         help="Percentile of graph connectivity scores used when identifying merge candidates among subset or unstable clusters")
     evaluate_parser.add_argument("--high_reassignment", type=float, default=0.30,
-        help=("Threshold above which a cluster is considered unstably partitioned and recommended for merging")
+        help="Threshold above which a cluster is considered unstably partitioned and recommended for merging")
 
 
     # -------------- Evaluate ------------
