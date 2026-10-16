@@ -571,6 +571,10 @@ def run_refine(args):
                 "|".join(clusters)
             )
 
+            print(
+                "[CLUSTER_REASSIGNMENT COLS]",
+                adata_sub.uns["cluster_reassignments"].columns.tolist()
+            )
             master_reassignments.append(tmp)
 
 
