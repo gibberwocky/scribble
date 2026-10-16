@@ -214,7 +214,7 @@ def run_evaluate(args):
                 "mean_stability": mean_stability,
                 "mean_entropy": mean_entropy,
                 "instability_burden": instability_burden,
-                "mean_reassignment": weighted_mean_reassignment,
+                "weighted_mean_reassignment": weighted_mean_reassignment,
                 "n_merge_candidates": n_merge_candidates,
                 "n_clusters": n_clusters
             })
