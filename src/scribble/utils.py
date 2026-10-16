@@ -291,3 +291,4 @@ def compute_cluster_summary(
             summary["cluster"]
             .astype(str)
             .map(dominant_fractions)
+        )
