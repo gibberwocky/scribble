@@ -62,14 +62,13 @@ def find_merge_candidates(
 
     candidate_clusters = (
         decision_df.loc[
-            decision_df["action"].isin(
-                ["subset", "merge"]
-            ),
+            decision_df["action"] == "merge",
             "cluster"
         ]
         .astype(str)
         .tolist()
     )
+
 
     pair_scores = []
 
@@ -289,7 +288,7 @@ def run_evaluate(args):
             f"stability={row['mean_stability']:.2f}; "
             f"entropy={row['sample_entropy']:.2f}; "
             f"dominant={row.get('dominant_reassignment', '')}; "
-            f"reassign={row.get('dominant_reassignment_fraction', 0):.2f}"
+            f"reassign={row.get('dominant_reassignment_fraction', 0):.1%}"
         )
 
         suggested_merge_target = ""
@@ -318,11 +317,38 @@ def run_evaluate(args):
     # ----------------------------
     cluster_col = "leiden"
 
-    merge_pairs = find_merge_candidates(
+    merge_pairs = []
+
+    for _, row in out_df.iterrows():
+
+        if (
+            row["action"] == "merge"
+            and pd.notna(row["suggested_merge_target"])
+            and str(row["suggested_merge_target"]) != ""
+        ):
+
+            merge_pairs.append(
+                (
+                    str(row["cluster"]),
+                    str(row["suggested_merge_target"])
+                )
+            )
+
+
+    graph_merge_pairs = find_merge_candidates(
         adata=adata,
         decision_df=out_df,
         cluster_key=cluster_col,
         connectivity_percentile=args.merge_percentile
+    )
+
+    merge_pairs.extend(graph_merge_pairs)
+
+    merge_pairs = list(
+        {
+            tuple(sorted(pair))
+            for pair in merge_pairs
+        }
     )
 
     merge_groups = []
