@@ -110,12 +110,22 @@ def run_refine(args):
 
         for merge_group, grp in merge_df.groupby("merge_group"):
 
-            clusters = grp["cluster"].tolist()
+            clusters = (
+                grp["cluster"]
+                .astype(str)
+                .tolist()
+            )
 
             tasks.append({
                 "clusters": clusters,
                 "level": 2,
             })
+
+            print(
+                f"[TASK MERGE] {merge_group}: "
+                f"clusters={clusters}"
+            )
+
 
             processed.update(clusters)
 
@@ -140,6 +150,11 @@ def run_refine(args):
             "clusters": [cl],
             "level": 2,
         })
+
+    print("\n[INITIAL TASKS]")
+    for t in tasks:
+        print(t)
+    print()
 
     if len(tasks) == 0:
         print("No refinement tasks.")
@@ -470,7 +485,22 @@ def run_refine(args):
         clusters = task["clusters"]
         level = task["level"]
 
-        mask = adata.obs["refine_label"].isin(clusters)
+        print(
+            f"\n[REFINE TASK START] "
+            f"level={level} "
+            f"clusters={clusters}"
+        )
+
+        mask = (
+            adata.obs["refine_label"]
+            .astype(str)
+            .isin([str(x) for x in clusters])
+        )
+
+        print(
+            f"[TASK SELECT] clusters={clusters} "
+            f"matched_cells={mask.sum()}"
+        )
         adata_sub = adata[mask].copy()
 
         print(f"[Refine] Level {level} | clusters = {clusters} | cells = {adata_sub.n_obs}")
@@ -481,6 +511,21 @@ def run_refine(args):
         adata_sub = restore_counts(adata_sub)
 
         adata_sub = _run_clustering(adata_sub)
+
+        if adata_sub is not None:
+
+            print(
+                "[REFINE RESULT] "
+                f"clusters={clusters} "
+                f"resolved_clusters="
+                f"{adata_sub.obs['leiden_refined'].nunique()}"
+            )
+
+            print(
+                adata_sub.obs["leiden_refined"]
+                .value_counts()
+                .sort_index()
+            )
 
         if adata_sub is None:
             ...
@@ -644,6 +689,11 @@ def run_refine(args):
             adata_sub.obs["leiden_refined"]
             .astype(str)
             .map(cluster_map)
+        )
+
+        print(
+            "[REFINE MAP]",
+            cluster_map
         )
 
         # any cluster collapsed for being too small
