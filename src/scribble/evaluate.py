@@ -3,21 +3,50 @@
 from pathlib import Path
 
 def classify_cluster(row, thresholds):
+
     n = row["n_cells"]
     stability = row["mean_stability"]
     entropy = row["sample_entropy"]
 
+    reassignment_fraction = row.get(
+        "dominant_reassignment_fraction",
+        0.0,
+    )
+
     if n < thresholds["min_cells"]:
         return "keep", "small_cluster", "low"
 
-    if stability < thresholds["low_stability"]:
-        return "trajectory", "low_stability_continuum", "medium"
+    # Strong evidence that the cluster is not robustly separated
+    if reassignment_fraction >= thresholds["high_reassignment"]:
+        return (
+            "merge",
+            "high_reassignment_instability",
+            "high",
+        )
 
-    if n > thresholds["large_cells"] and stability < thresholds["high_stability"]:
-        return "subset", "heterogeneous_large_cluster", "high"
+    if stability < thresholds["low_stability"]:
+        return (
+            "trajectory",
+            "low_stability_continuum",
+            "medium",
+        )
+
+    if (
+        n > thresholds["large_cells"]
+        and stability < thresholds["high_stability"]
+    ):
+        return (
+            "subset",
+            "heterogeneous_large_cluster",
+            "high",
+        )
 
     if entropy < thresholds["low_entropy"]:
-        return "flag_bias", "sample_specific_cluster", "medium"
+        return (
+            "flag_bias",
+            "sample_specific_cluster",
+            "medium",
+        )
 
     return "keep", "well_defined_cluster", "low"
 
@@ -33,9 +62,11 @@ def find_merge_candidates(
 
     conn = adata.obsp["connectivities"]
 
-    subset_clusters = (
+    candidate_clusters = (
         decision_df.loc[
-            decision_df["action"] == "subset",
+            decision_df["action"].isin(
+                ["subset", "merge"]
+            ),
             "cluster"
         ]
         .astype(str)
@@ -44,7 +75,7 @@ def find_merge_candidates(
 
     pair_scores = []
 
-    for i, clust_a in enumerate(subset_clusters):
+    for i, clust_a in enumerate(candidate_clusters):
 
         cells_a = np.where(
             adata.obs[cluster_key].astype(str) == clust_a
@@ -53,7 +84,7 @@ def find_merge_candidates(
         if len(cells_a) == 0:
             continue
 
-        for clust_b in subset_clusters[i + 1:]:
+        for clust_b in candidate_clusters[i + 1:]:
 
             cells_b = np.where(
                 adata.obs[cluster_key].astype(str) == clust_b
@@ -148,7 +179,14 @@ def run_evaluate(args):
 
             mean_stability = df["mean_stability"].mean()
             mean_entropy = df["sample_entropy"].mean()
-            low_stability_frac = (df["mean_stability"] < 0.7).mean()
+            instability_burden = (1.0 - df["mean_stability"]).mean()
+            mean_reassignment = (df["dominant_reassignment_fraction"].fillna(0).mean())
+            n_merge_candidates = (
+                df["dominant_reassignment_fraction"]
+                .fillna(0)
+                .gt(args.high_reassignment)
+                .sum()
+            )
             n_clusters = df.shape[0]
 
             # ---- cluster count penalty (soft constraint) ----
@@ -161,8 +199,9 @@ def run_evaluate(args):
 
             score = (
                 mean_stability
-                + 0.5 * mean_entropy
-                - 2.0 * low_stability_frac
+                - instability_burden
+                - mean_reassignment
+                - 0.20 * n_merge_candidates
                 - 0.1 * cluster_penalty
             )
 
@@ -172,7 +211,9 @@ def run_evaluate(args):
                 "score": score,
                 "mean_stability": mean_stability,
                 "mean_entropy": mean_entropy,
-                "low_stability_fraction": low_stability_frac,
+                "instability_burden": instability_burden,
+                "mean_reassignment": mean_reassignment,
+                "n_merge_candidates": n_merge_candidates,
                 "n_clusters": n_clusters
             })
 
@@ -189,7 +230,9 @@ def run_evaluate(args):
             "score",
             "mean_stability",
             "mean_entropy",
-            "low_stability_fraction",
+            "instability_burden",
+            "mean_reassignment",
+            "n_merge_candidates",
             "n_clusters"
         ]])
 
@@ -224,6 +267,7 @@ def run_evaluate(args):
         "low_stability": args.low_stability,
         "high_stability": args.high_stability,
         "low_entropy": args.low_entropy,
+        "high_reassignment": args.high_reassignment,
     }
 
     # ----------------------------
@@ -237,7 +281,9 @@ def run_evaluate(args):
         detail = (
             f"n={row['n_cells']}; "
             f"stability={row['mean_stability']:.2f}; "
-            f"entropy={row['sample_entropy']:.2f}"
+            f"entropy={row['sample_entropy']:.2f}; "
+            f"dominant={row.get('dominant_reassignment', '')}; "
+            f"reassign={row.get('dominant_reassignment_fraction', 0):.2f}"
         )
 
         decisions.append({

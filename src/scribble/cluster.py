@@ -496,8 +496,6 @@ def run_cluster(args):
     # --------------------------------------------------
     if "cluster_stability" in adata.obs:
 
-        print(f"Exporting cluster stats → {stats_file}")
-
         # Cell-level stability table
         adata.obs[
             ["leiden", "cluster_stability"]

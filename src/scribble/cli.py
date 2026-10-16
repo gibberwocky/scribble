@@ -196,13 +196,16 @@ GitHub: https://github.com/gibberwocky/scribble
     evaluate_parser.add_argument("--large_cells", type=int, default=800,
         help="Minimum size threshold for considering a cluster as large and potentially heterogeneous")
     evaluate_parser.add_argument("--low_stability", type=float, default=0.75,
-        help="Threshold below which clusters are considered unstable (potential continua)")
+        help="Threshold below which clusters are considered unstable, used for trajectory/continuum detection")
     evaluate_parser.add_argument("--high_stability", type=float, default=0.95,
         help="Threshold above which clusters are considered highly stable")
     evaluate_parser.add_argument("--low_entropy", type=float, default=0.5,
         help="Threshold below which clusters are considered poorly mixed across samples")
     evaluate_parser.add_argument("--merge_percentile", type=float, default=90,
-        help="Percentile of graph connectivity scores used to define merge candidates")
+        help="Percentile of graph connectivity scores used when identifying merge candidates among subset or unstable clusters")
+    evaluate_parser.add_argument("--high_reassignment", type=float, default=0.30,
+        help=("Threshold above which a cluster is considered unstably partitioned and recommended for merging")
+
 
     # -------------- Evaluate ------------
     refine_parser = subparsers.add_parser("refine",
