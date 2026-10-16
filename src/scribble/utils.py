@@ -158,20 +158,38 @@ def build_reassignment_strings(
         ).head(top_n)
 
         summaries[cluster] = ";".join(
-            f"{row.destination}:{row.proportion:.0%}"
+            f"{row.destination}:{row.proportion:.1%}"
             for _, row in group.iterrows()
         )
 
     return summaries
+
 
 def compute_cluster_summary(
     adata,
     cluster_key,
     stability_key="cluster_stability",
     sample_key="sample",
+    reassignment_df=None,
 ):
     """
     Generate cluster summary table.
+
+    Parameters
+    ----------
+    adata : AnnData
+    cluster_key : str
+        Column containing cluster labels.
+    stability_key : str
+        Column containing per-cell stability values.
+    sample_key : str
+        Column containing sample IDs.
+    reassignment_df : pd.DataFrame, optional
+        Output from summarise_cluster_reassignments().
+
+    Returns
+    -------
+    pd.DataFrame
     """
 
     summary = (
@@ -186,6 +204,9 @@ def compute_cluster_summary(
         .rename(columns={cluster_key: "cluster"})
     )
 
+    # --------------------------------------------------
+    # Sample entropy
+    # --------------------------------------------------
     if sample_key in adata.obs.columns:
 
         sample_counts = (
@@ -200,9 +221,7 @@ def compute_cluster_summary(
 
         summary["sample_entropy"] = (
             sample_counts.apply(
-                lambda row: entropy(
-                    row / row.sum()
-                ),
+                lambda row: entropy(row / row.sum()),
                 axis=1,
             ).values
         )
@@ -211,4 +230,64 @@ def compute_cluster_summary(
 
         summary["sample_entropy"] = np.nan
 
-    return summary
+    # --------------------------------------------------
+    # Reassignment diagnostics
+    # --------------------------------------------------
+    summary["dominant_reassignment"] = np.nan
+    summary["dominant_reassignment_fraction"] = np.nan
+
+    if reassignment_df is not None:
+
+        summary_strings = {}
+
+        dominant_targets = {}
+        dominant_fractions = {}
+
+        for cluster, group in reassignment_df.groupby("cluster"):
+
+            group = group.sort_values(
+                "proportion",
+                ascending=False
+            )
+
+            # Compact summary string for reports
+            summary_strings[str(cluster)] = ";".join(
+                f"{row.destination}:{row.proportion:.1%}"
+                for _, row in group.iterrows()
+            )
+
+            # Highest-probability alternative destination
+            alternatives = group[
+                group["destination"].astype(str)
+                != str(cluster)
+            ]
+
+            if len(alternatives):
+
+                best = alternatives.iloc[0]
+
+                dominant_targets[str(cluster)] = str(
+                    best["destination"]
+                )
+
+                dominant_fractions[str(cluster)] = float(
+                    best["proportion"]
+                )
+
+        summary["reassignment_summary"] = (
+            summary["cluster"]
+            .astype(str)
+            .map(summary_strings)
+            .fillna("")
+        )
+
+        summary["dominant_reassignment"] = (
+            summary["cluster"]
+            .astype(str)
+            .map(dominant_targets)
+        )
+
+        summary["dominant_reassignment_fraction"] = (
+            summary["cluster"]
+            .astype(str)
+            .map(dominant_fractions)

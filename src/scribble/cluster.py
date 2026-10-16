@@ -294,7 +294,6 @@ def run_cluster(args):
     from scribble.utils import (
         compute_cluster_stability,
         summarise_cluster_reassignments,
-        build_reassignment_strings,
         compute_cluster_summary,
     )
 
@@ -513,18 +512,7 @@ def run_cluster(args):
             adata=adata,
             cluster_key="leiden",
             stability_key="cluster_stability",
-        )
-
-        # Add reassignment summary strings
-        summary_strings = build_reassignment_strings(
-            reassignment_df
-        )
-
-        cluster_summary["reassignment_summary"] = (
-            cluster_summary["cluster"]
-            .astype(str)
-            .map(summary_strings)
-            .fillna("")
+            reassignment_df=reassignment_df,
         )
 
         # Write cluster summary
