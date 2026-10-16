@@ -507,7 +507,7 @@ def run_refine(args):
             parent_label = (
                 clusters[0]
                 if len(clusters) == 1
-                else "|".join(clusters)
+                else "_".join(sorted(clusters))
             )
 
             # Recover existing ancestry if this is a recursive refinement
@@ -630,9 +630,9 @@ def run_refine(args):
             cluster_registry.append({
                 "refine_cluster": cluster_id,
                 "parent_refine_cluster": (
-                    "|".join(clusters)
-                    if len(clusters) > 0
-                    else None
+                    clusters[0]
+                    if len(clusters) == 1
+                    else "_".join(sorted(clusters))
                 ),
                 "local_cluster": cl,
                 "level": level,
@@ -684,7 +684,7 @@ def run_refine(args):
             parent_label = (
                 clusters[0]
                 if len(clusters) == 1
-                else "|".join(clusters)
+                else "_".join(sorted(clusters))
             )
 
             # Recover ancestry already associated with the parent
@@ -936,27 +936,7 @@ def run_refine(args):
         .astype(str)
     )
 
-    reassignment_df = None
-
-    if len(master_reassignments) > 0:
-
-        refine_reassignments = pd.concat(
-            master_reassignments,
-            ignore_index=True,
-        )
-
-        refine_summary = compute_cluster_summary(
-            adata=adata_global,
-            cluster_key="refine_cluster",
-            stability_key="cluster_stability",
-            reassignment_df=refine_reassignments,
-        )
-
-
-    refine_summary.to_csv(
-        TABLE_DIR / "refine_cluster_summary.tsv",
-        sep="\t"
-    )
+    refine_reassignments = None
 
     if len(master_reassignments) > 0:
 
@@ -971,6 +951,19 @@ def run_refine(args):
             sep="\t",
             index=False,
         )
+
+    refine_summary = compute_cluster_summary(
+        adata=adata_global,
+        cluster_key="refine_cluster",
+        stability_key="cluster_stability",
+        reassignment_df=refine_reassignments,
+    )
+
+    refine_summary.to_csv(
+        TABLE_DIR / "refine_cluster_summary.tsv",
+        sep="\t",
+        index=False,
+    )
 
     global_markers = _compute_markers(
         adata_global,
