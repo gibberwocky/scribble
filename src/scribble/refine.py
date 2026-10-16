@@ -566,6 +566,19 @@ def run_refine(args):
             )
 
             tmp["level"] = level
+
+            tmp["cluster"] = (
+                "|".join(clusters)
+                + ":"
+                + tmp["cluster"].astype(str)
+            )
+
+            tmp["destination"] = (
+                "|".join(clusters)
+                + ":"
+                + tmp["destination"].astype(str)
+            )
+
             tmp["parent_clusters"] = (
                 "|".join(clusters)
             )
@@ -699,13 +712,19 @@ def run_refine(args):
 
         if collapsed.any():
 
-            parent_label = (
-                clusters[0]
-                if len(clusters) == 1
-                else "_".join(sorted(clusters))
+            largest_refined = (
+                pd.Series(cluster_map)
+                .dropna()
+                .iloc[0]
             )
 
-            refined.loc[collapsed] = parent_label
+            refined.loc[collapsed] = largest_refined
+
+            print(
+                f"[COLLAPSE MERGE] "
+                f"{collapsed.sum()} cells -> "
+                f"{largest_refined}"
+            )
 
         adata.obs.loc[
             adata_sub.obs_names,
@@ -833,8 +852,20 @@ def run_refine(args):
 
                     tmp["refine_cluster"] = node_label
 
+                    tmp["cluster"] = (
+                        "|".join(clusters)
+                        + ":"
+                        + tmp["cluster"].astype(str)
+                    )
+
+                    tmp["destination"] = (
+                        "|".join(clusters)
+                        + ":"
+                        + tmp["destination"].astype(str)
+                    )
+
                     tmp["parent_clusters"] = (
-                        "+".join(task["clusters"])
+                        "|".join(clusters)
                     )
 
                     tmp["level"] = task["level"]
@@ -942,7 +973,6 @@ def run_refine(args):
 
     if len(tasks) > 0:
 
-        print("\n[INITIAL TASKS]")
         i = 0
         while i < len(tasks):
 
