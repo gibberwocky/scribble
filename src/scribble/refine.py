@@ -91,11 +91,7 @@ def run_refine(args):
 
     tasks = []
 
-    refine_df = decisions.loc[
-        decisions["action"].isin(
-            ["subset", "merge"]
-        )
-    ]
+    refine_df = decisions.copy()
 
     refine_df["cluster"] = refine_df["cluster"].astype(str)
 
@@ -107,9 +103,9 @@ def run_refine(args):
 
     if "merge_group" in refine_df.columns:
 
-        merge_df = refine_df[
-            refine_df["merge_group"].notna()
-            & (refine_df["merge_group"].astype(str).str.strip() != "")
+        merge_df = decisions[
+            decisions["merge_group"].notna()
+            & (decisions["merge_group"].astype(str).str.strip() != "")
         ]
 
         for merge_group, grp in merge_df.groupby("merge_group"):
@@ -132,7 +128,10 @@ def run_refine(args):
     # 2. Handle standalone subset clusters
     # ----------------------------------------
 
-    for cl in refine_df["cluster"]:
+    for cl in refine_df.loc[
+        refine_df["action"] == "subset",
+        "cluster"
+    ]:
 
         if cl in processed:
             continue
