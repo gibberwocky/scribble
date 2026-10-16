@@ -259,6 +259,7 @@ def run_evaluate(args):
     print(f"Loading cluster summary: {input_file}")
 
     df = pd.read_csv(input_file, sep="\t")
+    total_cells = df["n_cells"].sum()
 
     # ----------------------------
     # Thresholds
@@ -278,7 +279,10 @@ def run_evaluate(args):
     decisions = []
 
     for _, row in df.iterrows():
-        action, reason, priority = classify_cluster(row, thresholds)
+
+        row = row.copy()
+        row["fraction_of_dataset"] = (row["n_cells"] / total_cells)
+        action, reason, priority = classify_cluster(row,thresholds)
 
         detail = (
             f"n={row['n_cells']}; "
@@ -299,7 +303,7 @@ def run_evaluate(args):
         decisions.append({
             "cluster": row["cluster"],
             "n_cells": row["n_cells"],
-            "fraction_of_dataset": (row["n_cells"] / summary_df["n_cells"].sum()),
+            "fraction_of_dataset": row["fraction_of_dataset"],
             "action": action,
             "reason": reason,
             "detail": detail,
