@@ -571,10 +571,23 @@ def run_refine(args):
                 "|".join(clusters)
             )
 
+            parent_prefix = "|".join(clusters)
+
+            tmp["cluster"] = (
+                parent_prefix + ":" +
+                tmp["cluster"].astype(str)
+            )
+
+            tmp["destination"] = (
+                parent_prefix + ":" +
+                tmp["destination"].astype(str)
+            )
+
             print(
                 "[CLUSTER_REASSIGNMENT COLS]",
                 adata_sub.uns["cluster_reassignments"].columns.tolist()
             )
+
             master_reassignments.append(tmp)
 
 
@@ -843,11 +856,6 @@ def run_refine(args):
                     tmp = df.copy()
 
                     tmp["refine_cluster"] = node_label
-
-                    print(
-                        "[REASSIGNMENT COLS]",
-                        tmp.columns.tolist()
-                    )
 
                     tmp["parent_clusters"] = (
                         "|".join(clusters)
