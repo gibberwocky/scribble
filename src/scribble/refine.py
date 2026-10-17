@@ -556,41 +556,6 @@ def run_refine(args):
             )
             return []
 
-        if "cluster_reassignments" in adata_sub.uns:
-
-            tmp = (
-                adata_sub.uns[
-                    "cluster_reassignments"
-                ]
-                .copy()
-            )
-
-            tmp["level"] = level
-
-            tmp["parent_clusters"] = (
-                "|".join(clusters)
-            )
-
-            parent_prefix = "|".join(clusters)
-
-            tmp["cluster"] = (
-                parent_prefix + ":" +
-                tmp["cluster"].astype(str)
-            )
-
-            tmp["destination"] = (
-                parent_prefix + ":" +
-                tmp["destination"].astype(str)
-            )
-
-            print(
-                "[CLUSTER_REASSIGNMENT COLS]",
-                adata_sub.uns["cluster_reassignments"].columns.tolist()
-            )
-
-            master_reassignments.append(tmp)
-
-
 
         # --------------------------------------------------
         # Parent node markers
@@ -711,6 +676,46 @@ def run_refine(args):
             "[REFINE MAP]",
             cluster_map
         )
+
+        if "cluster_reassignments" in adata_sub.uns:
+
+            tmp = (
+                adata_sub.uns[
+                    "cluster_reassignments"
+                ]
+                .copy()
+            )
+
+            # local Leiden -> global refine label
+            global_map = {
+                str(k): v
+                for k, v in cluster_map.items()
+                if v is not None
+            }
+
+            tmp["cluster"] = (
+                tmp["cluster"]
+                .astype(str)
+                .map(global_map)
+            )
+
+            tmp["destination"] = (
+                tmp["destination"]
+                .astype(str)
+                .map(global_map)
+            )
+
+            tmp = tmp.dropna(
+                subset=["cluster", "destination"]
+            )
+
+            tmp["level"] = level
+
+            tmp["parent_clusters"] = (
+                "|".join(clusters)
+            )
+
+            master_reassignments.append(tmp)
 
         # any cluster collapsed for being too small
         collapsed = refined.isna()
