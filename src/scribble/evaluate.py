@@ -286,10 +286,14 @@ def run_evaluate(args):
         detail = (
             f"n={row['n_cells']}; "
             f"stability={row['mean_stability']:.2f}; "
-            f"entropy={row['sample_entropy']:.2f}; "
-            f"dominant={row.get('dominant_reassignment', '')}; "
-            f"reassign={row.get('dominant_reassignment_fraction', 0):.1%}"
+            f"entropy={row['sample_entropy']:.2f}"
         )
+
+        if not pd.isna(dominant):
+            detail += (
+                f"; dominant={dominant}; "
+                f"reassign={reassign:.1%}"
+            )
 
         suggested_merge_target = ""
 
