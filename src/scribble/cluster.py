@@ -512,7 +512,8 @@ def run_cluster(args):
             stability_key="cluster_stability",
             reassignment_df=reassignment_df,
             dominant_reassignment_threshold=args.dominant_reassignment_threshold,
-            reassignment_display_threshold=args.reassignment_display_threshold
+            reassignment_display_threshold=args.reassignment_display_threshold,
+            merge_candidate_threshold=args.high_reassignment
         )
 
         # Write cluster summary

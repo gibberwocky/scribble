@@ -187,6 +187,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Minimum reassignment proportion required before a dominant reassignment is reported")
     cluster_parser.add_argument("--reassignment_display_threshold", type=float, default=0.01,
         help="Minimum reassignment proportion displayed in reassignment summaries")
+    cluster_parser.add_argument("--high_reassignment", type=float, default=0.30,
+        help="Threshold above which a cluster is considered unstably partitioned and recommended for merging")
 
     # -------------- Evaluate ------------
     evaluate_parser = subparsers.add_parser("evaluate",

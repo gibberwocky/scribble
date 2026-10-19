@@ -172,7 +172,8 @@ def compute_cluster_summary(
     sample_key="sample",
     reassignment_df=None,
     dominant_reassignment_threshold=0.05,
-    reassignment_display_threshold=0.01
+    reassignment_display_threshold=0.01,
+    merge_candidate_threshold=0.30,
 ):
     """
     Generate cluster summary table.
@@ -313,5 +314,11 @@ def compute_cluster_summary(
             .astype(str)
             .map(dominant_fractions)
         )
+
+    summary["merge_candidate"] = (
+        summary["dominant_reassignment_fraction"]
+        .fillna(0)
+        .ge(merge_candidate_threshold)
+    )
 
     return summary

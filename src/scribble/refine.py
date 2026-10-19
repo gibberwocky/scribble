@@ -1059,7 +1059,8 @@ def run_refine(args):
         stability_key="cluster_stability",
         reassignment_df=refine_reassignments,
         dominant_reassignment_threshold=args.dominant_reassignment_threshold,
-        reassignment_display_threshold=args.reassignment_display_threshold
+        reassignment_display_threshold=args.reassignment_display_threshold,
+        merge_candidate_threshold=args.high_reassignment
     )
 
     refine_summary.to_csv(
