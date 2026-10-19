@@ -342,12 +342,21 @@ def run_evaluate(args):
             and str(row["suggested_merge_target"]) != ""
         ):
 
-            merge_pairs.append(
-                (
-                    str(row["cluster"]),
-                    str(row["suggested_merge_target"])
+            target = row["suggested_merge_target"]
+
+            if pd.notna(target):
+
+                try:
+                    target = str(int(float(target)))
+                except Exception:
+                    target = str(target)
+
+                merge_pairs.append(
+                    (
+                        str(row["cluster"]),
+                        target,
+                    )
                 )
-            )
 
 
     graph_merge_pairs = find_merge_candidates(
@@ -391,7 +400,9 @@ def run_evaluate(args):
         group_label = f"group_{idx+1}"
 
         group = {
-            str(x)
+            str(int(float(x)))
+            if str(x).replace(".", "", 1).isdigit()
+            else str(x)
             for x in group
         }
 
