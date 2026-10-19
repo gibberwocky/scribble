@@ -809,6 +809,11 @@ def run_refine(args):
                         if len(clusters) > 1
                         else "single_cluster"
                     ),
+                    "refinement_source": (
+                        "merge_group"
+                        if len(clusters) > 1
+                        else "single_cluster"
+                    ),
                 }
 
             else:
@@ -819,6 +824,11 @@ def run_refine(args):
                     "node_type": "refined_child",
                     "parent_clusters": clusters.copy(),
                     "parent_cluster_type": (
+                        "merge_group"
+                        if len(clusters) > 1
+                        else "single_cluster"
+                    ),
+                    "refinement_source": (
                         "merge_group"
                         if len(clusters) > 1
                         else "single_cluster"
@@ -1204,6 +1214,9 @@ def run_refine(args):
             "root_cluster": path[0],
             "refinement_path": " -> ".join(map(str, path)),
             "node_type": info.get("node_type"),
+            "refinement_source": info.get(
+                "refinement_source"
+            ),
             "parent_cluster_type": info.get(
                 "parent_cluster_type"
             ),
@@ -1216,7 +1229,14 @@ def run_refine(args):
                     )
                 )
             ),
+            "n_parent_clusters": len(
+                info.get(
+                    "parent_clusters",
+                    []
+                )
+            ),
         })
+
 
 
     if len(refinement_rows) > 0:
