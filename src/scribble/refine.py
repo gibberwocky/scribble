@@ -1280,18 +1280,6 @@ def run_refine(args):
             how="left",
         )
 
-        child_group_stability = (
-            refinement_report
-            .groupby("parent")["mean_stability"]
-            .mean()
-            .to_dict()
-        )
-
-        refinement_report["child_group_mean_stability"] = (
-            refinement_report["parent"]
-            .map(child_group_stability)
-        )
-
         refinement_report = refinement_report[
             [
                 "cluster",
@@ -1307,8 +1295,6 @@ def run_refine(args):
 
                 "mean_stability",
                 "median_stability",
-                "child_group_mean_stability",
-
                 "sample_entropy",
 
                 "dominant_reassignment",
