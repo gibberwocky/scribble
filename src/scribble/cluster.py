@@ -511,6 +511,8 @@ def run_cluster(args):
             cluster_key="leiden",
             stability_key="cluster_stability",
             reassignment_df=reassignment_df,
+            dominant_reassignment_threshold=args.dominant_reassignment_threshold,
+            reassignment_display_threshold=args.reassignment_display_threshold
         )
 
         # Write cluster summary

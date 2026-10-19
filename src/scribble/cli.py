@@ -183,6 +183,10 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Maximum number of PCA dimensions when running resolution optimisation")
     cluster_parser.add_argument("--min_cluster_size", type=int, default=50,
         help="Minimum number of cells for a cluster, below which cells assigned to nearest cluster in graph")
+    cluster_parser.add_argument("--dominant_reassignment_threshold", type=float, default=0.05,
+        help="Minimum reassignment proportion required before a dominant reassignment is reported")
+    cluster_parser.add_argument("--reassignment_display_threshold", type=float, default=0.01,
+        help="Minimum reassignment proportion displayed in reassignment summaries")
 
     # -------------- Evaluate ------------
     evaluate_parser = subparsers.add_parser("evaluate",
@@ -269,6 +273,10 @@ GitHub: https://github.com/gibberwocky/scribble
         help="logFC threshold")
     refine_parser.add_argument("--skip-integration", action="store_true",
         help="Skip Harmony and use PCA directly.")
+    refine_parser.add_argument("--dominant_reassignment_threshold", type=float, default=0.05,
+        help="Minimum reassignment proportion required before a dominant reassignment is reported")
+    refine_parser.add_argument("--reassignment_display_threshold", type=float, default=0.01,
+        help="Minimum reassignment proportion displayed in reassignment summaries")
 
     # ------------- Map to atlas ---------
     map_parser = subparsers.add_parser("map",

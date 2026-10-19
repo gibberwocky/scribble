@@ -171,6 +171,8 @@ def compute_cluster_summary(
     stability_key="cluster_stability",
     sample_key="sample",
     reassignment_df=None,
+    dominant_reassignment_threshold=0.05,
+    reassignment_display_threshold=0.01
 ):
     """
     Generate cluster summary table.
@@ -186,6 +188,10 @@ def compute_cluster_summary(
         Column containing sample IDs.
     reassignment_df : pd.DataFrame, optional
         Output from summarise_cluster_reassignments().
+    dominant_reassignment_threshold: float
+        Minimal proportion for dominant_reassignment
+    reassignment_display_threshold: float
+        Minimal reassignment threshold to display
 
     Returns
     -------
@@ -251,9 +257,18 @@ def compute_cluster_summary(
             )
 
             # Compact summary string for reports
+            group = group[
+                group["proportion"] >= 0.01
+            ]
+
+            display_group = group[
+                group["proportion"]
+                >= reassignment_display_threshold
+            ]
+
             summary_strings[str(cluster)] = ";".join(
                 f"{row.destination}:{row.proportion:.1%}"
-                for _, row in group.iterrows()
+                for _, row in display_group.iterrows()
             )
 
             # Highest-probability alternative destination
@@ -266,13 +281,19 @@ def compute_cluster_summary(
 
                 best = alternatives.iloc[0]
 
-                dominant_targets[str(cluster)] = str(
-                    best["destination"]
-                )
-
-                dominant_fractions[str(cluster)] = float(
+                if (
                     best["proportion"]
-                )
+                    >= dominant_reassignment_threshold
+                ):
+
+                    dominant_targets[str(cluster)] = str(
+                        best["destination"]
+                    )
+
+                    dominant_fractions[str(cluster)] = float(
+                        best["proportion"]
+                    )
+
 
         summary["reassignment_summary"] = (
             summary["cluster"]
