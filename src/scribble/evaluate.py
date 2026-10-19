@@ -289,6 +289,11 @@ def run_evaluate(args):
             None,
         )
 
+        reassign = row.get(
+            "dominant_reassignment_fraction",
+            None,
+        )
+
         detail = (
             f"n={row['n_cells']}; "
             f"stability={row['mean_stability']:.2f}; "
