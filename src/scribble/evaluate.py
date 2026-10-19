@@ -283,6 +283,12 @@ def run_evaluate(args):
         row["fraction_of_dataset"] = (row["n_cells"] / total_cells)
         action, reason, priority = classify_cluster(row,thresholds)
 
+
+        dominant = row.get(
+            "dominant_reassignment",
+            None,
+        )
+
         detail = (
             f"n={row['n_cells']}; "
             f"stability={row['mean_stability']:.2f}; "
