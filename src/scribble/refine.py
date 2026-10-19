@@ -1109,12 +1109,6 @@ def run_refine(args):
         merge_candidate_threshold=args.high_reassignment
     )
 
-    refine_summary.to_csv(
-        TABLE_DIR / "refine_cluster_summary.tsv",
-        sep="\t",
-        index=False,
-    )
-
     global_markers = _compute_markers(
         adata_global,
         "refine_cluster",
@@ -1218,7 +1212,7 @@ def run_refine(args):
         )
 
     # --------------------------------------------------
-    # Save refinement tree
+    # Save refinement summary / tree
     # --------------------------------------------------
 
     refinement_rows = []
@@ -1231,7 +1225,7 @@ def run_refine(args):
         path = info.get("path", [cluster])
 
         refinement_rows.append({
-            "refine_cluster": cluster,
+            "cluster": cluster,
             "parent": info.get("parent"),
             "level": info.get("level"),
             "root_cluster": path[0],
@@ -1260,11 +1254,12 @@ def run_refine(args):
             ),
         })
 
-
-
     if len(refinement_rows) > 0:
 
-        refinement_df = pd.DataFrame(refinement_rows).drop_duplicates()
+        refinement_df = (
+            pd.DataFrame(refinement_rows)
+            .drop_duplicates()
+        )
 
         cluster_sizes = (
             adata.obs["refine_label"]
@@ -1273,18 +1268,28 @@ def run_refine(args):
         )
 
         refinement_df["n_cells"] = (
-            refinement_df["refine_cluster"]
+            refinement_df["cluster"]
             .map(cluster_sizes)
         )
 
-        refinement_df.to_csv(
-            TABLE_DIR / "refinement_tree.tsv",
+        # ------------------------------
+        # Merge with refinement summary
+        # ------------------------------
+        refinement_report = refinement_df.merge(
+            refine_summary,
+            on="cluster",
+            how="left",
+        )
+
+        refinement_report.to_csv(
+            TABLE_DIR / "refinement_report.tsv",
             sep="\t",
-            index=False
+            index=False,
         )
 
         print(
-            f"Saved {len(refinement_df):,} refinement relationships"
+            f"Saved {len(refinement_report):,} "
+            f"refinement records"
         )
 
     # --------------------------------------------------

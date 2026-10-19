@@ -407,7 +407,7 @@ def run_evaluate(args):
         }
 
         print(
-            f"[ASSIGN MERGE GROUP] "
+            f"\n[MERGE GROUPS] "
             f"{group_label} -> {sorted(group)}"
         )
 
@@ -416,21 +416,8 @@ def run_evaluate(args):
             "merge_group"
         ] = group_label
 
+    print("\n[SUMMARY]")
     print(out_df["action"].value_counts())
-
-    print("\n[FINAL MERGE GROUPS]")
-
-    print(
-        out_df.loc[
-            out_df["merge_group"] != "",
-            [
-                "cluster",
-                "action",
-                "suggested_merge_target",
-                "merge_group",
-            ]
-        ]
-    )
 
     print(f"Saving decisions → {output_file}")
     out_df.to_csv(output_file, sep="\t", index=False)
