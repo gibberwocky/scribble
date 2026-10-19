@@ -802,14 +802,27 @@ def run_refine(args):
                     "parent": None,
                     "level": level,
                     "path": child_path,
-                    "node_type": "retained_parent"
+                    "node_type": "retained_parent",
+                    "parent_clusters": clusters.copy(),
+                    "parent_cluster_type": (
+                        "merge_group"
+                        if len(clusters) > 1
+                        else "single_cluster"
+                    ),
                 }
+
             else:
                 adata.uns["refinement_tree"][child] = {
                     "parent": parent_label,
                     "level": level,
                     "path": child_path,
-                    "node_type": "refined_child"
+                    "node_type": "refined_child",
+                    "parent_clusters": clusters.copy(),
+                    "parent_cluster_type": (
+                        "merge_group"
+                        if len(clusters) > 1
+                        else "single_cluster"
+                    ),
                 }
 
         # -----------------------
@@ -1190,14 +1203,35 @@ def run_refine(args):
             "level": info.get("level"),
             "root_cluster": path[0],
             "refinement_path": " -> ".join(map(str, path)),
-            "node_type": info.get("node_type")
+            "node_type": info.get("node_type"),
+            "parent_cluster_type": info.get(
+                "parent_cluster_type"
+            ),
+            "parent_clusters": "|".join(
+                map(
+                    str,
+                    info.get(
+                        "parent_clusters",
+                        []
+                    )
+                )
+            ),
         })
+
 
     if len(refinement_rows) > 0:
 
-        refinement_df = (
-            pd.DataFrame(refinement_rows)
-            .drop_duplicates()
+        refinement_df = pd.DataFrame(refinement_rows).drop_duplicates()
+
+        cluster_sizes = (
+            adata.obs["refine_label"]
+            .astype(str)
+            .value_counts()
+        )
+
+        refinement_df["n_cells"] = (
+            refinement_df["refine_cluster"]
+            .map(cluster_sizes)
         )
 
         refinement_df.to_csv(
