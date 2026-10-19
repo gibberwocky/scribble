@@ -624,7 +624,11 @@ def run_refine(args):
                 tmp = parent_df.copy()
 
                 tmp["refine_cluster"] = None
-                tmp["parent_refine_cluster"] = clusters[0]
+                tmp["parent_refine_cluster"] = (
+                    clusters[0]
+                    if len(clusters) == 1
+                    else "_".join(sorted(clusters))
+                )
                 tmp["level"] = level - 1
                 tmp["node_type"] = "parent"
                 tmp["n_parent_clusters"] = len(clusters)
@@ -1228,14 +1232,9 @@ def run_refine(args):
             "cluster": cluster,
             "parent": info.get("parent"),
             "level": info.get("level"),
-            "root_cluster": path[0],
             "refinement_path": " -> ".join(map(str, path)),
-            "node_type": info.get("node_type"),
             "refinement_source": info.get(
                 "refinement_source"
-            ),
-            "parent_cluster_type": info.get(
-                "parent_cluster_type"
             ),
             "parent_clusters": "|".join(
                 map(
@@ -1276,10 +1275,49 @@ def run_refine(args):
         # Merge with refinement summary
         # ------------------------------
         refinement_report = refinement_df.merge(
-            refine_summary,
+            refine_summary.drop(columns=["n_cells"]),
             on="cluster",
             how="left",
         )
+
+        child_group_stability = (
+            refinement_report
+            .groupby("parent")["mean_stability"]
+            .mean()
+            .to_dict()
+        )
+
+        refinement_report["child_group_mean_stability"] = (
+            refinement_report["parent"]
+            .map(child_group_stability)
+        )
+
+        refinement_report = refinement_report[
+            [
+                "cluster",
+                "n_cells",
+
+                "parent",
+                "level",
+                "refinement_path",
+
+                "refinement_source",
+                "parent_clusters",
+                "n_parent_clusters",
+
+                "mean_stability",
+                "median_stability",
+                "child_group_mean_stability",
+
+                "sample_entropy",
+
+                "dominant_reassignment",
+                "dominant_reassignment_fraction",
+                "reassignment_summary",
+                "reassignment_class",
+                "merge_candidate",
+            ]
+        ]
 
         refinement_report.to_csv(
             TABLE_DIR / "refinement_report.tsv",

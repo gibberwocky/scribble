@@ -321,4 +321,23 @@ def compute_cluster_summary(
         .ge(merge_candidate_threshold)
     )
 
+    summary["reassignment_class"] = np.select(
+        [
+            summary[
+                "dominant_reassignment_fraction"
+            ].fillna(0) >= merge_candidate_threshold,
+
+            summary[
+                "dominant_reassignment_fraction"
+            ].fillna(0) >= 0.10,
+        ],
+        [
+            "strong",
+            "moderate",
+        ],
+        default="weak",
+    )
+
+
+
     return summary
