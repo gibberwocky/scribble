@@ -108,6 +108,29 @@ def run_refine(args):
             & (decisions["merge_group"].astype(str).str.strip() != "")
         ]
 
+        print("\n[MERGE DF]")
+        print(
+            merge_df[
+                [
+                    "cluster",
+                    "action",
+                    "merge_group",
+                    "suggested_merge_target",
+                ]
+            ]
+        )
+
+        print("\n[MERGE GROUP CONTENTS]")
+
+        for mg, grp in merge_df.groupby("merge_group"):
+
+            print(
+                mg,
+                grp["cluster"]
+                .astype(str)
+                .tolist()
+            )
+
         for merge_group, grp in merge_df.groupby("merge_group"):
 
             clusters = (
