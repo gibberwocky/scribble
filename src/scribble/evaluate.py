@@ -390,14 +390,36 @@ def run_evaluate(args):
 
         group_label = f"group_{idx+1}"
 
-        for cl in group:
+        group = {
+            str(x)
+            for x in group
+        }
 
-            out_df.loc[
-                out_df["cluster"] == str(cl),
-                "merge_group"
-            ] = group_label
+        print(
+            f"[ASSIGN MERGE GROUP] "
+            f"{group_label} -> {sorted(group)}"
+        )
+
+        out_df.loc[
+            out_df["cluster"].astype(str).isin(group),
+            "merge_group"
+        ] = group_label
 
     print(out_df["action"].value_counts())
+
+    print("\n[FINAL MERGE GROUPS]")
+
+    print(
+        out_df.loc[
+            out_df["merge_group"] != "",
+            [
+                "cluster",
+                "action",
+                "suggested_merge_target",
+                "merge_group",
+            ]
+        ]
+    )
 
     print(f"Saving decisions → {output_file}")
     out_df.to_csv(output_file, sep="\t", index=False)
