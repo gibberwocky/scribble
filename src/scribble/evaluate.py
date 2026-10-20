@@ -149,12 +149,16 @@ def run_evaluate(args):
     import pandas as pd
     import random
     from scribble.import_data import setup_environment
+    from scribble.utils import write_run_manifest
 
     PROJECT_DIR = Path(args.project_dir)
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
 
     setup_environment(sc, np, random, PLOT_DIR)
+
+    manifest_file = (MANIFEST_DIR / "evaluate_manifest.json")
 
     # ----------------------------
     # Handle input(s)
@@ -451,3 +455,14 @@ def run_evaluate(args):
 
     print(f"Saving decisions → {output_file}")
     out_df.to_csv(output_file, sep="\t", index=False)
+
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="evaluate",
+        args=args,
+        outputs={
+            "tsv": str(output_file),
+        },
+    )
