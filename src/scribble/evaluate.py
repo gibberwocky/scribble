@@ -462,6 +462,9 @@ def run_evaluate(args):
         manifest_file=manifest_file,
         module="evaluate",
         args=args,
+        inputs={
+            "input": args.input,
+        }
         outputs={
             "tsv": str(output_file),
         },
