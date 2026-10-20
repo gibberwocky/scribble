@@ -85,6 +85,7 @@ def is_marker_strong(marker_df, threshold):
 
 
 def compute_markers(sc, pd, np, adata_de, args, groupby, min_cluster_size=None):
+    from scribble.utils import summarise_cluster_reassignments
 
     if min_cluster_size is None:
         min_cluster_size = args.min_cells_per_cluster
@@ -360,7 +361,6 @@ def run_refine(args):
     from scipy.stats import entropy
     from scribble.utils import (
         write_run_manifest,
-        summarise_cluster_reassignments,
         compute_cluster_summary,
     )
 
