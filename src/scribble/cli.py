@@ -4,6 +4,9 @@ __author__ = "David Wragg"
 __license__ = "GNU GPL v3.0"
 
 import argparse
+import sys
+from scribble.utils import apply_manifest
+
 #from pandas.core.arrays.base import InterpolateOptions
 
 def main():
@@ -52,6 +55,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Excel metadata file with sheet 'meta' containing a 'sample' column matching input folder names")
     import_parser.add_argument("--inflection_lower", type=int, default=100,
         help="Lower bound for total cell UMIs when calculation inflection point")
+    import_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # -------------- MT QC ---------------
     mt_parser = subparsers.add_parser("mt")
@@ -61,6 +66,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Input AnnData (.h5ad) file (generated with scribble)")
     mt_parser.add_argument("--nmads", type=int, default=3,
         help="Number of median absolute deviations used to threshold mitochondrial content")
+    mt_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # ------------ Doublet QC ------------
     dbl_parser = subparsers.add_parser("dbl")
@@ -77,6 +84,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Apply normalization before Scrublet")
     dbl_parser.add_argument("--min_cells", type=int, default=200,
         help="Warn if sample has fewer cells than this for Scrublet")
+    dbl_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # -------------- PCA QC --------------
     pca_parser = subparsers.add_parser("pca")
@@ -92,6 +101,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Number of highly variable genes used for PCA")
     pca_parser.add_argument("--vmax", type=float, default=0.99,
         help="Upper limit for PCA variance ratio plot scaling")
+    pca_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # -------------- Filter --------------
     filter_parser = subparsers.add_parser("filter")
@@ -105,6 +116,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Maximum number of genes with non-zero counts in a given cell")
     filter_parser.add_argument("--filter_xlsx",
         help="Optional Excel file with per-sample filtering thresholds (sheet 'filters', must include 'sample' column)")
+    filter_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # ---------- Preintegration ----------
     preintegration_parser = subparsers.add_parser("preintegration")
@@ -128,6 +141,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Variables to regress out (e.g. total_counts pct_counts_mt)")
     preintegration_parser.add_argument("--min_cells_per_gene", "--min_cells", dest="min_cells_per_gene", type=int, default=3,
         help="Minimum number of cells a gene must be expressed in")
+    preintegration_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # -------------- Harmony -------------
     harmony_parser = subparsers.add_parser("harmony")
@@ -145,6 +160,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Harmony diversity penalty (higher values increase batch mixing but risk overcorrection)")
     harmony_parser.add_argument("--vars", nargs="+", default=["sample"],
         help="Observation columns to colour UMAP plots")
+    harmony_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # -------------- Cluster -------------
     cluster_parser = subparsers.add_parser("cluster",
@@ -189,6 +206,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Minimum reassignment proportion displayed in reassignment summaries")
     cluster_parser.add_argument("--high_reassignment", type=float, default=0.30,
         help="Threshold above which a cluster is considered unstably partitioned and recommended for merging")
+    cluster_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # -------------- Evaluate ------------
     evaluate_parser = subparsers.add_parser("evaluate",
@@ -213,6 +232,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Threshold above which a cluster is considered unstably partitioned and recommended for merging")
     evaluate_parser.add_argument("--ignore_saved_params", action="store_true",
         help="Ignore parameters from cluster step stored in the AnnData and use CLI arguments instead")
+    evaluate_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # -------------- Refine ------------
     refine_parser = subparsers.add_parser("refine",
@@ -284,6 +305,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Threshold above which a cluster is considered unstably partitioned and recommended for merging")
     refine_parser.add_argument("--ignore_saved_params", action="store_true",
         help="Ignore parameters from cluster step stored in the AnnData and use CLI arguments instead")
+    refine_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
 
     # -------------- Curate ------------
@@ -299,6 +322,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Comma-separated merge groups. Examples: R7+R6,R11+R12")
     curate_parser.add_argument("--refine", default="",
         help="Comma-separated clusters to refine. Examples: R8,R10")
+    curate_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
 
     # ------------- Map to atlas ---------
@@ -343,6 +368,8 @@ GitHub: https://github.com/gibberwocky/scribble
             "Cells below this threshold are labelled as 'Unassigned' "))
     map_parser.add_argument("--neighbors", type=int, default=15,
         help="Number of nearest neighbours used to smoothing labels")
+    map_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
     # -----------Add annotations ---------
     annotate_parser = subparsers.add_parser(
@@ -384,6 +411,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help=("Field from 'annotations' to plot as cluster colour / label"))
     annotate_parser.add_argument("--combined_label", action="store_true",
         help="Combine cluster number with annotation label")
+    annotate_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
 
     # ------------- Pseudotime -------------
@@ -408,6 +437,8 @@ GitHub: https://github.com/gibberwocky/scribble
     pseudotime_parser.add_argument("--tf_list", default=None)
     pseudotime_parser.add_argument("--association", action="store_true")
     pseudotime_parser.add_argument("--n_jobs", type=int, default=1)
+    pseudotime_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
 
     # ------------- Monod prep -------------
@@ -432,9 +463,12 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Clusters to be retained for Monod analysis")
     premonod_parser.add_argument("--min_shared_counts", type=int, default=20,
         help="Minimum shared spliced/unspliced counts per gene")
+    premonod_parser.add_argument("--manifest",
+        help="Load parameters from a previous Scribble JSON manifest")
 
 
     args = parser.parse_args()
+    args = apply_manifest(parser, args)
 
     # ---------- ROUTING ----------
     COMMANDS = {

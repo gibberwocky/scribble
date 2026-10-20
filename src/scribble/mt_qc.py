@@ -49,9 +49,11 @@ def run_mt_qc(args):
     import matplotlib.pyplot as plt
     import random
     from scribble.import_data import setup_environment
+    from scribble.utils import write_run_manifest
     from scribble.plots import mt_qc_panel
 
     PROJECT_DIR = Path(args.project_dir)
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     setup_environment(sc, np, random, PLOT_DIR)
 
@@ -67,5 +69,22 @@ def run_mt_qc(args):
     print("Generating MT QC plot...")
     mt_qc_panel(np, plt, adata, plot_file, args.nmads)
 
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_mt_manifest.json")
+    adata.uns["scribble_manifest"] = str(manifest_file)
+
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file)
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="mt",
+        args=args,
+        inputs={
+            "input_file": str(input_file),
+        },
+        outputs={
+            "adata": str(output_file),
+            "plot": str(plot_file)
+        },
+    )

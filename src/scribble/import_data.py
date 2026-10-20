@@ -204,6 +204,8 @@ def run_import(args):
     import pandas as pd
     import random
     import scipy.sparse as sp
+    from scribble.utils import write_run_manifest
+
 
     PROJECT_DIR = Path(args.project_dir)
 
@@ -212,10 +214,12 @@ def run_import(args):
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     ADATA_DIR = PROJECT_DIR / "scribble/adata"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
 
     PLOT_DIR.mkdir(exist_ok=True, parents=True)
     ADATA_DIR.mkdir(exist_ok=True, parents=True)
     TABLE_DIR.mkdir(exist_ok=True, parents=True)
+    MANIFEST_DIR.mkdir(exist_ok=True, parents=True)
 
     setup_environment(sc, np, random, PLOT_DIR)
 
@@ -254,6 +258,23 @@ def run_import(args):
     adata = add_metadata(pd, adata, args.metadata_file)
 
     out_file = ADATA_DIR / "combined.h5ad"
-    print(f"Saving to {out_file}")
+    manifest_file = (MANIFEST_DIR / "import_manifest.json")
+    adata.uns["scribble_manifest"] = str(manifest_file)
 
+    print(f"Saving to {out_file}")
     adata.write(out_file)
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="import",
+        args=args,
+        inputs={
+            "cellranger_dir": str(CELLRANGER_DIR),
+            "velocyto_dir": str(VELO_DIR),
+            "metadata_file": str(args.metadata_file),
+        },
+        outputs={
+            "adata": str(out_file),
+        },
+    )

@@ -4,6 +4,80 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from scipy.stats import entropy
+import json
+from datetime import datetime
+
+
+def write_run_manifest(
+    output_file,
+    module,
+    args,
+    inputs=None,
+    outputs=None,
+):
+    manifest = {
+        "module": module,
+        "timestamp": datetime.now().isoformat(),
+        "parameters": vars(args),
+        "inputs": inputs or {},
+        "outputs": outputs or {},
+    }
+
+    with open(output_file, "w") as handle:
+        json.dump(
+            manifest,
+            handle,
+            indent=2,
+        )
+
+
+def apply_manifest(parser, args):
+    """
+    Apply parameters from a manifest.
+
+    Precedence:
+
+        CLI arguments
+            >
+        manifest values
+            >
+        parser defaults
+    """
+
+    manifest_file = getattr(args, "manifest", None)
+
+    if not manifest_file:
+        return args
+
+    with open(manifest_file) as handle:
+        manifest = json.load(handle)
+
+    saved = manifest.get("parameters", {})
+
+    # Determine which options were explicitly supplied
+    cli_args = set()
+
+    for token in sys.argv[1:]:
+
+        if token.startswith("--"):
+
+            cli_args.add(
+                token.lstrip("-")
+                .replace("-", "_")
+            )
+
+    for key, value in saved.items():
+
+        if not hasattr(args, key):
+            continue
+
+        # User explicitly supplied this argument
+        if key in cli_args:
+            continue
+
+        setattr(args, key, value)
+
+    return args
 
 
 def compute_cluster_stability(

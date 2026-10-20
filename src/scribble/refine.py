@@ -198,6 +198,7 @@ def compute_markers(sc, pd, np, adata_de, args, groupby, min_cluster_size=None):
 
 
 def run_clustering(np, sc, pd, adata_sub, args):
+    from scribble.cluster import optimise_resolution
 
     sc.pp.filter_genes(
         adata_sub,
@@ -355,7 +356,6 @@ def run_refine(args):
     import matplotlib.pyplot as plt
 
     from scribble.import_data import setup_environment
-    from scribble.cluster import optimise_resolution
     from scipy.stats import entropy
     from scribble.utils import (
         compute_cluster_stability,
