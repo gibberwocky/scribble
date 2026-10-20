@@ -19,6 +19,7 @@ def run_pca_qc(args):
 
     input_file = Path(args.input)
     plot_file = PLOT_DIR / f"{input_file.stem}_pca.png"
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_pca_manifest.json")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -27,8 +28,6 @@ def run_pca_qc(args):
     pca_qc_panel(np, sc, plt, adata, plot_file,
         args.mingenes, args.maxgenes, args.hvgs, args.vmax)
 
-
-    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_pca_manifest.json")
     print(f"Writing run manifest to {manifest_file}")
     write_run_manifest(
         manifest_file=manifest_file,

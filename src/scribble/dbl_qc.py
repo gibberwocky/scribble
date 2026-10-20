@@ -25,6 +25,8 @@ def run_dbl_qc(args):
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_dblqc_exp-{args.expected}.h5ad")
     plot_file = PLOT_DIR / f"{input_file.stem}_dblqc_exp-{args.expected}.png"
+    xlsx_file = TABLE_DIR / f"{input_file.stem}_doublet_qc_summary.xlsx"
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_dbl_manifest.json")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -36,6 +38,7 @@ def run_dbl_qc(args):
 
     print("Running Scrublet per sample...")
 
+    fig_paths = []
     for sample in adata.obs["sample"].unique():
 
         mask = adata.obs["sample"] == sample
@@ -143,6 +146,7 @@ def run_dbl_qc(args):
         ax.legend()
 
         fig_path = PLOT_DIR / f"{input_file.stem}_{sample}_doublet_hist.png"
+        fig_paths.append(fig_path)
         plt.savefig(fig_path, dpi=150, bbox_inches="tight")
         plt.close()
 
@@ -230,13 +234,10 @@ def run_dbl_qc(args):
     qc_df = pd.DataFrame(rows)
 
     # -------- Save as Excel file --------
-    xlsx_file = TABLE_DIR / f"{input_file.stem}_doublet_qc_summary.xlsx"
     qc_df.to_excel(xlsx_file, index=False)
     print(f"Saved QC summary → {xlsx_file}")
 
-    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_dbl_manifest.json")
     adata.uns["scribble_manifest"] = str(manifest_file)
-
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file, compression="gzip")
 
@@ -250,7 +251,7 @@ def run_dbl_qc(args):
         },
         outputs={
             "adata": str(output_file),
-            "plot": str(fig_path),
+            "plot(s)": [str(fig_path) for fig_path in fig_paths],
             "plot": str(plot_file),
             "xlsx": str(xlsx_file)
         },

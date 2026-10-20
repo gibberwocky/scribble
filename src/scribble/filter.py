@@ -20,6 +20,7 @@ def run_filter(args):
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_filtered.h5ad")
     counts_file = TABLE_DIR / f"{input_file.stem}_filtered.tsv"
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_filter_manifest.json")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -163,9 +164,7 @@ def run_filter(args):
     # --------------------------------------------------
     # Save output
     # --------------------------------------------------
-    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_filter_manifest.json")
     adata_filtered.uns["scribble_manifest"] = str(manifest_file)
-
     print(f"Saving updated AnnData → {output_file}")
     adata_filtered.write(output_file)
 

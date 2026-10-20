@@ -9,14 +9,19 @@ def run_preintegration(args):
     import matplotlib.pyplot as plt
     import random
     from scribble.import_data import setup_environment
+    from scribble.utils import write_run_manifest
 
     PROJECT_DIR = Path(args.project_dir)
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_preintegration.h5ad")
+    pca_vars_file = PLOT_DIR / f"{input_file.stem}_preintegration_pca_vars.png"
+    pca_counts_file = PLOT_DIR / f"{input_file.stem}_preintegration_pca_counts.png"
     umap_file = PLOT_DIR / f"{input_file.stem}_preintegration_umap.png"
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_preintegration_manifest.json")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -69,8 +74,6 @@ def run_preintegration(args):
     # Subset counts using integer indices
     adata.layers["counts"] = adata.uns["counts_full"][:, hvg_mask].copy()
 
-
-
     adata.uns["data_model"] = {
         "counts_layer": "counts",
         "X": "log1p_normalised_HVGs",
@@ -106,25 +109,22 @@ def run_preintegration(args):
     print(adata.uns["pca"]["variance_ratio"][:10])
 
     print("Generating PCA plot(s) ...")
-    pca_file = PLOT_DIR / f"{input_file.stem}_preintegration_pca_vars.png"
     sc.pl.pca(
         adata,
         color=args.vars, # ["sample", "batchinfo", "sex"]
         wspace=0.4,
         show=False
     )
-    plt.savefig(pca_file, dpi=300, bbox_inches="tight")
+    plt.savefig(pca_vars_file, dpi=300, bbox_inches="tight")
     plt.close()
 
-    pca_file = PLOT_DIR / f"{input_file.stem}_preintegration_pca_counts.png"
     sc.pl.pca(adata,
         color=["total_counts", "pct_counts_mt"],
         wspace=0.4,
         show=False
     )
-    plt.savefig(pca_file, dpi=300, bbox_inches="tight")
+    plt.savefig(pca_counts_file, dpi=300, bbox_inches="tight")
     plt.close()
-
 
     sc.pp.neighbors(adata, n_pcs=args.npcs, n_neighbors=args.neighbors)
     sc.tl.umap(adata)
@@ -142,5 +142,22 @@ def run_preintegration(args):
     # --------------------------------------------------
     # Save output
     # --------------------------------------------------
+    adata.uns["scribble_manifest"] = str(manifest_file)
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file)
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="preintegration",
+        args=args,
+        inputs={
+            "input_file": str(input_file),
+        },
+        outputs={
+            "adata": str(output_file),
+            "plot": str(pca_vars_file),
+            "plot": str(pca_counts_file),
+            "plot": str(umap_file),
+        },
+    )
