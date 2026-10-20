@@ -255,8 +255,38 @@ def run_evaluate(args):
     adata_file = (PROJECT_DIR / "scribble/adata" / input_file.name.replace("_cluster_summary.tsv", "_clustered.h5ad"))
     adata = sc.read(adata_file)
 
-    print(f"Loading cluster summary: {input_file}")
+    if (
+        not args.ignore_saved_params and
+        "scribble_cluster_params" in adata.uns
+    ):
 
+        saved = adata.uns["scribble_cluster_params"]
+
+        print(
+            "\nUsing clustering parameters "
+            "stored in AnnData:"
+        )
+
+        for param in [
+            "high_reassignment",
+            "dominant_reassignment_threshold",
+            "reassignment_display_threshold",
+        ]:
+
+            if param in saved:
+
+                setattr(
+                    args,
+                    param,
+                    saved[param]
+                )
+
+                print(
+                    f"  {param} = "
+                    f"{saved[param]}"
+                )
+
+    print(f"Loading cluster summary: {input_file}")
     df = pd.read_csv(input_file, sep="\t")
     total_cells = df["n_cells"].sum()
 

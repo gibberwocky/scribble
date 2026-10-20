@@ -676,5 +676,6 @@ def run_cluster(args):
     # --------------------------------------------------
     # Save
     # --------------------------------------------------
+    adata.uns["scribble_cluster_params"] = vars(args).copy()
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file)

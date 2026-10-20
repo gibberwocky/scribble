@@ -35,6 +35,313 @@ def restore_counts(adata):
 
 
 
+def robust_hvg(sc, adata_sub, args):
+    """
+    Single-attempt HVG selection.
+    If Seurat v3 HVG fails, treat cluster as terminal (no refinement).
+    """
+
+    try:
+        if args.skip_integration:
+
+            sc.pp.highly_variable_genes(
+                adata_sub,
+                n_top_genes=args.hvgs,
+                flavor="seurat_v3",
+                layer="counts"
+            )
+
+        else:
+
+            sc.pp.highly_variable_genes(
+                adata_sub,
+                n_top_genes=args.hvgs,
+                batch_key=args.batch,
+                flavor="seurat_v3",
+                layer="counts"
+            )
+
+        return True
+
+    except Exception as e:
+
+        print(
+            f"[HVG FAILURE] {e}\n"
+            "Refinement abandoned for this cluster."
+        )
+
+        return False
+
+
+def is_marker_strong(marker_df, threshold):
+    """
+    Quick proxy: are top markers clearly separable?
+    Uses logfoldchange as proxy for biological signal.
+    """
+    if marker_df is None or marker_df.empty:
+        return False
+
+    return marker_df["logfoldchange"].head(5).mean() >= threshold
+
+
+def compute_markers(sc, pd, np, adata_de, args, groupby, min_cluster_size=None):
+
+    if min_cluster_size is None:
+        min_cluster_size = args.min_cells_per_cluster
+
+    cluster_sizes = (
+        adata_de.obs[groupby]
+        .value_counts()
+    )
+
+    valid = cluster_sizes[
+        cluster_sizes >= min_cluster_size
+    ].index
+
+    if len(valid) < 2:
+
+        print(
+            f"[Markers] Skipping {groupby}: "
+            f"fewer than two groups with >={min_cluster_size} cells"
+        )
+
+        return {}
+
+    adata_de = adata_de[adata_de.obs[groupby].isin(valid)].copy()
+
+    adata_de.obs[groupby] = adata_de.obs[groupby].astype("category")
+
+    adata_de.obs[groupby] = adata_de.obs[groupby].cat.set_categories(
+        sorted(adata_de.obs[groupby].unique()),
+        ordered=True
+    )
+
+    sc.tl.rank_genes_groups(
+        adata_de,
+        groupby,
+        method="wilcoxon",
+        use_raw=True
+    )
+
+    result = adata_de.uns["rank_genes_groups"]
+
+    rg_groups = result["names"].dtype.names
+    categories = adata_de.obs[groupby].astype("category").cat.categories
+
+    X = adata_de.raw.X
+    var_names = adata_de.raw.var_names
+    var_index = pd.Series(range(len(var_names)), index=var_names)
+
+    marker_tables = {}
+
+    for i, rg_key in enumerate(rg_groups):
+
+        label = categories[i] if i < len(categories) else rg_key
+
+        genes = np.array(result["names"][rg_key]).ravel()
+        logfc = np.array(result["logfoldchanges"][rg_key]).ravel()
+        scores = np.array(result["scores"][rg_key]).ravel()
+        pvals = np.array(result["pvals"][rg_key]).ravel()
+        pvals_adj = np.array(result["pvals_adj"][rg_key]).ravel()
+
+        # filter to genes in var
+        valid_mask = np.isin(genes, var_names)
+
+        genes = genes[valid_mask]
+        logfc = logfc[valid_mask]
+        scores = scores[valid_mask]
+        pvals = pvals[valid_mask]
+        pvals_adj = pvals_adj[valid_mask]
+
+        gene_idx = var_index.loc[genes].values
+
+        # define groups
+        cluster_cells = adata_de.obs[groupby] == label
+        other_cells = ~cluster_cells
+
+        expr = X[:, gene_idx].tocsr()
+
+        pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
+        pct_out = (expr[other_cells.values] > 0).mean(axis=0)
+
+        pct_in = np.asarray(pct_in).ravel()
+        pct_out = np.asarray(pct_out).ravel()
+
+        mean_in = expr[cluster_cells.values].mean(axis=0)
+        mean_out = expr[other_cells.values].mean(axis=0)
+
+        mean_in = np.asarray(mean_in).ravel()
+        mean_out = np.asarray(mean_out).ravel()
+
+        df = pd.DataFrame({
+            "gene": genes,
+            "logfoldchange": logfc,
+            "score": scores,
+            "pvals": pvals,
+            "pvals_adj": pvals_adj,
+            "pct_in": pct_in,
+            "pct_out": pct_out,
+            "pct_diff": pct_in - pct_out,
+            "mean_in": mean_in,
+            "mean_out": mean_out,
+            "cluster_size": cluster_cells.sum()
+        })
+
+        df = df.sort_values(
+            ["pvals_adj", "pct_diff", "logfoldchange"],
+            ascending=[True, False, False]
+        ).head(args.nmarkers)
+
+        marker_tables[str(label)] = df
+
+    return marker_tables
+
+
+def run_clustering(np, sc, pd, adata_sub, args):
+
+    sc.pp.filter_genes(
+        adata_sub,
+        min_cells=args.min_cells_per_gene
+    )
+
+    print(
+        f"[HVG input] cells={adata_sub.n_obs}, "
+        f"genes={adata_sub.n_vars}"
+    )
+
+    if args.batch in adata_sub.obs:
+        print(
+            "[HVG batches]",
+            adata_sub.obs[args.batch].value_counts().to_dict()
+        )
+
+    gene_ncells = np.asarray(
+        (adata_sub.X > 0).sum(axis=0)
+    ).ravel()
+
+    print(
+        f"[HVG genes] "
+        f"n=3: {(gene_ncells == 3).sum()}, "
+        f"n<=5: {(gene_ncells <= 5).sum()}, "
+        f"n<=10: {(gene_ncells <= 10).sum()}"
+    )
+
+    # preserve raw counts
+    adata_sub.layers["counts"] = adata_sub.X.copy()
+
+    # ------------------------------------------
+    # HVGs must be selected on counts for
+    # flavor="seurat_v3"
+    # ------------------------------------------
+    hvg_ok = robust_hvg(sc, adata_sub, args)
+
+    if not hvg_ok:
+        return None
+
+    # ------------------------------------------
+    # Normalisation for PCA / Harmony / DE
+    # ------------------------------------------
+    sc.pp.normalize_total(adata_sub)
+    sc.pp.log1p(adata_sub)
+
+    # store log-normalised matrix for DE
+    adata_sub.raw = adata_sub.copy()
+
+    # restrict to HVGs after they have been selected
+    adata_sub = adata_sub[:, adata_sub.var.highly_variable].copy()
+
+    if not args.no_scale:
+        sc.pp.scale(adata_sub, max_value=10)
+
+    sc.tl.pca(adata_sub, n_comps=args.npcs)
+
+    if args.skip_integration:
+
+        use_rep = "X_pca"
+
+    else:
+
+        ho = hm.run_harmony(
+            adata_sub.obsm["X_pca"],
+            adata_sub.obs,
+            args.batch,
+            theta=args.theta
+        )
+
+        adata_sub.obsm["X_pca_harmony"] = ho.Z_corr
+        use_rep = "X_pca_harmony"
+
+    sc.pp.neighbors(
+        adata_sub,
+        use_rep=use_rep,
+        n_neighbors=args.neighbors
+    )
+
+    if args.auto_resolution:
+        res, _, _ = optimise_resolution(
+            np,
+            pd,
+            sc,
+            adata_sub,
+            use_rep,
+            args.neighbors,
+            (args.res_min, args.res_max),
+            args.fine_width,
+            args.res_steps
+        )
+    else:
+        res = args.resolution
+
+    sc.pp.neighbors(
+        adata_sub,
+        use_rep=use_rep,
+        n_neighbors=args.neighbors
+    )
+
+    sc.tl.leiden(
+        adata_sub,
+        resolution=res,
+        key_added="leiden_refined",
+        flavor="igraph",
+        directed=False,
+        n_iterations=2,
+        random_state=0
+    )
+
+    if args.n_repeats > 1:
+
+        stability_results = compute_cluster_stability(
+            adata=adata_sub,
+            resolution=res,
+            n_repeats=args.n_repeats,
+        )
+
+        adata_sub.obs["cluster_stability"] = (
+            stability_results["cell_stability"]
+        )
+
+        adata_sub.uns["stability_aligned_assignments"] = (
+            stability_results["aligned_assignments"]
+        )
+
+        reassignment_df = (
+            summarise_cluster_reassignments(
+                final_labels=(
+                    adata_sub.obs["leiden_refined"]
+                    .astype(str)
+                    .values
+                ),
+                aligned_assignments=(
+                    stability_results["aligned_assignments"]
+                ),
+            )
+        )
+
+        adata_sub.uns["cluster_reassignments"] = (
+            reassignment_df
+        )
+
+    return adata_sub
 
 
 def run_refine(args):
@@ -67,6 +374,45 @@ def run_refine(args):
 
     print(f"Loading AnnData → {input_file}")
     adata = sc.read(input_file)
+
+    if (
+        not args.ignore_saved_params and
+        "scribble_cluster_params" in adata.uns
+    ):
+
+        saved = adata.uns["scribble_cluster_params"]
+
+        print(
+            "\nUsing clustering parameters "
+            "stored in AnnData:"
+        )
+
+        mapping = [
+            "neighbors",
+            "n_repeats",
+            "res_min",
+            "res_max",
+            "res_steps",
+            "fine_width",
+            "dominant_reassignment_threshold",
+            "reassignment_display_threshold",
+            "high_reassignment",
+        ]
+
+        for param in mapping:
+
+            if param in saved:
+
+                setattr(
+                    args,
+                    param,
+                    saved[param]
+                )
+
+                print(
+                    f"  {param} = "
+                    f"{saved[param]}"
+                )
 
     # --------------------------------------------------
     # Init labels + refinement tree
@@ -191,316 +537,6 @@ def run_refine(args):
         probs = vals / vals.sum()
         return entropy(probs)
 
-    def _robust_hvg(adata_sub):
-        """
-        Single-attempt HVG selection.
-        If Seurat v3 HVG fails, treat cluster as terminal (no refinement).
-        """
-
-        try:
-            if args.skip_integration:
-
-                sc.pp.highly_variable_genes(
-                    adata_sub,
-                    n_top_genes=args.hvgs,
-                    flavor="seurat_v3",
-                    layer="counts"
-                )
-
-            else:
-
-                sc.pp.highly_variable_genes(
-                    adata_sub,
-                    n_top_genes=args.hvgs,
-                    batch_key=args.batch,
-                    flavor="seurat_v3",
-                    layer="counts"
-                )
-
-            return True
-
-        except Exception as e:
-
-            print(
-                f"[HVG FAILURE] {e}\n"
-                "Refinement abandoned for this cluster."
-            )
-
-            return False
-
-
-
-    def _run_clustering(adata_sub):
-
-        sc.pp.filter_genes(
-            adata_sub,
-            min_cells=args.min_cells_per_gene
-        )
-
-        print(
-            f"[HVG input] cells={adata_sub.n_obs}, "
-            f"genes={adata_sub.n_vars}"
-        )
-
-        if args.batch in adata_sub.obs:
-            print(
-                "[HVG batches]",
-                adata_sub.obs[args.batch].value_counts().to_dict()
-            )
-
-        gene_ncells = np.asarray(
-            (adata_sub.X > 0).sum(axis=0)
-        ).ravel()
-
-        print(
-            f"[HVG genes] "
-            f"n=3: {(gene_ncells == 3).sum()}, "
-            f"n<=5: {(gene_ncells <= 5).sum()}, "
-            f"n<=10: {(gene_ncells <= 10).sum()}"
-        )
-
-        # preserve raw counts
-        adata_sub.layers["counts"] = adata_sub.X.copy()
-
-        # ------------------------------------------
-        # HVGs must be selected on counts for
-        # flavor="seurat_v3"
-        # ------------------------------------------
-        hvg_ok = _robust_hvg(adata_sub)
-
-        if not hvg_ok:
-            return None
-
-        # ------------------------------------------
-        # Normalisation for PCA / Harmony / DE
-        # ------------------------------------------
-        sc.pp.normalize_total(adata_sub)
-        sc.pp.log1p(adata_sub)
-
-        # store log-normalised matrix for DE
-        adata_sub.raw = adata_sub.copy()
-
-        # restrict to HVGs after they have been selected
-        adata_sub = adata_sub[:, adata_sub.var.highly_variable].copy()
-
-        if not args.no_scale:
-            sc.pp.scale(adata_sub, max_value=10)
-
-        sc.tl.pca(adata_sub, n_comps=args.npcs)
-
-        if args.skip_integration:
-
-            use_rep = "X_pca"
-
-        else:
-
-            ho = hm.run_harmony(
-                adata_sub.obsm["X_pca"],
-                adata_sub.obs,
-                args.batch,
-                theta=args.theta
-            )
-
-            adata_sub.obsm["X_pca_harmony"] = ho.Z_corr
-            use_rep = "X_pca_harmony"
-
-        sc.pp.neighbors(
-            adata_sub,
-            use_rep=use_rep,
-            n_neighbors=args.neighbors
-        )
-
-        if args.auto_resolution:
-            res, _, _ = optimise_resolution(
-                np,
-                pd,
-                sc,
-                adata_sub,
-                use_rep,
-                args.neighbors,
-                (args.res_min, args.res_max),
-                args.fine_width,
-                args.res_steps
-            )
-        else:
-            res = args.resolution
-
-        sc.pp.neighbors(
-            adata_sub,
-            use_rep=use_rep,
-            n_neighbors=args.neighbors
-        )
-
-        sc.tl.leiden(
-            adata_sub,
-            resolution=res,
-            key_added="leiden_refined",
-            flavor="igraph",
-            directed=False,
-            n_iterations=2,
-            random_state=0
-        )
-
-        if args.n_repeats > 1:
-
-            stability_results = compute_cluster_stability(
-                adata=adata_sub,
-                resolution=res,
-                n_repeats=args.n_repeats,
-            )
-
-            adata_sub.obs["cluster_stability"] = (
-                stability_results["cell_stability"]
-            )
-
-            adata_sub.uns["stability_aligned_assignments"] = (
-                stability_results["aligned_assignments"]
-            )
-
-            reassignment_df = (
-                summarise_cluster_reassignments(
-                    final_labels=(
-                        adata_sub.obs["leiden_refined"]
-                        .astype(str)
-                        .values
-                    ),
-                    aligned_assignments=(
-                        stability_results["aligned_assignments"]
-                    ),
-                )
-            )
-
-            adata_sub.uns["cluster_reassignments"] = (
-                reassignment_df
-            )
-
-
-        return adata_sub
-
-
-
-    def _compute_markers(adata_de, groupby, min_cluster_size=None):
-
-        if min_cluster_size is None:
-            min_cluster_size = args.min_cells_per_cluster
-
-        cluster_sizes = (
-            adata_de.obs[groupby]
-            .value_counts()
-        )
-
-        valid = cluster_sizes[
-            cluster_sizes >= min_cluster_size
-        ].index
-
-        if len(valid) < 2:
-
-            print(
-                f"[Markers] Skipping {groupby}: "
-                f"fewer than two groups with >={min_cluster_size} cells"
-            )
-
-            return {}
-
-        adata_de = adata_de[adata_de.obs[groupby].isin(valid)].copy()
-
-        adata_de.obs[groupby] = adata_de.obs[groupby].astype("category")
-
-        adata_de.obs[groupby] = adata_de.obs[groupby].cat.set_categories(
-            sorted(adata_de.obs[groupby].unique()),
-            ordered=True
-        )
-
-        sc.tl.rank_genes_groups(
-            adata_de,
-            groupby,
-            method="wilcoxon",
-            use_raw=True
-        )
-
-        result = adata_de.uns["rank_genes_groups"]
-
-        rg_groups = result["names"].dtype.names
-        categories = adata_de.obs[groupby].astype("category").cat.categories
-
-        X = adata_de.raw.X
-        var_names = adata_de.raw.var_names
-        var_index = pd.Series(range(len(var_names)), index=var_names)
-
-        marker_tables = {}
-
-        for i, rg_key in enumerate(rg_groups):
-
-            label = categories[i] if i < len(categories) else rg_key
-
-            genes = np.array(result["names"][rg_key]).ravel()
-            logfc = np.array(result["logfoldchanges"][rg_key]).ravel()
-            scores = np.array(result["scores"][rg_key]).ravel()
-            pvals = np.array(result["pvals"][rg_key]).ravel()
-            pvals_adj = np.array(result["pvals_adj"][rg_key]).ravel()
-
-            # filter to genes in var
-            valid_mask = np.isin(genes, var_names)
-
-            genes = genes[valid_mask]
-            logfc = logfc[valid_mask]
-            scores = scores[valid_mask]
-            pvals = pvals[valid_mask]
-            pvals_adj = pvals_adj[valid_mask]
-
-            gene_idx = var_index.loc[genes].values
-
-            # define groups
-            cluster_cells = adata_de.obs[groupby] == label
-            other_cells = ~cluster_cells
-
-            expr = X[:, gene_idx].tocsr()
-
-            pct_in = (expr[cluster_cells.values] > 0).mean(axis=0)
-            pct_out = (expr[other_cells.values] > 0).mean(axis=0)
-
-            pct_in = np.asarray(pct_in).ravel()
-            pct_out = np.asarray(pct_out).ravel()
-
-            mean_in = expr[cluster_cells.values].mean(axis=0)
-            mean_out = expr[other_cells.values].mean(axis=0)
-
-            mean_in = np.asarray(mean_in).ravel()
-            mean_out = np.asarray(mean_out).ravel()
-
-            df = pd.DataFrame({
-                "gene": genes,
-                "logfoldchange": logfc,
-                "score": scores,
-                "pvals": pvals,
-                "pvals_adj": pvals_adj,
-                "pct_in": pct_in,
-                "pct_out": pct_out,
-                "pct_diff": pct_in - pct_out,
-                "mean_in": mean_in,
-                "mean_out": mean_out,
-                "cluster_size": cluster_cells.sum()
-            })
-
-            df = df.sort_values(
-                ["pvals_adj", "pct_diff", "logfoldchange"],
-                ascending=[True, False, False]
-            ).head(args.nmarkers)
-
-            marker_tables[str(label)] = df
-
-        return marker_tables
-
-    def _is_marker_strong(marker_df, threshold):
-        """
-        Quick proxy: are top markers clearly separable?
-        Uses logfoldchange as proxy for biological signal.
-        """
-        if marker_df is None or marker_df.empty:
-            return False
-
-        return marker_df["logfoldchange"].head(5).mean() >= threshold
-
 
     def _refine_task(task):
         nonlocal next_cluster_id
@@ -533,7 +569,7 @@ def run_refine(args):
 
         adata_sub = restore_counts(adata_sub)
 
-        adata_sub = _run_clustering(adata_sub)
+        adata_sub = run_clustering(np, sc, pd, adata_sub, args)
 
         if adata_sub is not None:
 
@@ -875,9 +911,9 @@ def run_refine(args):
                 adata_sub.obs["leiden_refined"].isin(valid)
             ].copy()
 
-            marker_tables = _compute_markers(
-                adata_de,
-                "leiden_refined"
+            marker_tables = compute_markers(
+                sc, pd, np, adata_de, args,
+                groupby = "leiden_refined"
             )
 
             clusters_str = "+".join(task["clusters"])
@@ -988,7 +1024,7 @@ def run_refine(args):
                 # RULE 3: marker strength filter
                 # ------------------------------
                 if marker_df is not None:
-                    if _is_marker_strong(marker_df, args.marker_strength_threshold):
+                    if is_marker_strong(marker_df, args.marker_strength_threshold):
                         print("    → STOP (already well separated)")
                         continue
 
@@ -1113,9 +1149,9 @@ def run_refine(args):
         merge_candidate_threshold=args.high_reassignment
     )
 
-    global_markers = _compute_markers(
-        adata_global,
-        "refine_cluster",
+    global_markers = compute_markers(
+        sc, pd, np, adata_global, args,
+        groupby = "refine_cluster",
         min_cluster_size=2
     )
 
@@ -1338,6 +1374,7 @@ def run_refine(args):
     # --------------------------------------------------
     # Save
     # --------------------------------------------------
+    adata.uns["scribble_refine_params"] = (vars(args).copy())
     output = input_file.with_name(f"{input_file.stem}_refined.h5ad")
     print(f"Saving → {output}")
     adata.write(output)

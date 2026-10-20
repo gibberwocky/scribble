@@ -211,9 +211,10 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Percentile of graph connectivity scores used when identifying merge candidates among subset or unstable clusters")
     evaluate_parser.add_argument("--high_reassignment", type=float, default=0.30,
         help="Threshold above which a cluster is considered unstably partitioned and recommended for merging")
+    evaluate_parser.add_argument("--ignore_saved_params", action="store_true",
+        help="Ignore parameters from cluster step stored in the AnnData and use CLI arguments instead")
 
-
-    # -------------- Evaluate ------------
+    # -------------- Refine ------------
     refine_parser = subparsers.add_parser("refine",
         description="""
         Refine selected clusters by:
@@ -281,6 +282,24 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Minimum reassignment proportion displayed in reassignment summaries")
     refine_parser.add_argument("--high_reassignment", type=float, default=0.30,
         help="Threshold above which a cluster is considered unstably partitioned and recommended for merging")
+    refine_parser.add_argument("--ignore_saved_params", action="store_true",
+        help="Ignore parameters from cluster step stored in the AnnData and use CLI arguments instead")
+
+
+    # -------------- Curate ------------
+    curate_parser = subparsers.add_parser("curate",
+        description="""
+        Curate selected clusters
+        """)
+    curate_parser.add_argument("--project_dir", required=True,
+        help="Project directory containing scribble/ subfolders")
+    curate_parser.add_argument("--input", required=True,
+        help="Input AnnData (.h5ad) file (generated with scribble refine)")
+    curate_parser.add_argument("--merge", default="",
+        help="Comma-separated merge groups. Examples: R7+R6,R11+R12")
+    curate_parser.add_argument("--refine", default="",
+        help=("Comma-separated clusters to refine. Examples: R8,R10")
+
 
     # ------------- Map to atlas ---------
     map_parser = subparsers.add_parser("map",
@@ -429,6 +448,7 @@ GitHub: https://github.com/gibberwocky/scribble
         "cluster": ("scribble.cluster", "run_cluster"),
         "evaluate": ("scribble.evaluate", "run_evaluate"),
         "refine": ("scribble.refine", "run_refine"),
+        "curate": ("scribble.curate", "run_curate"),
         "map": ("scribble.map", "run_map"),
         "annotate": ("scribble.annotate", "run_annotate"),
         "pseudotime": ("scribble.pseudotime", "run_pseudotime")
