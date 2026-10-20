@@ -407,20 +407,28 @@ def run_refine(args):
             "high_reassignment",
         ]
 
+        cli_overrides = getattr(
+            args,
+            "cli_overrides",
+            set(),
+        )
+
         for param in mapping:
 
-            if param in saved:
+            if param not in saved:
+                continue
 
-                setattr(
-                    args,
-                    param,
-                    saved[param]
-                )
+            # Explicit CLI value wins
+            if param in cli_overrides:
+                continue
 
-                print(
-                    f"  {param} = "
-                    f"{saved[param]}"
-                )
+            if not printed_header:
+                print("\nUsing clustering parameters stored in AnnData:")
+                printed_header = True
+
+            setattr(args, param, saved[param])
+
+            print(f"  {param} = {saved[param]}")
 
     # --------------------------------------------------
     # Init labels + refinement tree
