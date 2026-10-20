@@ -85,7 +85,6 @@ def is_marker_strong(marker_df, threshold):
 
 
 def compute_markers(sc, pd, np, adata_de, args, groupby, min_cluster_size=None):
-    from scribble.utils import summarise_cluster_reassignments
 
     if min_cluster_size is None:
         min_cluster_size = args.min_cells_per_cluster
@@ -200,7 +199,10 @@ def compute_markers(sc, pd, np, adata_de, args, groupby, min_cluster_size=None):
 
 def run_clustering(np, sc, pd, adata_sub, args):
     from scribble.cluster import optimise_resolution
-    from scribble.utils import compute_cluster_stability
+    from scribble.utils import (
+        compute_cluster_stability,
+        summarise_cluster_reassignments
+    )
 
     sc.pp.filter_genes(
         adata_sub,
