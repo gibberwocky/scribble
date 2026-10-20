@@ -9,8 +9,10 @@ def run_filter(args):
     import numpy as np
     import random
     from scribble.import_data import setup_environment
+    from scribble.utils import write_run_manifest
 
     PROJECT_DIR = Path(args.project_dir)
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
     setup_environment(sc, np, random, PLOT_DIR)
@@ -161,5 +163,22 @@ def run_filter(args):
     # --------------------------------------------------
     # Save output
     # --------------------------------------------------
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_mt_manifest.json")
+    adata_filtered.uns["scribble_manifest"] = str(manifest_file)
+
     print(f"Saving updated AnnData → {output_file}")
     adata_filtered.write(output_file)
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="filter",
+        args=args,
+        inputs={
+            "input_file": str(input_file),
+        },
+        outputs={
+            "adata_filtered": str(output_file),
+            "TSV": str(counts_file),
+        },
+    )
