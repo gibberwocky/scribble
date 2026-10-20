@@ -358,18 +358,26 @@ def run_refine(args):
     from scribble.import_data import setup_environment
     from scipy.stats import entropy
     from scribble.utils import (
+        write_run_manifest,
         compute_cluster_stability,
         summarise_cluster_reassignments,
         compute_cluster_summary,
     )
 
     PROJECT_DIR = Path(args.project_dir)
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
 
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_refine_manifest.json")
+    reassignments_file = TABLE_DIR / "refine_cluster_reassignments.tsv"
+    all_markers_file = TABLE_DIR / "all_markers.tsv"
+    refinement_report_file = TABLE_DIR / "refinement_report.tsv"
+    umap_png_file = PLOT_DIR / "UMAP_refine_cluster.png"
+
     decisions = pd.read_csv(args.decisions, sep="\t")
 
     print(f"Loading AnnData → {input_file}")
@@ -1133,8 +1141,7 @@ def run_refine(args):
         )
 
         refine_reassignments.to_csv(
-            TABLE_DIR /
-            "refine_cluster_reassignments.tsv",
+            reassignments_file,
             sep="\t",
             index=False,
         )
@@ -1241,15 +1248,12 @@ def run_refine(args):
         )
 
         all_markers.to_csv(
-            TABLE_DIR / "all_markers.tsv",
+            all_markers_file,
             sep="\t",
             index=False
         )
 
-        print(
-            f"Saved {len(all_markers):,} marker rows "
-            f"to all_markers.tsv"
-        )
+        print(f"Saved {len(all_markers):,} marker rows to {all_markers_file}")
 
     # --------------------------------------------------
     # Save refinement summary / tree
@@ -1341,16 +1345,9 @@ def run_refine(args):
             ]
         ]
 
-        refinement_report.to_csv(
-            TABLE_DIR / "refinement_report.tsv",
-            sep="\t",
-            index=False,
-        )
+        refinement_report.to_csv(refinement_report_file, sep="\t", index=False)
 
-        print(
-            f"Saved {len(refinement_report):,} "
-            f"refinement records"
-        )
+        print(f"Saved {len(refinement_report):,} refinement records to {refinement_report_file}")
 
     # --------------------------------------------------
     # UMAP final cluster labels
@@ -1362,19 +1359,33 @@ def run_refine(args):
         legend_fontsize=7,
         show=False
     )
-    plt.savefig(
-        PLOT_DIR / f"UMAP_refine_cluster.png",
-        dpi=300,
-        bbox_inches="tight"
-    )
-
+    plt.savefig(umap_png_file, dpi=300, bbox_inches="tight")
     plt.close()
 
 
     # --------------------------------------------------
     # Save
     # --------------------------------------------------
+    adata.uns["scribble_manifest"] = str(manifest_file)
     adata.uns["scribble_refine_params"] = (vars(args).copy())
     output = input_file.with_name(f"{input_file.stem}_refined.h5ad")
     print(f"Saving → {output}")
     adata.write(output)
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="refine",
+        args=args,
+        inputs={
+            "input_file": str(input_file),
+            "tsv": str(args.decisions),
+        },
+        outputs={
+            "adata": str(output),
+            "png": str(umap_png_file),
+            "tsv": str(reassignments_file),
+            "tsv": str(all_markers_file),
+            "tsv": str(refinement_report_file),
+        },
+    )
