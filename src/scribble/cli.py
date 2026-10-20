@@ -298,7 +298,7 @@ GitHub: https://github.com/gibberwocky/scribble
     curate_parser.add_argument("--merge", default="",
         help="Comma-separated merge groups. Examples: R7+R6,R11+R12")
     curate_parser.add_argument("--refine", default="",
-        help=("Comma-separated clusters to refine. Examples: R8,R10")
+        help="Comma-separated clusters to refine. Examples: R8,R10")
 
 
     # ------------- Map to atlas ---------
