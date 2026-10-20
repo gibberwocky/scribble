@@ -311,7 +311,7 @@ def run_cluster(args):
     else:
         output_prefix = Path(args.output_prefix)
 
-    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_cluster_manifest.json")
+    manifest_file = (MANIFEST_DIR / f"{output_prefix}_cluster_manifest.json")
     output_file = ADATA_DIR / f"{output_prefix}_clustered.h5ad"
     markers_file = TABLE_DIR / f"{output_prefix}_clusters.xlsx"
     coarse_file = TABLE_DIR / f"{output_prefix}_res_coarse.tsv"
