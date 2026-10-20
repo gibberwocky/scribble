@@ -10,14 +10,17 @@ def run_harmony(args):
     import harmonypy as hm
     import random
     from scribble.import_data import setup_environment
+    from scribble.utils import write_run_manifest
 
     PROJECT_DIR = Path(args.project_dir)
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_harmony_npcs-{args.npcs}_k-{args.neighbors}_theta-{args.theta}.h5ad")
     umap_file = PLOT_DIR / f"{input_file.stem}_harmony_npcs-{args.npcs}_k-{args.neighbors}_theta-{args.theta}_umap.png"
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_harmony_manifest.json")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
@@ -52,5 +55,20 @@ def run_harmony(args):
     # --------------------------------------------------
     # Save output
     # --------------------------------------------------
+    adata.uns["scribble_manifest"] = str(manifest_file)
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file)
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="harmony",
+        args=args,
+        inputs={
+            "input_file": str(input_file),
+        },
+        outputs={
+            "adata": str(output_file),
+            "umap plot": str(umap_file)
+        },
+    )

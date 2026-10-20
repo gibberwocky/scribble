@@ -156,8 +156,8 @@ def run_preintegration(args):
         },
         outputs={
             "adata": str(output_file),
-            "plot": str(pca_vars_file),
-            "plot": str(pca_counts_file),
-            "plot": str(umap_file),
+            "vars pca plot": str(pca_vars_file),
+            "counts pca plot": str(pca_counts_file),
+            "umap plot": str(umap_file),
         },
     )

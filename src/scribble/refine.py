@@ -1377,9 +1377,9 @@ def run_refine(args):
         },
         outputs={
             "adata": str(output),
-            "png": str(umap_png_file),
-            "tsv": str(reassignments_file),
-            "tsv": str(all_markers_file),
-            "tsv": str(refinement_report_file),
+            "UMAP png": str(umap_png_file),
+            "reassignments tsv": str(reassignments_file),
+            "markers tsv": str(all_markers_file),
+            "refinement report tsv": str(refinement_report_file),
         },
     )

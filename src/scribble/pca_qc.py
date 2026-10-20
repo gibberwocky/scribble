@@ -37,6 +37,6 @@ def run_pca_qc(args):
             "input_file": str(input_file),
         },
         outputs={
-            "plot": str(plot_file)
+            "qc pca plot": str(plot_file)
         },
     )

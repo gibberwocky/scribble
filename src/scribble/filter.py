@@ -178,6 +178,6 @@ def run_filter(args):
         },
         outputs={
             "adata_filtered": str(output_file),
-            "TSV": str(counts_file),
+            "counts tsv": str(counts_file),
         },
     )

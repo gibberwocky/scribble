@@ -85,6 +85,6 @@ def run_mt_qc(args):
         },
         outputs={
             "adata": str(output_file),
-            "plot": str(plot_file)
+            "MT qc plot": str(plot_file)
         },
     )

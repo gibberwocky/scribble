@@ -252,7 +252,7 @@ def run_dbl_qc(args):
         outputs={
             "adata": str(output_file),
             "plot(s)": [str(fig_path) for fig_path in fig_paths],
-            "plot": str(plot_file),
-            "xlsx": str(xlsx_file)
+            "doublet qc plot": str(plot_file),
+            "summary xlsx": str(xlsx_file)
         },
     )
