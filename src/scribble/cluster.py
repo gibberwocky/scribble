@@ -292,12 +292,14 @@ def run_cluster(args):
     import random
     from scribble.import_data import setup_environment
     from scribble.utils import (
+        write_run_manifest,
         compute_cluster_stability,
         summarise_cluster_reassignments,
         compute_cluster_summary,
     )
 
     PROJECT_DIR = Path(args.project_dir)
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
     ADATA_DIR = PROJECT_DIR / "scribble/adata"
@@ -309,6 +311,7 @@ def run_cluster(args):
     else:
         output_prefix = Path(args.output_prefix)
 
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_cluster_manifest.json")
     output_file = ADATA_DIR / f"{output_prefix}_clustered.h5ad"
     markers_file = TABLE_DIR / f"{output_prefix}_clusters.xlsx"
     coarse_file = TABLE_DIR / f"{output_prefix}_res_coarse.tsv"
@@ -425,7 +428,7 @@ def run_cluster(args):
 
 
     # --------------------------------------------------
-    # 🔥 Reset neighbour graph before final clustering
+    # Reset neighbour graph before final clustering
     # --------------------------------------------------
     print("Rebuilding neighbours before final clustering...")
 
@@ -676,6 +679,30 @@ def run_cluster(args):
     # --------------------------------------------------
     # Save
     # --------------------------------------------------
+    adata.uns["scribble_manifest"] = str(manifest_file)
     adata.uns["scribble_cluster_params"] = vars(args).copy()
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file)
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="cluster",
+        args=args,
+        inputs={
+            "input_file": str(input_file),
+        },
+        outputs={
+            "adata": str(output_file),
+            "xlsx": str(markers_file),
+            "tsv": str(coarse_file),
+            "tsv": str(fine_file),
+            "tsv": str(stats_file),
+            "tsv": str(cell_file),
+            "tsv": str(reassignment_file),
+            "plot": str(cluster_file),
+            "plot": str(vars_file),
+            "plot": str(stability_file),
+            "plot": str(plot_file),
+        },
+    )
