@@ -234,7 +234,7 @@ def run_dbl_qc(args):
     qc_df.to_excel(xlsx_file, index=False)
     print(f"Saved QC summary → {xlsx_file}")
 
-    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_mt_manifest.json")
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_dbl_manifest.json")
     adata.uns["scribble_manifest"] = str(manifest_file)
 
     print(f"Saving updated AnnData → {output_file}")

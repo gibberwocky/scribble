@@ -163,7 +163,7 @@ def run_filter(args):
     # --------------------------------------------------
     # Save output
     # --------------------------------------------------
-    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_mt_manifest.json")
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_filter_manifest.json")
     adata_filtered.uns["scribble_manifest"] = str(manifest_file)
 
     print(f"Saving updated AnnData → {output_file}")
