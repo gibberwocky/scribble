@@ -469,11 +469,11 @@ GitHub: https://github.com/gibberwocky/scribble
 
     args = parser.parse_args()
     args = apply_manifest(parser, args)
-    args.cli_overrides = {
+    args.cli_overrides = [
         token.lstrip("-").replace("-", "_")
         for token in sys.argv[1:]
         if token.startswith("--")
-    }
+    ]
 
     # ---------- ROUTING ----------
     COMMANDS = {

@@ -292,6 +292,7 @@ def run_cluster(args):
     import random
     from scribble.import_data import setup_environment
     from scribble.utils import (
+        serializable_args,
         write_run_manifest,
         compute_cluster_stability,
         summarise_cluster_reassignments,
@@ -680,7 +681,8 @@ def run_cluster(args):
     # Save
     # --------------------------------------------------
     adata.uns["scribble_manifest"] = str(manifest_file)
-    adata.uns["scribble_cluster_params"] = vars(args).copy()
+    adata.uns["scribble_cluster_params"] = serializable_args(args)
+
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file)
 

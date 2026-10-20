@@ -7,6 +7,10 @@ from scipy.stats import entropy
 import json
 from datetime import datetime
 
+def serializable_args(args):
+    params = vars(args).copy()
+    params.pop("cli_overrides", None)
+    return params
 
 def write_run_manifest(
     manifest_file,
@@ -18,7 +22,7 @@ def write_run_manifest(
     manifest = {
         "module": module,
         "timestamp": datetime.now().isoformat(),
-        "parameters": vars(args),
+        "parameters": serializable_args(args),
         "inputs": inputs or {},
         "outputs": outputs or {},
     }

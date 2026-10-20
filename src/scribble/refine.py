@@ -362,6 +362,7 @@ def run_refine(args):
     from scribble.import_data import setup_environment
     from scipy.stats import entropy
     from scribble.utils import (
+        serializable_args,
         write_run_manifest,
         compute_cluster_summary,
     )
@@ -392,11 +393,7 @@ def run_refine(args):
 
         saved = adata.uns["scribble_cluster_params"]
 
-        print(
-            "\nUsing clustering parameters "
-            "stored in AnnData:"
-        )
-
+        print("\nUsing clustering parameters stored in AnnData:")
         mapping = [
             "neighbors",
             "n_repeats",
@@ -409,13 +406,13 @@ def run_refine(args):
             "high_reassignment",
         ]
 
-        cli_overrides = getattr(
-            args,
-            "cli_overrides",
-            set(),
+        cli_overrides = set(
+            getattr(
+                args,
+                "cli_overrides",
+                [],
+            )
         )
-
-        printed_header = False
 
         for param in mapping:
 
@@ -425,10 +422,6 @@ def run_refine(args):
             # Explicit CLI value wins
             if param in cli_overrides:
                 continue
-
-            if not printed_header:
-                print("\nUsing clustering parameters stored in AnnData:")
-                printed_header = True
 
             setattr(args, param, saved[param])
 
@@ -473,18 +466,6 @@ def run_refine(args):
             decisions["merge_group"].notna()
             & (decisions["merge_group"].astype(str).str.strip() != "")
         ]
-
-        print("\n[MERGE DF]")
-        print(
-            merge_df[
-                [
-                    "cluster",
-                    "action",
-                    "merge_group",
-                    "suggested_merge_target",
-                ]
-            ]
-        )
 
         print("\n[MERGE GROUP CONTENTS]")
 
@@ -1379,7 +1360,8 @@ def run_refine(args):
     # Save
     # --------------------------------------------------
     adata.uns["scribble_manifest"] = str(manifest_file)
-    adata.uns["scribble_refine_params"] = (vars(args).copy())
+    adata.uns["scribble_refine_params"] = serializable_args(args)
+
     output = input_file.with_name(f"{input_file.stem}_refined.h5ad")
     print(f"Saving → {output}")
     adata.write(output)
