@@ -9,7 +9,7 @@ from datetime import datetime
 
 
 def write_run_manifest(
-    output_file,
+    manifest_file,
     module,
     args,
     inputs=None,
@@ -23,7 +23,7 @@ def write_run_manifest(
         "outputs": outputs or {},
     }
 
-    with open(output_file, "w") as handle:
+    with open(manifest_file, "w") as handle:
         json.dump(
             manifest,
             handle,
