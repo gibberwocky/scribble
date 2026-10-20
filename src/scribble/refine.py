@@ -413,6 +413,8 @@ def run_refine(args):
             set(),
         )
 
+        printed_header = False
+
         for param in mapping:
 
             if param not in saved:
