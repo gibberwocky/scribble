@@ -12,9 +12,11 @@ def run_dbl_qc(args):
     import random
     from pathlib import Path
     from scribble.import_data import setup_environment
+    from scribble.utils import write_run_manifest
     from scribble.plots import doublet_qc_panel
 
     PROJECT_DIR = Path(args.project_dir)
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
 
@@ -227,10 +229,29 @@ def run_dbl_qc(args):
 
     qc_df = pd.DataFrame(rows)
 
-    # -------- save as CSV --------
+    # -------- Save as Excel file --------
     xlsx_file = TABLE_DIR / f"{input_file.stem}_doublet_qc_summary.xlsx"
     qc_df.to_excel(xlsx_file, index=False)
     print(f"Saved QC summary → {xlsx_file}")
 
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_mt_manifest.json")
+    adata.uns["scribble_manifest"] = str(manifest_file)
+
     print(f"Saving updated AnnData → {output_file}")
     adata.write(output_file, compression="gzip")
+
+    print(f"Writing run manifest to {manifest_file}")
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="dbl",
+        args=args,
+        inputs={
+            "input_file": str(input_file),
+        },
+        outputs={
+            "adata": str(output_file),
+            "plot": str(fig_path),
+            "plot": str(plot_file),
+            "xlsx": str(xlsx_file)
+        },
+    )
