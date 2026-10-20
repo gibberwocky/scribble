@@ -464,7 +464,7 @@ def run_evaluate(args):
         args=args,
         inputs={
             "input": args.input,
-        }
+        },
         outputs={
             "tsv": str(output_file),
         },
