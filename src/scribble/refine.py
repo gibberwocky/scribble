@@ -395,8 +395,11 @@ def run_refine(args):
 
         print("\nUsing clustering parameters stored in AnnData:")
         mapping = [
+            "auto_resolution",
             "neighbors",
             "n_repeats",
+            "nmarkers",
+            "min_cluster_size",
             "res_min",
             "res_max",
             "res_steps",
@@ -1149,6 +1152,15 @@ def run_refine(args):
         merge_candidate_threshold=args.high_reassignment
     )
 
+    print("\n[REFINE SUMMARY COLUMNS]")
+    print(refine_summary.columns.tolist())
+
+    print("\n[MASTER REASSIGNMENTS]")
+    print(
+        0 if refine_reassignments is None
+        else len(refine_reassignments)
+    )
+
     global_markers = compute_markers(
         sc, pd, np, adata_global, args,
         groupby = "refine_cluster",
@@ -1312,6 +1324,21 @@ def run_refine(args):
             on="cluster",
             how="left",
         )
+
+        for col in [
+            "dominant_reassignment",
+            "dominant_reassignment_fraction",
+            "reassignment_summary",
+            "reassignment_class",
+            "merge_candidate",
+        ]:
+            if col not in refinement_report.columns:
+
+                if col == "merge_candidate":
+                    refinement_report[col] = False
+
+                else:
+                    refinement_report[col] = np.nan
 
         refinement_report = refinement_report[
             [
