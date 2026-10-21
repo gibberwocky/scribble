@@ -20,7 +20,7 @@ def run_harmony(args):
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_harmony_npcs-{args.npcs}_k-{args.neighbors}_theta-{args.theta}.h5ad")
     umap_file = PLOT_DIR / f"{input_file.stem}_harmony_npcs-{args.npcs}_k-{args.neighbors}_theta-{args.theta}_umap.png"
-    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_harmony_manifest.json")
+    manifest_file = (MANIFEST_DIR / f"{output_file.stem}_harmony_manifest.json")
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
