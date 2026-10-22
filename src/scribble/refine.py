@@ -66,11 +66,32 @@ def robust_hvg(sc, adata_sub, args):
     except Exception as e:
 
         print(
-            f"[HVG FAILURE] {e}\n"
-            "Refinement abandoned for this cluster."
+            f"[HVG FAILURE] {e}"
         )
 
-        return False
+        print(
+            "[HVG FALLBACK] "
+            "Retrying without batch-aware HVGs"
+        )
+
+        try:
+
+            sc.pp.highly_variable_genes(
+                adata_sub,
+                n_top_genes=args.hvgs,
+                flavor="seurat_v3",
+                layer="counts"
+            )
+
+            return True
+
+        except Exception as e2:
+
+            print(
+                f"[HVG FAILURE 2] {e2}"
+            )
+
+            return False
 
 
 def is_marker_strong(marker_df, threshold):
