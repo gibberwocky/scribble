@@ -1326,17 +1326,6 @@ def run_refine(args):
             .drop_duplicates()
         )
 
-        cluster_sizes = (
-            adata.obs["refine_label"]
-            .astype(str)
-            .value_counts()
-        )
-
-        refinement_df["n_cells"] = (
-            refinement_df["cluster"]
-            .map(cluster_sizes)
-        )
-
         all_clusters = set(
             adata.obs["refine_label"]
             .astype(str)
@@ -1353,7 +1342,7 @@ def run_refine(args):
 
             refinement_rows.append({
                 "cluster": cluster,
-                "parent": None,
+                "parent": cluster,
                 "level": 1,
                 "refinement_path": cluster,
                 "refinement_source": "unmodified",
@@ -1364,6 +1353,17 @@ def run_refine(args):
         refinement_df = (
             pd.DataFrame(refinement_rows)
             .drop_duplicates()
+        )
+
+        cluster_sizes = (
+            adata.obs["refine_label"]
+            .astype(str)
+            .value_counts()
+        )
+
+        refinement_df["n_cells"] = (
+            refinement_df["cluster"]
+            .map(cluster_sizes)
         )
 
         # ------------------------------
