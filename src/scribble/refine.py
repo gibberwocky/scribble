@@ -1316,6 +1316,35 @@ def run_refine(args):
             .map(cluster_sizes)
         )
 
+        all_clusters = set(
+            adata.obs["refine_label"]
+            .astype(str)
+            .unique()
+        )
+
+        reported_clusters = set(
+            refinement_df["cluster"]
+        )
+
+        missing = all_clusters - reported_clusters
+
+        for cluster in sorted(missing):
+
+            refinement_rows.append({
+                "cluster": cluster,
+                "parent": None,
+                "level": 1,
+                "refinement_path": cluster,
+                "refinement_source": "unmodified",
+                "parent_clusters": cluster,
+                "n_parent_clusters": 1,
+            })
+
+        refinement_df = (
+            pd.DataFrame(refinement_rows)
+            .drop_duplicates()
+        )
+
         # ------------------------------
         # Merge with refinement summary
         # ------------------------------
