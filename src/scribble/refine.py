@@ -218,7 +218,7 @@ def compute_markers(sc, pd, np, adata_de, args, groupby, min_cluster_size=None):
     return marker_tables
 
 
-def run_clustering(np, sc, pd, adata_sub, args):
+def run_clustering(hm, np, sc, pd, adata_sub, args):
     from scribble.cluster import optimise_resolution
     from scribble.utils import (
         compute_cluster_stability,
@@ -594,7 +594,7 @@ def run_refine(args):
 
         adata_sub = restore_counts(adata_sub)
 
-        adata_sub = run_clustering(np, sc, pd, adata_sub, args)
+        adata_sub = run_clustering(hm, np, sc, pd, adata_sub, args)
 
         if adata_sub is not None:
 
