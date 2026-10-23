@@ -274,6 +274,10 @@ def run_curate(args):
         )
 
     adata_global = restore_counts(adata)
+    if "X_umap" in adata.obsm:
+        adata_global.obsm["X_umap"] = adata.obsm["X_umap"].copy()
+    sc.pp.normalize_total(adata_global)
+    sc.pp.log1p(adata_global)
     adata_global.raw = adata_global.copy()
 
     adata_global.obs["curated_cluster"] = (
