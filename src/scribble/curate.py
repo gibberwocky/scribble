@@ -412,7 +412,7 @@ def run_curate(args):
         )
 
     lineage_df.to_csv(
-        curation_tree_file,
+        curation_lineage_file,
         sep="\t",
         index=False,
     )
