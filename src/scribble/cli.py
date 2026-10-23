@@ -324,6 +324,23 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Comma-separated clusters to refine. Examples: R8,R10")
     curate_parser.add_argument("--manifest",
         help="Load parameters from a previous Scribble JSON manifest")
+    curate_parser.add_argument("--ignore_saved_params", action="store_true")
+    curate_parser.add_argument("--batch", default="sample")
+    curate_parser.add_argument("--hvgs", type=int, default=3000)
+    curate_parser.add_argument("--npcs", type=int, default=50)
+    curate_parser.add_argument("--neighbors", type=int, default=15)
+    curate_parser.add_argument("--theta", type=float, default=1)
+    curate_parser.add_argument("--resolution", type=float, default=0.5)
+    curate_parser.add_argument("--auto_resolution", action="store_true")
+    curate_parser.add_argument("--res_min", type=float, default=0.1)
+    curate_parser.add_argument("--res_max", type=float, default=1.5)
+    curate_parser.add_argument("--res_steps", type=int, default=10)
+    curate_parser.add_argument("--fine_width", type=float, default=0.2)
+    curate_parser.add_argument("--n_repeats", type=int, default=10)
+    curate_parser.add_argument("--min_cells_per_gene", type=int, default=10)
+    curate_parser.add_argument("--min_cells_per_cluster", type=int, default=50)
+    curate_parser.add_argument("--nmarkers", type=int, default=100)
+    curate_parser.add_argument("--skip-integration", action="store_true")
 
 
     # ------------- Map to atlas ---------
