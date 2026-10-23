@@ -119,6 +119,11 @@ def run_curate(args):
             orient="index"
         ).reset_index(drop=True)
 
+        lineage_lookup = {
+            row["cluster"]: row
+            for _, row in lineage_df.iterrows()
+        } if lineage_df is not None else {}
+
         print(
             f"Loaded lineage records "
             f"({len(lineage_df)} rows)"
@@ -133,6 +138,10 @@ def run_curate(args):
     refine_requests = parse_refine_requests(args.refine)
     print("\n[REFINE REQUESTS]")
     print(refine_requests)
+
+    merge_groups = parse_merge_groups(args.merge)
+    print("\n[MERGE GROUPS]")
+    print(merge_groups)
 
 
     if "curated_cluster" in adata.obs:
@@ -158,6 +167,9 @@ def run_curate(args):
         )
 
 
+    # --------------------------------------------------
+    # Refine block
+    # --------------------------------------------------
     for cluster in refine_requests:
 
         mask = (adata.obs["curated_cluster"].astype(str) == cluster)
@@ -223,27 +235,28 @@ def run_curate(args):
             master_marker_rows.append(tmp)
 
 
+        parent_info = (
+            lineage_lookup.get(
+                cluster,
+                {}
+            )
+        )
+
         for child in refined.unique():
 
             adata.uns["scribble_lineage"][child] = {
                 "cluster": child,
+                "decision": parent_info.get("decision"),
+                "decision_reason": parent_info.get("decision_reason"),
                 "parent": cluster,
                 "level": (
-                    lineage_df.loc[
-                        lineage_df["cluster"]
-                        == cluster,
-                        "level"
-                    ].iloc[0] + 1
+                    lineage_lookup[cluster]["level"] + 1
                     if lineage_df is not None
                     and cluster in lineage_df["cluster"].values
                     else 1
                 ),
                 "lineage_path": (
-                    lineage_df.loc[
-                        lineage_df["cluster"]
-                        == cluster,
-                        "lineage_path"
-                    ].iloc[0]
+                    lineage_lookup[cluster]["lineage_path"]
                     + f" -> {child}"
                     if lineage_df is not None
                     and cluster in lineage_df["cluster"].values
@@ -287,6 +300,78 @@ def run_curate(args):
 
             master_reassignments.append(tmp)
 
+    # --------------------------------------------------
+    # Merge block
+    # --------------------------------------------------
+    for group in merge_groups:
+
+        target = group[0]
+
+        print(f"[MERGE] | {group} -> {target}")
+
+        for cluster in group[1:]:
+
+            adata.obs.loc[
+                adata.obs["curated_cluster"]
+                .astype(str)
+                == cluster,
+                "curated_cluster"
+            ] = target
+
+            prev = adata.uns["scribble_lineage"].get(
+                cluster,
+                {}
+            )
+
+            adata.uns["scribble_lineage"][cluster] = {
+                "cluster": cluster,
+                "decision": prev.get("decision"),
+                "decision_reason": prev.get("decision_reason"),
+                "parent": target,
+                "level": (
+                    lineage_lookup[target]["level"]
+                    if lineage_df is not None
+                    and target in lineage_df["cluster"].values
+                    else 0
+                ),
+                "lineage_path": (
+                    lineage_lookup[target]["lineage_path"]
+                    + f" -> merged({cluster})"
+                    if lineage_df is not None
+                    and target in lineage_df["cluster"].values
+                    else f"{target} -> merged({cluster})"
+                ),
+                "refinement_source": "manual_merge",
+                "parent_clusters": target,
+                "n_parent_clusters": 1,
+                "source": "curate",
+                "curation_tag": tag,
+            }
+
+        if target not in adata.uns["scribble_lineage"]:
+
+            prev = adata.uns["scribble_lineage"].get(
+                target,
+                {}
+            )
+
+            adata.uns["scribble_lineage"][target] = {
+                "cluster": target,
+                "decision": prev.get("decision"),
+                "decision_reason": prev.get("decision_reason"),
+                "parent": None,
+                "level": 0,
+                "lineage_path": target,
+                "refinement_source": "merged_target",
+                "parent_clusters": target,
+                "n_parent_clusters": 1,
+                "source": "curate",
+                "curation_tag": tag,
+            }
+
+        adata.uns["scribble_lineage"][target][
+            "merged_from"
+        ] = "|".join(group)
 
 
 
@@ -400,6 +485,8 @@ def run_curate(args):
         lineage_df = pd.DataFrame(
             columns=[
                 "cluster",
+                "decision",
+                "decision_reason",
                 "parent",
                 "level",
                 "lineage_path",
@@ -431,10 +518,19 @@ def run_curate(args):
 
     rows = []
 
+    decision_info = (
+        lineage_lookup.get(
+            cluster,
+            {}
+        )
+    )
+
     for cluster in sorted(missing):
 
         rows.append({
             "cluster": cluster,
+            "decision": decision_info.get("action"),
+            "decision_reason": decision_info.get("reason"),
             "parent": None,
             "level": 0,
             "lineage_path": cluster,
@@ -454,6 +550,9 @@ def run_curate(args):
             ],
             ignore_index=True,
         )
+
+    if "merged_from" not in lineage_df.columns:
+        lineage_df["merged_from"] = np.nan
 
     lineage_df.to_csv(
         curation_lineage_file,
@@ -516,6 +615,8 @@ def run_curate(args):
     curation_report = curation_report[
         [
             "cluster",
+            "decision",
+            "decision_reason",
             "n_cells",
 
             "parent",

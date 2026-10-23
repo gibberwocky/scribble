@@ -479,6 +479,12 @@ def run_refine(args):
 
     refine_df["cluster"] = refine_df["cluster"].astype(str)
 
+    decision_lookup = (
+        refine_df
+        .set_index("cluster")
+        .to_dict("index")
+    )
+
     # ----------------------------------------
     # 1. Handle merge groups
     # ----------------------------------------
@@ -619,6 +625,11 @@ def run_refine(args):
                 else "_".join(sorted(clusters))
             )
 
+            decision_info = decision_lookup.get(
+                parent_label,
+                {}
+            )
+
             # Recover existing ancestry if this is a recursive refinement
             parent_info = adata.uns["scribble_lineage"].get(parent_label, {})
 
@@ -633,6 +644,12 @@ def run_refine(args):
 
             adata.uns["scribble_lineage"][parent_label] = {
                 "cluster": parent_label,
+                "decision": decision_info.get(
+                        "action"
+                    ),
+                "decision_reason": decision_info.get(
+                    "reason"
+                ),
                 "parent": (
                     parent_info.get("parent")
                     if isinstance(parent_info, dict)
@@ -896,11 +913,21 @@ def run_refine(args):
             else:
                 child_path = parent_path + [child]
 
+            decision_info = decision_lookup.get(
+                parent_label,
+                {}
+            )
             # A collapsed group that retains the parent label is a root/terminal
             # node, not its own child.
             if child == parent_label:
                 adata.uns["scribble_lineage"][child] = {
                     "cluster": child,
+                    "decision": decision_info.get(
+                        "action"
+                    ),
+                    "decision_reason": decision_info.get(
+                        "reason"
+                    ),
                     "parent": None,
                     "level": level,
                     "lineage_path": " -> ".join(
@@ -921,6 +948,12 @@ def run_refine(args):
             else:
                 adata.uns["scribble_lineage"][child] = {
                     "cluster": child,
+                    "decision": decision_info.get(
+                        "action"
+                    ),
+                    "decision_reason": decision_info.get(
+                        "reason"
+                    ),
                     "parent": parent_label,
                     "level": level,
                     "lineage_path": " -> ".join(
@@ -1308,8 +1341,6 @@ def run_refine(args):
     lineage_df = pd.DataFrame.from_dict(
         adata.uns["scribble_lineage"],
         orient="index",
-    ).reset_index(
-        drop=True
     )
 
     if len(lineage_df) == 0:
@@ -1317,6 +1348,8 @@ def run_refine(args):
         lineage_df = pd.DataFrame(
             columns=[
                 "cluster",
+                "decision",
+                "decision_reason",
                 "parent",
                 "level",
                 "lineage_path",
@@ -1325,6 +1358,12 @@ def run_refine(args):
                 "n_parent_clusters",
                 "source",
             ]
+        )
+
+    else:
+
+        lineage_df = lineage_df.reset_index(
+            drop=True
         )
 
     all_clusters = set(
@@ -1343,8 +1382,19 @@ def run_refine(args):
 
     for cluster in sorted(missing):
 
+        decision_info = decision_lookup.get(
+            cluster,
+            {}
+        )
+
         rows.append({
             "cluster": cluster,
+            "decision": decision_info.get(
+                    "action"
+                ),
+            "decision_reason": decision_info.get(
+                "reason"
+            ),
             "parent": None,
             "level": 1,
             "lineage_path": cluster,
@@ -1400,6 +1450,9 @@ def run_refine(args):
         [
             "cluster",
             "n_cells",
+
+            "decision",
+            "decision_reason",
 
             "parent",
             "level",
