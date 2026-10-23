@@ -457,7 +457,8 @@ def run_refine(args):
     adata.obs["refine_label"] = adata.obs["leiden"].astype(str)
 
     # Each refine run constructs a new tree from scratch.
-    adata.uns["refinement_tree"] = {}
+    if "scribble_lineage" not in adata.uns:
+        adata.uns["scribble_lineage"] = {}
 
     # Refine cluster registry
     next_cluster_id = 1
@@ -619,19 +620,30 @@ def run_refine(args):
             )
 
             # Recover existing ancestry if this is a recursive refinement
-            parent_info = adata.uns["refinement_tree"].get(parent_label, {})
+            parent_info = adata.uns["scribble_lineage"].get(parent_label, {})
 
             if isinstance(parent_info, dict):
-                parent_path = parent_info.get("path", [parent_label])
+                parent_lineage = parent_info.get(
+                    "lineage_path",
+                    parent_label
+                )
+                parent_path = parent_lineage.split(" -> ")
             else:
                 parent_path = [parent_label]
 
-            adata.uns["refinement_tree"][parent_label] = {
-                "parent": parent_info.get("parent")
-                if isinstance(parent_info, dict) else None,
+            adata.uns["scribble_lineage"][parent_label] = {
+                "cluster": parent_label,
+                "parent": (
+                    parent_info.get("parent")
+                    if isinstance(parent_info, dict)
+                    else None
+                ),
                 "level": level,
-                "path": parent_path,
-                "node_type": "refinement_failed"
+                "lineage_path": " -> ".join(parent_path),
+                "refinement_source": "refinement_failed",
+                "parent_clusters": parent_label,
+                "n_parent_clusters": 1,
+                "source": "refine",
             }
 
             print(
@@ -862,16 +874,17 @@ def run_refine(args):
             )
 
             # Recover ancestry already associated with the parent
-            parent_info = adata.uns["refinement_tree"].get(
+            parent_info = adata.uns["scribble_lineage"].get(
                 parent_label,
                 {}
             )
 
             if isinstance(parent_info, dict):
-                parent_path = parent_info.get(
-                    "path",
-                    [parent_label]
+                parent_lineage = parent_info.get(
+                    "lineage_path",
+                    parent_label
                 )
+                parent_path = parent_lineage.split(" -> ")
             else:
                 # Backward compatibility with old tree structure
                 parent_path = [parent_label]
@@ -886,41 +899,43 @@ def run_refine(args):
             # A collapsed group that retains the parent label is a root/terminal
             # node, not its own child.
             if child == parent_label:
-                adata.uns["refinement_tree"][child] = {
+                adata.uns["scribble_lineage"][child] = {
+                    "cluster": child,
                     "parent": None,
                     "level": level,
-                    "path": child_path,
-                    "node_type": "retained_parent",
-                    "parent_clusters": clusters.copy(),
-                    "parent_cluster_type": (
-                        "merge_group"
-                        if len(clusters) > 1
-                        else "single_cluster"
+                    "lineage_path": " -> ".join(
+                        map(str, child_path)
                     ),
                     "refinement_source": (
                         "merge_group"
                         if len(clusters) > 1
                         else "single_cluster"
                     ),
+                    "parent_clusters": "|".join(
+                        map(str, clusters)
+                    ),
+                    "n_parent_clusters": len(clusters),
+                    "source": "refine",
                 }
 
             else:
-                adata.uns["refinement_tree"][child] = {
+                adata.uns["scribble_lineage"][child] = {
+                    "cluster": child,
                     "parent": parent_label,
                     "level": level,
-                    "path": child_path,
-                    "node_type": "refined_child",
-                    "parent_clusters": clusters.copy(),
-                    "parent_cluster_type": (
-                        "merge_group"
-                        if len(clusters) > 1
-                        else "single_cluster"
+                    "lineage_path": " -> ".join(
+                        map(str, child_path)
                     ),
                     "refinement_source": (
                         "merge_group"
                         if len(clusters) > 1
                         else "single_cluster"
                     ),
+                    "parent_clusters": "|".join(
+                        map(str, clusters)
+                    ),
+                    "n_parent_clusters": len(clusters),
+                    "source": "refine",
                 }
 
         # -----------------------
@@ -1285,142 +1300,133 @@ def run_refine(args):
     # Save refinement summary / tree
     # --------------------------------------------------
 
-    refinement_rows = []
 
-    for cluster, info in adata.uns["refinement_tree"].items():
 
-        if not isinstance(info, dict):
-            continue
+    # ------------------------------
+    # Merge with refinement summary
+    # ------------------------------
+    lineage_df = pd.DataFrame.from_dict(
+        adata.uns["scribble_lineage"],
+        orient="index",
+    ).reset_index(
+        drop=True
+    )
 
-        path = info.get("path", [cluster])
+    if len(lineage_df) == 0:
 
-        refinement_rows.append({
+        lineage_df = pd.DataFrame(
+            columns=[
+                "cluster",
+                "parent",
+                "level",
+                "lineage_path",
+                "refinement_source",
+                "parent_clusters",
+                "n_parent_clusters",
+                "source",
+            ]
+        )
+
+    all_clusters = set(
+        adata.obs["refine_label"]
+        .astype(str)
+        .unique()
+    )
+
+    recorded_clusters = set(
+        lineage_df["cluster"]
+    )
+
+    missing = all_clusters - recorded_clusters
+
+    rows = []
+
+    for cluster in sorted(missing):
+
+        rows.append({
             "cluster": cluster,
-            "parent": info.get("parent"),
-            "level": info.get("level"),
-            "refinement_path": " -> ".join(map(str, path)),
-            "refinement_source": info.get(
-                "refinement_source"
-            ),
-            "parent_clusters": "|".join(
-                map(
-                    str,
-                    info.get(
-                        "parent_clusters",
-                        []
-                    )
-                )
-            ),
-            "n_parent_clusters": len(
-                info.get(
-                    "parent_clusters",
-                    []
-                )
-            ),
+            "parent": None,
+            "level": 1,
+            "lineage_path": cluster,
+            "refinement_source": "unmodified",
+            "parent_clusters": cluster,
+            "n_parent_clusters": 1,
+            "source": "unmodified",
         })
 
-    if len(refinement_rows) > 0:
+    if rows:
 
-        refinement_df = (
-            pd.DataFrame(refinement_rows)
-            .drop_duplicates()
+        lineage_df = pd.concat(
+            [
+                lineage_df,
+                pd.DataFrame(rows),
+            ],
+            ignore_index=True,
         )
 
-        all_clusters = set(
-            adata.obs["refine_label"]
-            .astype(str)
-            .unique()
-        )
+    cluster_sizes = (
+        adata.obs["refine_label"]
+        .astype(str)
+        .value_counts()
+    )
 
-        reported_clusters = set(
-            refinement_df["cluster"]
-        )
+    lineage_df["n_cells"] = (
+        lineage_df["cluster"]
+        .map(cluster_sizes)
+    )
 
-        missing = all_clusters - reported_clusters
+    refinement_report = lineage_df.merge(
+        refine_summary.drop(columns=["n_cells"]),
+        on="cluster",
+        how="left",
+    )
 
-        for cluster in sorted(missing):
+    for col in [
+        "dominant_reassignment",
+        "dominant_reassignment_fraction",
+        "reassignment_summary",
+        "reassignment_class",
+        "merge_candidate",
+    ]:
+        if col not in refinement_report.columns:
 
-            refinement_rows.append({
-                "cluster": cluster,
-                "parent": cluster,
-                "level": 1,
-                "refinement_path": cluster,
-                "refinement_source": "unmodified",
-                "parent_clusters": cluster,
-                "n_parent_clusters": 1,
-            })
+            if col == "merge_candidate":
+                refinement_report[col] = False
 
-        refinement_df = (
-            pd.DataFrame(refinement_rows)
-            .drop_duplicates()
-        )
+            else:
+                refinement_report[col] = np.nan
 
-        cluster_sizes = (
-            adata.obs["refine_label"]
-            .astype(str)
-            .value_counts()
-        )
+    refinement_report = refinement_report[
+        [
+            "cluster",
+            "n_cells",
 
-        refinement_df["n_cells"] = (
-            refinement_df["cluster"]
-            .map(cluster_sizes)
-        )
+            "parent",
+            "level",
+            "lineage_path",
 
-        # ------------------------------
-        # Merge with refinement summary
-        # ------------------------------
-        refinement_report = refinement_df.merge(
-            refine_summary.drop(columns=["n_cells"]),
-            on="cluster",
-            how="left",
-        )
+            "source",
+            "refinement_source",
+            "parent_clusters",
+            "n_parent_clusters",
 
-        for col in [
+            "mean_stability",
+            "median_stability",
+            "sample_entropy",
+
             "dominant_reassignment",
             "dominant_reassignment_fraction",
             "reassignment_summary",
             "reassignment_class",
             "merge_candidate",
-        ]:
-            if col not in refinement_report.columns:
-
-                if col == "merge_candidate":
-                    refinement_report[col] = False
-
-                else:
-                    refinement_report[col] = np.nan
-
-        refinement_report = refinement_report[
-            [
-                "cluster",
-                "n_cells",
-
-                "parent",
-                "level",
-                "refinement_path",
-
-                "refinement_source",
-                "parent_clusters",
-                "n_parent_clusters",
-
-                "mean_stability",
-                "median_stability",
-                "sample_entropy",
-
-                "dominant_reassignment",
-                "dominant_reassignment_fraction",
-                "reassignment_summary",
-                "reassignment_class",
-                "merge_candidate",
-            ]
         ]
+    ]
 
-        refinement_report.to_csv(refinement_report_file, sep="\t", index=False)
+    refinement_report.to_csv(refinement_report_file, sep="\t", index=False)
 
-        print(f"Saved {len(refinement_report):,} refinement records to {refinement_report_file}")
+    print(f"Saved {len(refinement_report):,} refinement records to {refinement_report_file}")
 
-        # Store report in adata for later use by curate
-        adata.uns["refinement_report"] = (refinement_report.copy())
+
 
     # --------------------------------------------------
     # UMAP final cluster labels
@@ -1439,6 +1445,7 @@ def run_refine(args):
     # --------------------------------------------------
     # Save
     # --------------------------------------------------
+    print(f"Stored lineage records: {len(adata.uns['scribble_lineage'])}")
     adata.uns["scribble_manifest"] = str(manifest_file)
     adata.uns["scribble_refine_params"] = serializable_args(args)
 
