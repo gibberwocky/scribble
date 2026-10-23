@@ -455,7 +455,6 @@ def run_curate(args):
             "parent_clusters",
             "n_parent_clusters",
 
-            "curation_source",
             "curation_tag",
 
             "mean_stability",
