@@ -327,6 +327,7 @@ GitHub: https://github.com/gibberwocky/scribble
     curate_parser.add_argument("--ignore_saved_params", action="store_true")
     curate_parser.add_argument("--batch", default="sample")
     curate_parser.add_argument("--hvgs", type=int, default=3000)
+    curate_parser.add_argument("--no_scale", action="store_true")
     curate_parser.add_argument("--npcs", type=int, default=50)
     curate_parser.add_argument("--neighbors", type=int, default=15)
     curate_parser.add_argument("--theta", type=float, default=1)
@@ -336,11 +337,21 @@ GitHub: https://github.com/gibberwocky/scribble
     curate_parser.add_argument("--res_max", type=float, default=1.5)
     curate_parser.add_argument("--res_steps", type=int, default=10)
     curate_parser.add_argument("--fine_width", type=float, default=0.2)
-    curate_parser.add_argument("--n_repeats", type=int, default=10)
-    curate_parser.add_argument("--min_cells_per_gene", type=int, default=10)
-    curate_parser.add_argument("--min_cells_per_cluster", type=int, default=50)
     curate_parser.add_argument("--nmarkers", type=int, default=100)
+    curate_parser.add_argument("--n_repeats", type=int, default=10)
+    curate_parser.add_argument("--min_cells_per_group", type=int, default=500)
+    curate_parser.add_argument("--min_cells_per_gene", type=int, default=10)
+    curate_parser.add_argument("--max_refine_depth", type=int, default=2)
+    curate_parser.add_argument("--stability_threshold", type=float, default=0.9)
+    curate_parser.add_argument("--min_cells_per_cluster", type=int, default=50)
+    curate_parser.add_argument("--marker_strength_threshold", type=float, default=1.0)
     curate_parser.add_argument("--skip-integration", action="store_true")
+    curate_parser.add_argument("--dominant_reassignment_threshold", type=float, default=0.05)
+    curate_parser.add_argument("--reassignment_display_threshold", type=float, default=0.01)
+    curate_parser.add_argument("--high_reassignment", type=float, default=0.30)
+
+
+
 
 
     # ------------- Map to atlas ---------
