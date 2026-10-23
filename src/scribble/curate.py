@@ -124,6 +124,9 @@ def run_curate(args):
             f"({len(lineage_df)} rows)"
         )
 
+    else:
+        adata.uns["scribble_lineage"] = {}
+
     master_reassignments = []
     master_marker_rows = []
 
@@ -132,7 +135,28 @@ def run_curate(args):
     print(refine_requests)
 
 
-    adata.obs["curated_cluster"] = (adata.obs["refine_label"].astype(str))
+    if "curated_cluster" in adata.obs:
+
+        print(
+            "Using existing curated_cluster labels"
+        )
+
+        adata.obs["curated_cluster"] = (
+            adata.obs["curated_cluster"]
+            .astype(str)
+        )
+
+    else:
+
+        print(
+            "Initialising curated_cluster from refine_label"
+        )
+
+        adata.obs["curated_cluster"] = (
+            adata.obs["refine_label"]
+            .astype(str)
+        )
+
 
     for cluster in refine_requests:
 
@@ -225,7 +249,7 @@ def run_curate(args):
                     and cluster in lineage_df["cluster"].values
                     else f"{cluster} -> {child}"
                 ),
-                "refinement_source": "manual_refine",
+                "refinement_source": "curate_refine",
                 "parent_clusters": cluster,
                 "n_parent_clusters": 1,
                 "source": "curate",
@@ -369,9 +393,29 @@ def run_curate(args):
     lineage_df = pd.DataFrame.from_dict(
         adata.uns["scribble_lineage"],
         orient="index"
-    ).reset_index(
-        drop=True
     )
+
+    if len(lineage_df) == 0:
+
+        lineage_df = pd.DataFrame(
+            columns=[
+                "cluster",
+                "parent",
+                "level",
+                "lineage_path",
+                "refinement_source",
+                "parent_clusters",
+                "n_parent_clusters",
+                "source",
+                "curation_tag",
+            ]
+        )
+
+    else:
+
+        lineage_df = lineage_df.reset_index(
+            drop=True
+        )
 
     all_clusters = set(
         adata.obs["curated_cluster"]
