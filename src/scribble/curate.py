@@ -92,36 +92,33 @@ def run_curate(args):
             )
         )
 
-        for param in [
-            "batch",
-            "hvgs",
-            "npcs",
-            "neighbors",
-            "theta",
-            "resolution",
-            "auto_resolution",
-            "res_min",
-            "res_max",
-            "res_steps",
-            "fine_width",
-            "n_repeats",
-            "min_cells_per_gene",
-            "min_cells_per_cluster",
-            "nmarkers",
-            "skip_integration",
-        ]:
+        if (
+            not args.ignore_saved_params and
+            "scribble_refine_params" in adata.uns
+        ):
 
-            if param not in saved:
-                continue
+            saved = adata.uns["scribble_refine_params"]
 
-            if param in cli_overrides:
-                continue
+            print("\nUsing clustering parameters stored in AnnData:")
+            print(saved.keys())
 
-            setattr(
-                args,
-                param,
-                saved[param]
+            cli_overrides = set(
+                getattr(
+                    args,
+                    "cli_overrides",
+                    [],
+                )
             )
+
+            for param, value in saved.items():
+
+                # Explicit CLI value wins
+                if param in {"manifest", "command", "cli_overrides",}:
+                    continue
+
+                if hasattr(args, param):
+                    setattr(args, param, value)
+                    print(f" {param} = {value}")
 
 
     master_reassignments = []
