@@ -70,7 +70,7 @@ def run_curate(args):
     umap_png_file = PLOT_DIR / "UMAP_curate_cluster.png"
     markers_file = (TABLE_DIR / "curate_markers.xlsx")
     curate_report_file = (TABLE_DIR / "curation_report.tsv")
-    curation_tree_file = (TABLE_DIR / "curation_lineage.tsv")
+    curation_lineage_file = (TABLE_DIR / "curation_lineage.tsv")
     all_markers_file = (TABLE_DIR / "all_curate_markers.tsv")
     reassignments_file = (TABLE_DIR / "curate_cluster_reassignments.tsv")
 
@@ -110,23 +110,22 @@ def run_curate(args):
                 print(f" {param} = {value}")
 
 
-    refinement_report = None
+    lineage_df = None
 
-    if "refinement_report" in adata.uns:
+    if "scribble_lineage" in adata.uns:
 
-        refinement_report = (
-            adata.uns["refinement_report"]
-            .copy()
-        )
+        lineage_df = pd.DataFrame.from_dict(
+            adata.uns["scribble_lineage"],
+            orient="index"
+        ).reset_index(drop=True)
 
         print(
-            f"Loaded refinement report "
-            f"({len(refinement_report)} rows)"
+            f"Loaded lineage records "
+            f"({len(lineage_df)} rows)"
         )
 
     master_reassignments = []
     master_marker_rows = []
-    curation_rows = []
 
     refine_requests = parse_refine_requests(args.refine)
     print("\n[REFINE REQUESTS]")
@@ -134,9 +133,6 @@ def run_curate(args):
 
 
     adata.obs["curated_cluster"] = (adata.obs["refine_label"].astype(str))
-
-    if "curation_tree" not in adata.uns:
-        adata.uns["curation_tree"] = {}
 
     for cluster in refine_requests:
 
@@ -149,11 +145,6 @@ def run_curate(args):
         adata_sub = run_clustering(hm, np, sc, pd, adata_sub, args)
 
         if adata_sub is None:
-
-            adata.uns["curation_tree"][cluster] = {
-                "parent": cluster,
-                "source": "refinement_failed",
-            }
 
             continue
 
@@ -210,10 +201,35 @@ def run_curate(args):
 
         for child in refined.unique():
 
-            adata.uns["curation_tree"][child] = {
+            adata.uns["scribble_lineage"][child] = {
+                "cluster": child,
                 "parent": cluster,
-                "source": "manual_refine",
-                "tag": tag,
+                "level": (
+                    lineage_df.loc[
+                        lineage_df["cluster"]
+                        == cluster,
+                        "level"
+                    ].iloc[0] + 1
+                    if lineage_df is not None
+                    and cluster in lineage_df["cluster"].values
+                    else 1
+                ),
+                "lineage_path": (
+                    lineage_df.loc[
+                        lineage_df["cluster"]
+                        == cluster,
+                        "lineage_path"
+                    ].iloc[0]
+                    + f" -> {child}"
+                    if lineage_df is not None
+                    and cluster in lineage_df["cluster"].values
+                    else f"{cluster} -> {child}"
+                ),
+                "refinement_source": "manual_refine",
+                "parent_clusters": cluster,
+                "n_parent_clusters": 1,
+                "source": "curate",
+                "curation_tag": tag,
             }
 
         if "cluster_stability" in adata_sub.obs:
@@ -350,67 +366,12 @@ def run_curate(args):
         merge_candidate_threshold=args.high_reassignment,
     )
 
-    curation_rows = []
-
-    if refinement_report is not None:
-
-        for _, row in refinement_report.iterrows():
-
-            curation_rows.append({
-                "cluster": row["cluster"],
-                "parent": row["parent"],
-                "level": row["level"],
-                "refinement_path": row["refinement_path"],
-                "refinement_source": row["refinement_source"],
-                "parent_clusters": row["parent_clusters"],
-                "n_parent_clusters": row["n_parent_clusters"],
-                "curation_source": "unmodified",
-                "tag": tag,
-            })
-
-    # overwrite / add newly curated clusters
-    if "curation_tree" in adata.uns:
-
-        for cluster, info in (
-            adata.uns["curation_tree"]
-            .items()
-        ):
-
-            curation_rows = [
-                r for r in curation_rows
-                if r["cluster"] != cluster
-            ]
-
-            curation_rows.append({
-                "cluster": cluster,
-                "parent": info.get("parent"),
-                "level": (
-                    refinement_report.loc[
-                        refinement_report["cluster"]
-                        == info.get("parent"),
-                        "level"
-                    ].iloc[0] + 1
-                    if refinement_report is not None
-                    and info.get("parent") in refinement_report["cluster"].values
-                    else 1
-                ),
-                "refinement_path": (
-                    refinement_report.loc[
-                        refinement_report["cluster"]
-                        == info.get("parent"),
-                        "refinement_path"
-                    ].iloc[0]
-                    + f" -> {cluster}"
-                    if refinement_report is not None
-                    and info.get("parent") in refinement_report["cluster"].values
-                    else cluster
-                ),
-                "refinement_source": "manual_refine",
-                "parent_clusters": info.get("parent"),
-                "n_parent_clusters": 1,
-                "curation_source": info.get("source"),
-                "tag": tag,
-            })
+    lineage_df = pd.DataFrame.from_dict(
+        adata.uns["scribble_lineage"],
+        orient="index"
+    ).reset_index(
+        drop=True
+    )
 
     all_clusters = set(
         adata.obs["curated_cluster"]
@@ -418,59 +379,53 @@ def run_curate(args):
         .unique()
     )
 
-    reported_clusters = {
-        row["cluster"]
-        for row in curation_rows
-    }
+    recorded_clusters = set(
+        lineage_df["cluster"]
+    )
 
-    missing = all_clusters - reported_clusters
+    missing = all_clusters - recorded_clusters
+
+    rows = []
 
     for cluster in sorted(missing):
 
-        if (
-            refinement_report is not None
-            and cluster in refinement_report["cluster"].values
-        ):
+        rows.append({
+            "cluster": cluster,
+            "parent": None,
+            "level": 0,
+            "lineage_path": cluster,
+            "refinement_source": "unmodified",
+            "parent_clusters": cluster,
+            "n_parent_clusters": 1,
+            "source": "unmodified",
+            "curation_tag": tag,
+        })
 
-            row = refinement_report.loc[
-                refinement_report["cluster"] == cluster
-            ].iloc[0]
+    if rows:
 
-            curation_rows.append({
-                "cluster": cluster,
-                "parent": row["parent"],
-                "level": row["level"],
-                "refinement_path": row["refinement_path"],
-                "refinement_source": row["refinement_source"],
-                "parent_clusters": row["parent_clusters"],
-                "n_parent_clusters": row["n_parent_clusters"],
-                "curation_source": "unmodified",
-                "tag": tag,
-            })
+        lineage_df = pd.concat(
+            [
+                lineage_df,
+                pd.DataFrame(rows),
+            ],
+            ignore_index=True,
+        )
 
-        else:
+    lineage_df.to_csv(
+        curation_tree_file,
+        sep="\t",
+        index=False,
+    )
 
-            curation_rows.append({
-                "cluster": cluster,
-                "parent": cluster,
-                "level": 0,
-                "refinement_path": cluster,
-                "refinement_source": "unmodified",
-                "parent_clusters": cluster,
-                "n_parent_clusters": 1,
-                "curation_source": "unmodified",
-                "tag": tag,
-            })
-
-    curation_df = pd.DataFrame(curation_rows)
     curation_report = (
-        curation_df
+        lineage_df
         .merge(
             curated_summary,
             on="cluster",
             how="left",
         )
     )
+
 
     for col in [
         "dominant_reassignment",
@@ -494,14 +449,14 @@ def run_curate(args):
 
             "parent",
             "level",
-            "refinement_path",
+            "lineage_path",
 
             "refinement_source",
             "parent_clusters",
             "n_parent_clusters",
 
             "curation_source",
-            "tag",
+            "curation_tag",
 
             "mean_stability",
             "median_stability",
@@ -515,21 +470,24 @@ def run_curate(args):
         ]
     ]
 
+    print(
+        f"Curated clusters: "
+        f"{curation_report['cluster'].nunique()}"
+    )
+
     curation_report.to_csv(
         curate_report_file,
         sep="\t",
         index=False,
     )
 
-    if "curation_report" not in adata.uns:
-        adata.uns["curation_report"] = {}
-    adata.uns["curation_report"][tag] = (
-        curation_report.copy()
+    if "curation_reports" not in adata.uns:
+        adata.uns["curation_reports"] = {}
+
+    adata.uns["curation_reports"][tag] = (
+        str(curate_report_file)
     )
 
-
-
-    pd.DataFrame(curation_rows).to_csv(curation_tree_file, sep="\t", index=False,)
 
 
 
@@ -550,7 +508,7 @@ def run_curate(args):
         "UMAP png": str(umap_png_file),
         "markers xlsx": str(markers_file),
         "curation report tsv": str(curate_report_file),
-        "curation lineage tsv": str(curation_tree_file)
+        "curation lineage tsv": str(curation_lineage_file),
     }
 
     if len(master_reassignments) > 0:
