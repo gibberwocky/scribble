@@ -70,6 +70,7 @@ def run_curate(args):
     umap_png_file = PLOT_DIR / "UMAP_curate_cluster.png"
     markers_file = (TABLE_DIR / "curate_markers.xlsx")
     curate_report_file = (TABLE_DIR / "curation_report.tsv")
+    curation_tree_file = (TABLE_DIR / "curation_lineage.tsv")
     all_markers_file = (TABLE_DIR / "all_curate_markers.tsv")
     reassignments_file = (TABLE_DIR / "curate_cluster_reassignments.tsv")
 
@@ -78,11 +79,14 @@ def run_curate(args):
 
     # Use prior params if available and not over-ridden at CLI
     if (
-        not args.ignore_saved_params
-        and "scribble_refine_params" in adata.uns
+        not args.ignore_saved_params and
+        "scribble_refine_params" in adata.uns
     ):
 
         saved = adata.uns["scribble_refine_params"]
+
+        print("\nUsing clustering parameters stored in AnnData:")
+        print(saved.keys())
 
         cli_overrides = set(
             getattr(
@@ -92,43 +96,37 @@ def run_curate(args):
             )
         )
 
-        if (
-            not args.ignore_saved_params and
-            "scribble_refine_params" in adata.uns
-        ):
+        for param, value in saved.items():
 
-            saved = adata.uns["scribble_refine_params"]
+            # Explicit CLI value wins
+            if param in {"manifest", "command"}:
+                continue
 
-            print("\nUsing clustering parameters stored in AnnData:")
-            print(saved.keys())
+            if param in cli_overrides:
+                continue
 
-            cli_overrides = set(
-                getattr(
-                    args,
-                    "cli_overrides",
-                    [],
-                )
-            )
+            if hasattr(args, param):
+                setattr(args, param, value)
+                print(f" {param} = {value}")
 
-            for param, value in saved.items():
 
-                # Explicit CLI value wins
-                if param in {"manifest", "command", "cli_overrides",}:
-                    continue
+    refinement_report = None
 
-                if hasattr(args, param):
-                    setattr(args, param, value)
-                    print(f" {param} = {value}")
+    if "refinement_report" in adata.uns:
 
+        refinement_report = (
+            adata.uns["refinement_report"]
+            .copy()
+        )
+
+        print(
+            f"Loaded refinement report "
+            f"({len(refinement_report)} rows)"
+        )
 
     master_reassignments = []
     master_marker_rows = []
-
-    #merge_groups = parse_merge_groups(
-    #    args.merge
-    #)
-    #print("\n[MERGE GROUPS]")
-    #print(merge_groups)
+    curation_rows = []
 
     refine_requests = parse_refine_requests(args.refine)
     print("\n[REFINE REQUESTS]")
@@ -209,9 +207,6 @@ def run_curate(args):
 
             master_marker_rows.append(tmp)
 
-
-        if "curation_tree" not in adata.uns:
-            adata.uns["curation_tree"] = {}
 
         for child in refined.unique():
 
@@ -357,6 +352,23 @@ def run_curate(args):
 
     curation_rows = []
 
+    if refinement_report is not None:
+
+        for _, row in refinement_report.iterrows():
+
+            curation_rows.append({
+                "cluster": row["cluster"],
+                "parent": row["parent"],
+                "level": row["level"],
+                "refinement_path": row["refinement_path"],
+                "refinement_source": row["refinement_source"],
+                "parent_clusters": row["parent_clusters"],
+                "n_parent_clusters": row["n_parent_clusters"],
+                "curation_source": "unmodified",
+                "tag": tag,
+            })
+
+    # overwrite / add newly curated clusters
     if "curation_tree" in adata.uns:
 
         for cluster, info in (
@@ -364,11 +376,40 @@ def run_curate(args):
             .items()
         ):
 
+            curation_rows = [
+                r for r in curation_rows
+                if r["cluster"] != cluster
+            ]
+
             curation_rows.append({
                 "cluster": cluster,
                 "parent": info.get("parent"),
+                "level": (
+                    refinement_report.loc[
+                        refinement_report["cluster"]
+                        == info.get("parent"),
+                        "level"
+                    ].iloc[0] + 1
+                    if refinement_report is not None
+                    and info.get("parent") in refinement_report["cluster"].values
+                    else 1
+                ),
+                "refinement_path": (
+                    refinement_report.loc[
+                        refinement_report["cluster"]
+                        == info.get("parent"),
+                        "refinement_path"
+                    ].iloc[0]
+                    + f" -> {cluster}"
+                    if refinement_report is not None
+                    and info.get("parent") in refinement_report["cluster"].values
+                    else cluster
+                ),
+                "refinement_source": "manual_refine",
+                "parent_clusters": info.get("parent"),
+                "n_parent_clusters": 1,
                 "curation_source": info.get("source"),
-                "tag": info.get("tag"),
+                "tag": tag,
             })
 
     all_clusters = set(
@@ -386,11 +427,40 @@ def run_curate(args):
 
     for cluster in sorted(missing):
 
-        curation_rows.append({
-            "cluster": cluster,
-            "parent": cluster,
-            "curation_source": "unmodified",
-        })
+        if (
+            refinement_report is not None
+            and cluster in refinement_report["cluster"].values
+        ):
+
+            row = refinement_report.loc[
+                refinement_report["cluster"] == cluster
+            ].iloc[0]
+
+            curation_rows.append({
+                "cluster": cluster,
+                "parent": row["parent"],
+                "level": row["level"],
+                "refinement_path": row["refinement_path"],
+                "refinement_source": row["refinement_source"],
+                "parent_clusters": row["parent_clusters"],
+                "n_parent_clusters": row["n_parent_clusters"],
+                "curation_source": "unmodified",
+                "tag": tag,
+            })
+
+        else:
+
+            curation_rows.append({
+                "cluster": cluster,
+                "parent": cluster,
+                "level": 0,
+                "refinement_path": cluster,
+                "refinement_source": "unmodified",
+                "parent_clusters": cluster,
+                "n_parent_clusters": 1,
+                "curation_source": "unmodified",
+                "tag": tag,
+            })
 
     curation_df = pd.DataFrame(curation_rows)
     curation_report = (
@@ -423,6 +493,13 @@ def run_curate(args):
             "n_cells",
 
             "parent",
+            "level",
+            "refinement_path",
+
+            "refinement_source",
+            "parent_clusters",
+            "n_parent_clusters",
+
             "curation_source",
             "tag",
 
@@ -444,6 +521,16 @@ def run_curate(args):
         index=False,
     )
 
+    if "curation_report" not in adata.uns:
+        adata.uns["curation_report"] = {}
+    adata.uns["curation_report"][tag] = (
+        curation_report.copy()
+    )
+
+
+
+    pd.DataFrame(curation_rows).to_csv(curation_tree_file, sep="\t", index=False,)
+
 
 
     if "scribble_curation_history" not in adata.uns:
@@ -463,6 +550,7 @@ def run_curate(args):
         "UMAP png": str(umap_png_file),
         "markers xlsx": str(markers_file),
         "curation report tsv": str(curate_report_file),
+        "curation lineage tsv": str(curation_tree_file)
     }
 
     if len(master_reassignments) > 0:

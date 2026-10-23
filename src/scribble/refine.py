@@ -1419,6 +1419,9 @@ def run_refine(args):
 
         print(f"Saved {len(refinement_report):,} refinement records to {refinement_report_file}")
 
+        # Store report in adata for later use by curate
+        adata.uns["refinement_report"] = (refinement_report.copy())
+
     # --------------------------------------------------
     # UMAP final cluster labels
     # --------------------------------------------------
