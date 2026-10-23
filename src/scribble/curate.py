@@ -426,6 +426,33 @@ def run_curate(args):
         )
     )
 
+    active_clusters = set(
+        adata.obs["curated_cluster"]
+        .astype(str)
+        .unique()
+    )
+
+    curation_report = curation_report[
+        curation_report["cluster"].isin(active_clusters)
+    ].copy()
+
+    curation_report["n_cells"] = (
+        curation_report["n_cells"]
+        .fillna(0)
+        .astype(int)
+    )
+
+    curation_report = curation_report.sort_values(
+        [
+            "merge_candidate",
+            "mean_stability",
+        ],
+        ascending=[
+            False,
+            True,
+        ]
+    )
+
 
     for col in [
         "dominant_reassignment",
