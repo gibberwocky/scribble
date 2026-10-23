@@ -277,6 +277,7 @@ def run_curate(args):
         )
 
     adata_global = restore_counts(adata)
+    adata_global.raw = adata_global.copy()
 
     adata_global.obs["curated_cluster"] = (
         adata.obs["curated_cluster"]
