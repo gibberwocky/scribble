@@ -333,9 +333,9 @@ def run_similarity(args):
 
     g = sns.clustermap(
         1-pearson,
-        cmap="vlag",
-        vmin = pearson.values.min(),
-        vmax = 1.0,
+        cmap="viridis",
+        vmin = np.quantile(1-pearson.values, 0.05),
+        vmax = np.quantile(1-pearson.values, 0.95),
         center=0,
         figsize=(10, 10),
         row_colors=sample_colors,
@@ -352,9 +352,9 @@ def run_similarity(args):
 
     g = sns.clustermap(
         1-spearman,
-        cmap="vlag",
-        vmin = pearson.values.min(),
-        vmax = 1.0,
+        cmap="viridis",
+        vmin = np.quantile(1-spearman.values, 0.05),
+        vmax = np.quantile(1-spearman.values, 0.95),
         center=0,
         figsize=(10, 10),
         row_colors=sample_colors,
