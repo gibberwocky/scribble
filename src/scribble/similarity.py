@@ -200,17 +200,12 @@ def run_similarity(args):
     setup_environment(sc, np, random, PLOT_DIR)
     tag = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    input_file = Path(args.inputs)
     pearson_png = PLOT_DIR / f"similarity_pearson_{tag}.png"
     pearson_tsv = TABLE_DIR / f"similarity_pearson_{tag}.tsv"
     spearman_png = PLOT_DIR / f"similarity_spearman_{tag}.png"
     spearman_tsv = TABLE_DIR / f"similarity_spearman_{tag}.tsv"
     manifest_file = (MANIFEST_DIR / f"similarity_manifest_{tag}.json")
-
-    metadata_tsv = (
-        TABLE_DIR
-        / f"{Path(args.inputs[0]).stem}_sample_metadata.tsv"
-    )
+    metadata_tsv = (TABLE_DIR / f"similarity_{tag}_metadata.tsv")
 
     pseudobulks = []
     metadata_frames = []
