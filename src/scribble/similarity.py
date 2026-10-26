@@ -215,15 +215,15 @@ def run_similarity(args):
     setup_environment(sc, np, random, PLOT_DIR)
     tag = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    pearson_png = PLOT_DIR / f"distance_pearson_{tag}.png"
-    pearson_tsv = TABLE_DIR / f"similarity_pearson_{tag}.tsv"
     spearman_png = PLOT_DIR / f"distance_spearman_{tag}.png"
-    spearman_tsv = TABLE_DIR / f"similarity_spearman_{tag}.tsv"
+    spearman_tsv = TABLE_DIR / f"distance_spearman_{tag}.tsv"
+    nearest_tsv = TABLE_DIR / f"nearest_spearman_{tag}.tsv"
     manifest_file = (MANIFEST_DIR / f"similarity_manifest_{tag}.json")
     metadata_tsv = (TABLE_DIR / f"similarity_{tag}_metadata.tsv")
 
     pseudobulks = []
     metadata_frames = []
+    dataset_samples = {}
 
     for infile in args.inputs:
 
@@ -244,6 +244,11 @@ def run_similarity(args):
         if pb_df is None:
             print(f"Skipping {infile}: no samples passed filtering")
             continue
+
+        dataset_name = Path(infile).stem
+        dataset_samples[dataset_name] = (
+            pb_df.index.tolist()
+        )
 
         pseudobulks.append(pb_df)
 
@@ -307,10 +312,79 @@ def run_similarity(args):
         columns=pb.obs_names,
     )
 
-    pearson = expr.corr(method="pearson")
     spearman = expr.corr(method="spearman")
-    pearson.to_csv(pearson_tsv, sep="\t")
-    spearman.to_csv(spearman_tsv, sep="\t")
+    distance = (1.0 - spearman)
+    distance.to_csv(spearman_tsv, sep="\t")
+
+    dataset_names = list(
+        dataset_samples.keys()
+    )
+
+    if len(dataset_names) < 2:
+        raise ValueError(
+            "Need at least two datasets"
+        )
+
+    reference_dataset = dataset_names[0]
+
+    other_samples = []
+
+    for ds in dataset_names[1:]:
+        other_samples.extend(
+            dataset_samples[ds]
+        )
+
+    nearest_rows = []
+
+    for sample in dataset_samples[
+        reference_dataset
+    ]:
+
+        d = distance.loc[
+            sample,
+            other_samples
+        ]
+
+        nearest_sample = d.idxmin()
+
+        nearest_distance = float(
+            d.min()
+        )
+
+        nearest_rows.append({
+            "sample": sample,
+            "nearest_sample": nearest_sample,
+            "distance": nearest_distance,
+        })
+
+    nearest_df = pd.DataFrame(
+        nearest_rows
+    )
+
+    print(
+        "\nNearest cross-dataset matches"
+    )
+
+    for _, row in (
+        nearest_df
+        .sort_values("distance")
+        .iterrows()
+    ):
+
+        print(
+            f"{row['sample']} "
+            f"-> "
+            f"{row['nearest_sample']} "
+            f"(distance={row['distance']:.3f})"
+        )
+
+    nearest_df.to_csv(
+        nearest_tsv,
+        sep="\t",
+        index=False,
+    )
+
+
 
     sample_colors = None
     if (
@@ -330,25 +404,6 @@ def run_similarity(args):
             pb.obs["dataset"]
             .map(palette)
         )
-
-    g = sns.clustermap(
-        1-pearson,
-        cmap="viridis",
-        vmin = np.quantile(1-pearson.values, 0.05),
-        vmax = np.quantile(1-pearson.values, 0.95),
-        center=0,
-        figsize=(10, 10),
-        row_colors=sample_colors,
-        col_colors=sample_colors,
-    )
-
-    g.fig.savefig(
-        pearson_png,
-        dpi=300,
-        bbox_inches="tight",
-    )
-
-    plt.close(g.fig)
 
     g = sns.clustermap(
         1-spearman,
@@ -380,10 +435,9 @@ def run_similarity(args):
             ]
         },
         outputs={
-            "pearson tsv": str(pearson_tsv),
-            "spearman tsv": str(spearman_tsv),
-            "pearson png": str(pearson_png),
-            "spearman png": str(spearman_png),
+            "spearman distance tsv": str(spearman_tsv),
+            "spearman nearest tsv": str(nearest_tsv),
+            "spearman distance png": str(spearman_png),
             "metadata tsv": str(metadata_tsv),
         },
     )
