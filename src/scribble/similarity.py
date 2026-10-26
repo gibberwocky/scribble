@@ -49,6 +49,21 @@ def pseudobulk_samples(
     import pandas as pd
     import numpy as np
 
+    # --------------------------------------------------
+    # Determine where raw counts are stored
+    # --------------------------------------------------
+
+    if "counts" in adata.layers:
+        count_source = "layer"
+    elif np.issubdtype(adata.X.dtype, np.integer):
+        count_source = "X"
+    else:
+        raise ValueError(
+            "Raw counts not found. Expected either "
+            "adata.layers['counts'] or integer counts in adata.X"
+        )
+
+
     if sample_col not in adata.obs:
         raise ValueError(
             f"{sample_col} not found in adata.obs"
@@ -60,11 +75,6 @@ def pseudobulk_samples(
                 f"{batch_col} not found in adata.obs"
             )
 
-    if "counts" not in adata.layers:
-        raise ValueError(
-            "Raw counts not present in "
-            "adata.layers['counts']"
-        )
 
     obs = adata.obs.copy()
 
@@ -132,7 +142,12 @@ def pseudobulk_samples(
         )
 
         sample_adata = subset[sample_mask]
-        X = sample_adata.layers["counts"]
+
+        if count_source == "layer":
+            X = sample_adata.layers["counts"]
+        else:
+            X = sample_adata.X
+
         summed = np.asarray(X.sum(axis=0)).ravel()
         pseudobulk.append(summed)
 
