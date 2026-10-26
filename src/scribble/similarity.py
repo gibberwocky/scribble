@@ -232,7 +232,8 @@ def run_similarity(args):
         adata = sc.read(infile)
 
         adata = restore_counts(adata)
-        adata.raw = adata.copy()
+        print("X dtype:", adata.X.dtype)
+        print("layers:", list(adata.layers.keys()))
 
         pb_df, meta_df = pseudobulk_samples(
             adata=adata,
