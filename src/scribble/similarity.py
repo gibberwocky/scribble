@@ -3,14 +3,185 @@
 from pathlib import Path
 
 
+def pseudobulk_samples(
+    adata,
+    sample_col,
+    batch_col=None,
+    min_cells_per_sample=20,
+):
+    """
+    Aggregate raw counts into sample-level pseudobulk profiles.
+
+    Parameters
+    ----------
+    adata : AnnData
+        AnnData object containing raw counts in
+        adata.layers["counts"].
+
+    sample_col : str
+        Column defining biological samples.
+
+    batch_col : str
+        Column defining dataset, cohort or batch.
+        Used to generate unique sample identifiers.
+
+    min_cells_per_sample : int
+        Minimum cells required to retain a sample.
+
+    Returns
+    -------
+    pb : pd.DataFrame
+
+        Rows:
+            dataset:sample
+
+        Columns:
+            genes
+
+        Values:
+            integer pseudobulk counts
+
+    meta_pb : pd.DataFrame
+
+        Sample-level metadata aligned to pb.
+    """
+
+    import pandas as pd
+    import numpy as np
+
+    if sample_col not in adata.obs:
+        raise ValueError(
+            f"{sample_col} not found in adata.obs"
+        )
+
+    if batch_col:
+        if batch_col not in adata.obs:
+            raise ValueError(
+                f"{batch_col} not found in adata.obs"
+            )
+
+    if "counts" not in adata.layers:
+        raise ValueError(
+            "Raw counts not present in "
+            "adata.layers['counts']"
+        )
+
+    obs = adata.obs.copy()
+
+    obs["_sample"] = (
+        obs[sample_col]
+        .astype(str)
+    )
+
+    if batch_col:
+        obs["_batch"] = (
+            obs[batch_col]
+            .astype(str)
+        )
+
+        obs["_sample_id"] = (
+            obs["_batch"]
+            + ":"
+            + obs["_sample"]
+        )
+    else:
+        obs["_sample_id"] = (
+            obs["_sample"]
+        )
+
+    # --------------------------------------------------
+    # Filter samples with insufficient cells
+    # --------------------------------------------------
+
+    cell_counts = (
+        obs["_sample_id"]
+        .value_counts()
+    )
+
+    keep_samples = cell_counts[
+        cell_counts >= min_cells_per_sample
+    ].index
+
+    keep_mask = (
+        obs["_sample_id"]
+        .isin(keep_samples)
+    )
+
+    subset = adata[keep_mask].copy()
+
+    if subset.n_obs == 0:
+        return None, None
+
+    subset.obs["_sample_id"] = (
+        obs.loc[
+            keep_mask,
+            "_sample_id"
+        ].values
+    )
+
+    pseudobulk = []
+    sample_meta = []
+
+    keep_samples = sorted(keep_samples)
+
+    for sample_id in keep_samples:
+
+        sample_mask = (
+            subset.obs["_sample_id"]
+            == sample_id
+        )
+
+        sample_adata = subset[sample_mask]
+        X = sample_adata.layers["counts"]
+        summed = np.asarray(X.sum(axis=0)).ravel()
+        pseudobulk.append(summed)
+
+        meta_row = {
+            "sample": sample_id,
+            "dataset": (
+                sample_id.split(":", 1)[0]
+                if batch_col
+                else "dataset"
+            ),
+            "n_cells": int(
+                sample_adata.n_obs
+            ),
+            "library_size": int(
+                summed.sum()
+            ),
+        }
+
+        sample_meta.append(meta_row)
+
+    pb = pd.DataFrame(
+        pseudobulk,
+        columns=subset.var_names,
+        index=keep_samples,
+    )
+
+    pb = (
+        pb
+        .round()
+        .astype(np.int64)
+    )
+
+    meta_pb = (
+        pd.DataFrame(sample_meta)
+        .set_index("sample")
+        .loc[pb.index]
+    )
+
+    return pb, meta_pb
+
+
 def run_similarity(args):
     import random
+    from datetime import datetime
     import scanpy as sc
     import pandas as pd
     import numpy as np
     import seaborn as sns
     import matplotlib.pyplot as plt
-    from scipy import sparse
     from scribble.refine import restore_counts
     from scribble.import_data import setup_environment
     from scribble.utils import (
@@ -25,17 +196,24 @@ def run_similarity(args):
     MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
-    setup_environment(sc, np, random, PLOT_DIR)
 
-    input_file = Path(args.input)
-    pearson_png = PLOT_DIR / f"{input_file.stem}_similarity_pearson.png"
-    pearson_tsv = TABLE_DIR / f"{input_file.stem}_similarity_pearson.tsv"
-    spearman_png = PLOT_DIR / f"{input_file.stem}_similarity_spearman.png"
-    spearman_tsv = TABLE_DIR / f"{input_file.stem}_similarity_spearman.tsv"
-    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_similarity_manifest.json")
+    setup_environment(sc, np, random, PLOT_DIR)
+    tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    input_file = Path(args.inputs)
+    pearson_png = PLOT_DIR / f"similarity_pearson_{tag}.png"
+    pearson_tsv = TABLE_DIR / f"similarity_pearson_{tag}.tsv"
+    spearman_png = PLOT_DIR / f"similarity_spearman_{tag}.png"
+    spearman_tsv = TABLE_DIR / f"similarity_spearman_{tag}.tsv"
+    manifest_file = (MANIFEST_DIR / f"similarity_manifest_{tag}.json")
+
+    metadata_tsv = (
+        TABLE_DIR
+        / f"{Path(args.inputs[0]).stem}_sample_metadata.tsv"
+    )
 
     pseudobulks = []
-    metadata_rows = []
+    metadata_frames = []
 
     for infile in args.inputs:
 
@@ -43,80 +221,60 @@ def run_similarity(args):
 
         adata = sc.read(infile)
 
-        if args.sample_col not in adata.obs:
-            raise ValueError(
-                f"{args.sample_col} not in obs"
-            )
+        adata = restore_counts(adata)
 
-        if args.batch_col:
-            if args.batch not in adata.obs:
-                raise ValueError(
-                    f"{args.batch_col} not present in obs"
-                )
-
-
-        counts = adata.X
-
-        if sparse.issparse(counts):
-            counts = counts.tocsr()
-
-        samples = (
-            adata.obs[args.sample_col]
-            .astype(str)
+        pb_df, meta_df = pseudobulk_samples(
+            adata=adata,
+            sample_col=args.sample_col,
+            batch_col=args.batch_col,
+            min_cells_per_sample=args.min_cells_per_sample,
         )
-        combined_ids = samples
 
-        if args.batch:
-            batches = (
-                adata.obs[args.batch_col]
-                .astype(str)
+        if pb_df is None:
+
+            print(
+                f"Skipping {infile}: "
+                "no samples passed filtering"
             )
 
-            combined_ids = (
-                batches + ":" + samples
-            )
+            continue
 
+        pseudobulks.append(pb_df)
 
+        meta_df["source_file"] = str(infile)
+        meta_df.index.name = "sample"
 
-        for sample in sorted(combined_ids.unique()):
+        metadata_frames.append(meta_df)
 
-            mask = (
-                combined_ids == sample
-            ).values
+    if len(pseudobulks) == 0:
 
-            sample_counts = np.asarray(
-                counts[mask].sum(axis=0)
-            ).ravel()
-
-            pseudobulks.append(
-                pd.Series(
-                    sample_counts,
-                    index=adata.var_names,
-                    name=sample,
-                )
-            )
-
-            dataset, sample_id = sample.split(
-                ":",
-                1,
-            )
-
-            metadata_rows.append({
-                "sample": sample,
-                "sample_id": sample_id,
-                "dataset": dataset,
-                "source_file": str(infile),
-                "n_cells": int(mask.sum()),
-            })
+        raise ValueError(
+            "No pseudobulk samples generated"
+        )
 
     pseudobulk_df = pd.concat(
         pseudobulks,
-        axis=1
+        axis=0,
     )
 
-    metadata_df = pd.DataFrame(
-        metadata_rows
+    print(
+        f"Pseudobulk samples: "
+        f"{pseudobulk_df.shape[0]}"
     )
+
+    print(
+        f"Genes: "
+        f"{pseudobulk_df.shape[1]}"
+    )
+
+    metadata_df = pd.concat(
+        metadata_frames,
+        axis=0,
+    )
+
+    metadata_df = metadata_df.loc[
+        ~metadata_df.index.duplicated()
+    ]
 
     metadata_df.to_csv(
         metadata_tsv,
@@ -125,24 +283,38 @@ def run_similarity(args):
     )
 
     pb = sc.AnnData(
-        X=pseudobulk_df.T.values
+        X=pseudobulk_df.values
     )
 
     pb.obs_names = (
-        pseudobulk_df.columns
+        pseudobulk_df.index
     )
 
     pb.var_names = (
-        pseudobulk_df.index
+        pseudobulk_df.columns
     )
+
+    pb.obs = metadata_df.loc[
+        pb.obs_names
+    ].copy()
 
     sc.pp.normalize_total(pb)
 
     sc.pp.log1p(pb)
 
+    n_hvgs = min(
+        args.hvgs,
+        pb.n_vars,
+    )
+
+    print(
+        f"HVGs retained: "
+        f"{n_hvgs}"
+    )
+
     sc.pp.highly_variable_genes(
         pb,
-        n_top_genes=args.hvgs,
+        n_top_genes=n_hvgs,
         flavor="seurat",
     )
 
@@ -175,11 +347,36 @@ def run_similarity(args):
         sep="\t",
     )
 
+
+    sample_colors = None
+
+    if (
+        args.batch_col is not None
+        and "dataset" in pb.obs.columns
+    ):
+
+        palette = dict(
+            zip(
+                pb.obs["dataset"].unique(),
+                sns.color_palette(
+                    "tab10",
+                    pb.obs["dataset"].nunique(),
+                ),
+            )
+        )
+
+        sample_colors = (
+            pb.obs["dataset"]
+            .map(palette)
+        )
+
     g = sns.clustermap(
         pearson,
         cmap="vlag",
         center=0,
         figsize=(10, 10),
+        row_colors=sample_colors,
+        col_colors=sample_colors,
     )
 
     g.fig.savefig(
@@ -195,6 +392,8 @@ def run_similarity(args):
         cmap="vlag",
         center=0,
         figsize=(10, 10),
+        row_colors=sample_colors,
+        col_colors=sample_colors,
     )
 
     g.fig.savefig(
