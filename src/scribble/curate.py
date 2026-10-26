@@ -40,7 +40,7 @@ def run_curate(args):
     import scanpy as sc
     import pandas as pd
     import numpy as np
-    import harmony as hm
+    import harmonypy as hm
     import random
     from datetime import datetime
     import matplotlib.pyplot as plt
