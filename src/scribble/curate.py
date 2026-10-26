@@ -362,7 +362,7 @@ def run_curate(args):
                 "parent": None,
                 "level": 0,
                 "lineage_path": target,
-                "refinement_source": "merged_target",
+                "refinement_source": "curate_target",
                 "parent_clusters": target,
                 "n_parent_clusters": 1,
                 "source": "curate",
@@ -495,6 +495,7 @@ def run_curate(args):
                 "n_parent_clusters",
                 "source",
                 "curation_tag",
+                "merged_from",
             ]
         )
 
@@ -622,6 +623,7 @@ def run_curate(args):
             "parent",
             "level",
             "lineage_path",
+            "merged_from",
 
             "refinement_source",
             "parent_clusters",
