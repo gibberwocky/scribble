@@ -302,6 +302,15 @@ def run_curate(args):
     # --------------------------------------------------
     # Merge block
     # --------------------------------------------------
+    print("\n[CURATED CLUSTERS BEFORE MERGE]")
+    print(
+        sorted(
+            adata.obs["curated_cluster"]
+            .astype(str)
+            .unique()
+        )
+    )
+
     for group in merge_groups:
 
         target = group[0]
@@ -310,10 +319,32 @@ def run_curate(args):
 
         for cluster in group[1:]:
 
-            adata.obs.loc[
+            cluster = str(cluster).strip()
+
+            n = (
                 adata.obs["curated_cluster"]
                 .astype(str)
-                == cluster,
+                .eq(cluster)
+                .sum()
+            )
+
+            print(
+                f"[MERGE CHECK] "
+                f"{cluster} -> {target} "
+                f"matches={n}"
+            )
+
+            adata.obs["curated_cluster"] = (
+                adata.obs["curated_cluster"]
+                .astype(str)
+                .str.strip()
+            )
+
+            target = str(target).strip()
+            cluster = str(cluster).strip()
+
+            adata.obs.loc[
+                adata.obs["curated_cluster"] == cluster,
                 "curated_cluster"
             ] = target
 
@@ -518,14 +549,14 @@ def run_curate(args):
 
     rows = []
 
-    decision_info = (
-        lineage_lookup.get(
-            cluster,
-            {}
-        )
-    )
-
     for cluster in sorted(missing):
+
+        decision_info = (
+            lineage_lookup.get(
+                cluster,
+                {}
+            )
+        )
 
         rows.append({
             "cluster": cluster,

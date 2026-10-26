@@ -28,6 +28,7 @@ def run_annotate(args):
     from pathlib import Path
     from scribble.import_data import setup_environment
     from scribble.refine import restore_counts
+    from scribble.utils import write_run_manifest
 
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
