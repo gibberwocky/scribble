@@ -32,11 +32,14 @@ def run_annotate(args):
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
+    MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
 
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
     annotation_file = Path(args.annotations)
+    manifest_file = (MANIFEST_DIR / f"{input_file.stem}_annotate_manifest.json")
+    cluster_field = args.cluster_field
 
     output_file = input_file.with_name(
         f"{input_file.stem}_annotated.h5ad"
@@ -44,8 +47,19 @@ def run_annotate(args):
 
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
-
     print(adata.shape)
+
+    if cluster_field not in adata.obs:
+        raise ValueError(
+            f"{cluster_field} not found in adata.obs"
+        )
+
+    adata.obs[cluster_field] = (
+        adata.obs[cluster_field]
+        .astype(str)
+    )
+
+
 
     try:
         adata_plot = restore_counts(adata)
@@ -100,18 +114,17 @@ def run_annotate(args):
     anno_index = annotations.set_index("refine_cluster")
 
     # normalise atlas labels
-    adata.obs["refine_label"] = (
-        adata.obs["refine_label"]
-        .astype(str)
-    )
-
     for col in annotations.columns:
-
         if col == "refine_cluster":
             continue
 
         mapping = anno_index[col].to_dict()
-        adata.obs[col] = adata.obs["refine_label"].map(mapping)
+
+        adata.obs[col] = (
+            adata.obs[cluster_field]
+            .map(mapping)
+        )
+
 
         # Convert any columns with more than one type (e.g. str and int) to str
         types = adata.obs[col].dropna().map(type).unique()
@@ -143,7 +156,7 @@ def run_annotate(args):
     mapped = set(annotations["refine_cluster"])
 
     observed = set(
-        adata.obs["refine_label"]
+        adata.obs[cluster_field]
         .unique()
     )
 
@@ -164,7 +177,7 @@ def run_annotate(args):
 
     if args.combined_label:
         adata.obs["Annotation"] = (
-            "[" + adata.obs["refine_label"].astype(str) + "] "
+            "[" + adata.obs[cluster_field].astype(str) + "] "
             + adata.obs[args.label].astype(str)
         )
     else:
@@ -383,3 +396,16 @@ def run_annotate(args):
     print(f"Saving → {output_file}")
 
     adata.write(output_file)
+
+
+    write_run_manifest(
+        manifest_file=manifest_file,
+        module="annotate",
+        args=args,
+        inputs={
+            "input_file": str(input_file),
+        },
+        outputs={
+            "output adata": str(output_file)
+        }
+    )

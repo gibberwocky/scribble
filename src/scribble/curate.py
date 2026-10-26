@@ -61,7 +61,6 @@ def run_curate(args):
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
     TABLE_DIR = PROJECT_DIR / "scribble/tables"
-    ADATA_DIR = PROJECT_DIR / "scribble/adata"
 
     setup_environment(sc, np, random, PLOT_DIR)
     input_file = Path(args.input)
