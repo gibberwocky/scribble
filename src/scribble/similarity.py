@@ -215,9 +215,9 @@ def run_similarity(args):
     setup_environment(sc, np, random, PLOT_DIR)
     tag = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    pearson_png = PLOT_DIR / f"similarity_pearson_{tag}.png"
+    pearson_png = PLOT_DIR / f"distance_pearson_{tag}.png"
     pearson_tsv = TABLE_DIR / f"similarity_pearson_{tag}.tsv"
-    spearman_png = PLOT_DIR / f"similarity_spearman_{tag}.png"
+    spearman_png = PLOT_DIR / f"distance_spearman_{tag}.png"
     spearman_tsv = TABLE_DIR / f"similarity_spearman_{tag}.tsv"
     manifest_file = (MANIFEST_DIR / f"similarity_manifest_{tag}.json")
     metadata_tsv = (TABLE_DIR / f"similarity_{tag}_metadata.tsv")
@@ -231,8 +231,8 @@ def run_similarity(args):
 
         adata = sc.read(infile)
 
-        if "counts" not in adata.layers:
-            adata = restore_counts(adata)
+        adata = restore_counts(adata)
+        adata.layers["counts"] = adata.X.copy()
 
         pb_df, meta_df = pseudobulk_samples(
             adata=adata,
@@ -242,12 +242,7 @@ def run_similarity(args):
         )
 
         if pb_df is None:
-
-            print(
-                f"Skipping {infile}: "
-                "no samples passed filtering"
-            )
-
+            print(f"Skipping {infile}: no samples passed filtering")
             continue
 
         pseudobulks.append(pb_df)
@@ -258,81 +253,53 @@ def run_similarity(args):
         metadata_frames.append(meta_df)
 
     if len(pseudobulks) == 0:
+        raise ValueError("No pseudobulk samples generated")
 
-        raise ValueError(
-            "No pseudobulk samples generated"
-        )
+    shared_genes = set(pseudobulks[0].columns)
+
+    for pb in pseudobulks[1:]:
+        shared_genes &= set(pb.columns)
+
+    shared_genes = sorted(shared_genes)
+
+    pseudobulks = [
+        pb.loc[:, shared_genes]
+        for pb in pseudobulks
+    ]
 
     pseudobulk_df = pd.concat(
         pseudobulks,
         axis=0,
     )
+    pseudobulk_df = pseudobulk_df.fillna(0)
 
-    print(
-        f"Pseudobulk samples: "
-        f"{pseudobulk_df.shape[0]}"
-    )
+    print(f"Pseudobulk samples: {pseudobulk_df.shape[0]}")
+    print(f"Genes: {pseudobulk_df.shape[1]}")
 
-    print(
-        f"Genes: "
-        f"{pseudobulk_df.shape[1]}"
-    )
+    metadata_df = pd.concat(metadata_frames, axis=0)
+    metadata_df = metadata_df.loc[~metadata_df.index.duplicated()]
+    metadata_df.to_csv(metadata_tsv, sep="\t", index=False)
 
-    metadata_df = pd.concat(
-        metadata_frames,
-        axis=0,
-    )
-
-    metadata_df = metadata_df.loc[
-        ~metadata_df.index.duplicated()
-    ]
-
-    metadata_df.to_csv(
-        metadata_tsv,
-        sep="\t",
-        index=False,
-    )
-
-    pb = sc.AnnData(
-        X=pseudobulk_df.values
-    )
-
-    pb.obs_names = (
-        pseudobulk_df.index
-    )
-
-    pb.var_names = (
-        pseudobulk_df.columns
-    )
-
-    pb.obs = metadata_df.loc[
-        pb.obs_names
-    ].copy()
+    pb = sc.AnnData(X=pseudobulk_df.values)
+    pb.obs_names = (pseudobulk_df.index)
+    pb.var_names = (pseudobulk_df.columns)
+    pb.obs = metadata_df.loc[pb.obs_names].copy()
 
     sc.pp.normalize_total(pb)
-
     sc.pp.log1p(pb)
 
-    n_hvgs = min(
-        args.hvgs,
-        pb.n_vars,
-    )
-
-    print(
-        f"HVGs retained: "
-        f"{n_hvgs}"
-    )
-
-    sc.pp.highly_variable_genes(
-        pb,
-        n_top_genes=n_hvgs,
-        flavor="seurat",
-    )
-
-    pb = pb[
-        :,
-        pb.var.highly_variable
-    ].copy()
+    if args.hvgs:
+        n_hvgs = min(args.hvgs, pb.n_vars)
+        print(f"HVGs retained: {n_hvgs}")
+        sc.pp.highly_variable_genes(
+            pb,
+            n_top_genes=n_hvgs,
+            flavor="seurat",
+        )
+        pb = pb[
+            :,
+            pb.var.highly_variable
+        ].copy()
 
     expr = pd.DataFrame(
         pb.X.T,
@@ -340,32 +307,16 @@ def run_similarity(args):
         columns=pb.obs_names,
     )
 
-    pearson = expr.corr(
-        method="pearson"
-    )
-
-    spearman = expr.corr(
-        method="spearman"
-    )
-
-    pearson.to_csv(
-        pearson_tsv,
-        sep="\t",
-    )
-
-    spearman.to_csv(
-        spearman_tsv,
-        sep="\t",
-    )
-
+    pearson = expr.corr(method="pearson")
+    spearman = expr.corr(method="spearman")
+    pearson.to_csv(pearson_tsv, sep="\t")
+    spearman.to_csv(spearman_tsv, sep="\t")
 
     sample_colors = None
-
     if (
         args.batch_col is not None
         and "dataset" in pb.obs.columns
     ):
-
         palette = dict(
             zip(
                 pb.obs["dataset"].unique(),
@@ -375,15 +326,16 @@ def run_similarity(args):
                 ),
             )
         )
-
         sample_colors = (
             pb.obs["dataset"]
             .map(palette)
         )
 
     g = sns.clustermap(
-        pearson,
+        1-pearson,
         cmap="vlag",
+        vmin = pearson.values.min(),
+        vmax = 1.0,
         center=0,
         figsize=(10, 10),
         row_colors=sample_colors,
@@ -399,8 +351,10 @@ def run_similarity(args):
     plt.close(g.fig)
 
     g = sns.clustermap(
-        spearman,
+        1-spearman,
         cmap="vlag",
+        vmin = pearson.values.min(),
+        vmax = 1.0,
         center=0,
         figsize=(10, 10),
         row_colors=sample_colors,
@@ -426,15 +380,10 @@ def run_similarity(args):
             ]
         },
         outputs={
-            "pearson_tsv":
-                str(pearson_tsv),
-            "spearman_tsv":
-                str(spearman_tsv),
-            "pearson_png":
-                str(pearson_png),
-            "spearman_png":
-                str(spearman_png),
-            "metadata_tsv":
-                str(metadata_tsv),
+            "pearson tsv": str(pearson_tsv),
+            "spearman tsv": str(spearman_tsv),
+            "pearson png": str(pearson_png),
+            "spearman png": str(spearman_png),
+            "metadata tsv": str(metadata_tsv),
         },
     )
