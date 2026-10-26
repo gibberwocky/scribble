@@ -6,7 +6,6 @@ from pathlib import Path
 def pseudobulk_samples(
     adata,
     sample_col,
-    batch_col=None,
     min_cells_per_sample=20,
 ):
     """
@@ -20,10 +19,6 @@ def pseudobulk_samples(
 
     sample_col : str
         Column defining biological samples.
-
-    batch_col : str
-        Column defining dataset, cohort or batch.
-        Used to generate unique sample identifiers.
 
     min_cells_per_sample : int
         Minimum cells required to retain a sample.
@@ -69,13 +64,6 @@ def pseudobulk_samples(
             f"{sample_col} not found in adata.obs"
         )
 
-    if batch_col:
-        if batch_col not in adata.obs:
-            raise ValueError(
-                f"{batch_col} not found in adata.obs"
-            )
-
-
     obs = adata.obs.copy()
 
     obs["_sample"] = (
@@ -83,21 +71,6 @@ def pseudobulk_samples(
         .astype(str)
     )
 
-    if batch_col:
-        obs["_batch"] = (
-            obs[batch_col]
-            .astype(str)
-        )
-
-        obs["_sample_id"] = (
-            obs["_batch"]
-            + ":"
-            + obs["_sample"]
-        )
-    else:
-        obs["_sample_id"] = (
-            obs["_sample"]
-        )
 
     # --------------------------------------------------
     # Filter samples with insufficient cells
@@ -153,11 +126,6 @@ def pseudobulk_samples(
 
         meta_row = {
             "sample": sample_id,
-            "dataset": (
-                sample_id.split(":", 1)[0]
-                if batch_col
-                else "dataset"
-            ),
             "n_cells": int(
                 sample_adata.n_obs
             ),
@@ -225,7 +193,17 @@ def run_similarity(args):
     metadata_frames = []
     dataset_samples = {}
 
-    for infile in args.inputs:
+    if len(args.inputs) != len(args.datasets):
+        raise ValueError(
+            "--inputs and --datasets "
+            "must contain the same number of entries"
+        )
+
+
+    for infile, dataset_name in zip(
+        args.inputs,
+        args.datasets,
+    ):
 
         print(f"Loading {infile}")
 
@@ -237,7 +215,6 @@ def run_similarity(args):
         pb_df, meta_df = pseudobulk_samples(
             adata=adata,
             sample_col=args.sample_col,
-            batch_col=args.batch_col,
             min_cells_per_sample=args.min_cells_per_sample,
         )
 
@@ -245,17 +222,36 @@ def run_similarity(args):
             print(f"Skipping {infile}: no samples passed filtering")
             continue
 
-        dataset_name = Path(infile).stem
-        dataset_samples[dataset_name] = (
+        pb_df.index = [
+            f"{dataset_name}:{x}"
+            for x in pb_df.index
+        ]
+
+        meta_df.index = [
+            f"{dataset_name}:{x}"
+            for x in meta_df.index
+        ]
+
+        meta_df["dataset"] = dataset_name
+
+        dataset_samples.setdefault(
+            dataset_name,
+            []
+        ).extend(
             pb_df.index.tolist()
         )
 
+        print(f"{dataset_name}: {len(pb_df.index)} samples")
         pseudobulks.append(pb_df)
 
+        meta_df["dataset"] = dataset_name
         meta_df["source_file"] = str(infile)
         meta_df.index.name = "sample"
 
         metadata_frames.append(meta_df)
+
+    print("\n[DATASETS]")
+    print(dataset_samples.keys())
 
     if len(pseudobulks) == 0:
         raise ValueError("No pseudobulk samples generated")
@@ -387,10 +383,7 @@ def run_similarity(args):
 
 
     sample_colors = None
-    if (
-        args.batch_col is not None
-        and "dataset" in pb.obs.columns
-    ):
+    if "dataset" in pb.obs.columns:
         palette = dict(
             zip(
                 pb.obs["dataset"].unique(),
