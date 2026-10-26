@@ -58,7 +58,6 @@ def pseudobulk_samples(
             "adata.layers['counts'] or integer counts in adata.X"
         )
 
-
     if sample_col not in adata.obs:
         raise ValueError(
             f"{sample_col} not found in adata.obs"
@@ -66,51 +65,28 @@ def pseudobulk_samples(
 
     obs = adata.obs.copy()
 
-    obs["_sample"] = (
-        obs[sample_col]
-        .astype(str)
-    )
-
-
     # --------------------------------------------------
     # Filter samples with insufficient cells
     # --------------------------------------------------
 
-    cell_counts = (
-        obs["_sample_id"]
-        .value_counts()
-    )
-
-    keep_samples = cell_counts[
-        cell_counts >= min_cells_per_sample
-    ].index
-
-    keep_mask = (
-        obs["_sample_id"]
-        .isin(keep_samples)
-    )
-
+    cell_counts = (obs[sample_col].value_counts())
+    keep_samples = cell_counts[cell_counts >= min_cells_per_sample].index
+    keep_mask = (obs[sample_col].isin(keep_samples))
     subset = adata[keep_mask].copy()
 
     if subset.n_obs == 0:
         return None, None
-
-    subset.obs["_sample_id"] = (
-        obs.loc[
-            keep_mask,
-            "_sample_id"
-        ].values
-    )
 
     pseudobulk = []
     sample_meta = []
 
     keep_samples = sorted(keep_samples)
 
-    for sample_id in keep_samples:
+    for sample_id in sorted(map(str, keep_samples)):
 
         sample_mask = (
-            subset.obs["_sample_id"]
+            subset.obs[sample_col]
+            .astype(str)
             == sample_id
         )
 
