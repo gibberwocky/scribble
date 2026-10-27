@@ -293,13 +293,13 @@ def run_annotate(args):
     if palette is not None:
 
         # Scanpy expects categorical values
-        adata.obs["Annotation"] = (
-            adata.obs["Annotation"]
+        plot_adata.obs["Annotation"] = (
+            plot_adata.obs["Annotation"]
             .astype("category")
         )
 
         categories = (
-            adata.obs["Annotation"]
+            plot_adata.obs["Annotation"]
             .cat.categories
         )
 
@@ -307,7 +307,7 @@ def run_annotate(args):
             set(palette.keys())
         ):
 
-            adata.uns[
+            plot_adata.uns[
                 "Annotation_colors"
             ] = [
                 palette[x]
