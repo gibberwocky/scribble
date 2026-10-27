@@ -38,12 +38,7 @@ def update_metadata(
     for field in fields:
 
         if field not in meta.columns:
-
-            print(
-                f"WARNING: {field} not present "
-                f"in metadata workbook"
-            )
-
+            print(f"WARNING: {field} not present in metadata workbook")
             continue
 
         mapping = meta[field].to_dict()
