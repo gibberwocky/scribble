@@ -459,6 +459,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Optional prefix added to all plot filenames.")
     annotate_parser.add_argument("--cluster_hex", default=None,
         help="Column in the annotations worksheet containing hex colour codes to use for plotting.")
+    annotate_parser.add_argument("--skip-write", action="store_true",
+        help="Skip writing h5ad file")
 
     # -----------Pariwse similarity ---------
     similarity_parser = subparsers.add_parser(

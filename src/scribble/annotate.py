@@ -535,10 +535,12 @@ def run_annotate(args):
     # Save
     # --------------------------------------------------
 
-    print(f"Saving → {output_file}")
-
-    adata.write(output_file)
-
+    if args.skip_write:
+        print("Skipping writing adata file")
+        output_file = "Skipped"
+    else:
+        print(f"Saving → {output_file}")
+        adata.write(output_file)
 
     outputs = {
         "output adata": str(output_file),
