@@ -371,6 +371,21 @@ def run_curate(args):
                 "curated_cluster"
             ] = target
 
+            remaining = (
+                adata.obs["curated_cluster"]
+                .astype(str)
+                .eq(cluster)
+                .sum()
+            )
+
+            if remaining > 0:
+
+                print(
+                    f"WARNING: "
+                    f"{cluster} still present after merge "
+                    f"({remaining} cells)"
+                )
+
             prev = adata.uns["scribble_lineage"].get(
                 cluster,
                 {}
@@ -425,6 +440,16 @@ def run_curate(args):
         adata.uns["scribble_lineage"][target][
             "merged_from"
         ] = "|".join(group)
+
+
+    print("\n[CURATED CLUSTERS AFTER MERGE]")
+    print(
+        sorted(
+            adata.obs["curated_cluster"]
+            .astype(str)
+            .unique()
+        )
+    )
 
 
 
@@ -627,6 +652,14 @@ def run_curate(args):
         adata.obs["curated_cluster"]
         .astype(str)
         .unique()
+    )
+
+    print(
+        "\n[ACTIVE CLUSTERS]"
+    )
+
+    print(
+        sorted(active_clusters)
     )
 
     curation_report = curation_report[

@@ -205,7 +205,7 @@ def run_annotate(args):
 
     if unmatched:
 
-        print("\nUnmatched refine labels")
+        print("\nUnmatched cluster labels")
 
         for x in unmatched:
             print(x)
