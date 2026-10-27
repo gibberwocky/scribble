@@ -32,15 +32,16 @@ def run_annotate(args):
 
     PROJECT_DIR = Path(args.project_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
-    TABLE_DIR = PROJECT_DIR / "scribble/tables"
     MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
 
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
     annotation_file = Path(args.annotations)
+    umap_file = PLOT_DIR / f"UMAP_{args.label}.png"
     manifest_file = (MANIFEST_DIR / f"{input_file.stem}_annotate_manifest.json")
     cluster_field = args.cluster_field
+    generated_plots = []
 
     output_file = input_file.with_name(
         f"{input_file.stem}_annotated.h5ad"
@@ -59,6 +60,45 @@ def run_annotate(args):
         adata.obs[cluster_field]
         .astype(str)
     )
+
+    # --------------------------------------------------
+    # Generate sequential cluster IDs
+    # --------------------------------------------------
+
+    unique_clusters = (
+        pd.Series(
+            adata.obs[cluster_field]
+            .astype(str)
+        )
+        .drop_duplicates()
+        .tolist()
+    )
+
+    cluster_map = {
+        cluster: str(i + 1)
+        for i, cluster in enumerate(
+            unique_clusters
+        )
+    }
+
+    adata.uns[
+        f"{args.cluster_destination}_map"
+    ] = cluster_map
+
+    adata.obs[
+        args.cluster_destination
+    ] = (
+        adata.obs[cluster_field]
+        .map(cluster_map)
+    )
+
+    print(
+        f"\nCreated "
+        f"{args.cluster_destination} "
+        f"field"
+    )
+
+    print(cluster_map)
 
 
 
@@ -96,10 +136,10 @@ def run_annotate(args):
         keep_default_na=False
     )
 
-    if "refine_cluster" not in annotations.columns:
+    if cluster_field not in annotations.columns:
         raise ValueError(
-            "annotations worksheet must contain "
-            "'refine_cluster'"
+            f"annotations worksheet must contain "
+            f"'{cluster_field}'"
         )
 
 
@@ -107,16 +147,16 @@ def run_annotate(args):
     # Map annotations onto refine labels
     # --------------------------------------------------
 
-    annotations["refine_cluster"] = (
-        annotations["refine_cluster"]
+    annotations[cluster_field] = (
+        annotations[cluster_field]
         .astype(str)
     )
 
-    anno_index = annotations.set_index("refine_cluster")
+    anno_index = annotations.set_index(cluster_field)
 
     # normalise atlas labels
     for col in annotations.columns:
-        if col == "refine_cluster":
+        if col == cluster_field:
             continue
 
         mapping = anno_index[col].to_dict()
@@ -142,7 +182,7 @@ def run_annotate(args):
 
     for col in annotations.columns:
 
-        if col == "refine_cluster":
+        if col == cluster_field:
             continue
 
         n_missing = adata.obs[col].isna().sum()
@@ -154,7 +194,7 @@ def run_annotate(args):
             f"({100*(n_total-n_missing)/n_total:.1f}%)"
         )
 
-    mapped = set(annotations["refine_cluster"])
+    mapped = set(annotations[cluster_field])
 
     observed = set(
         adata.obs[cluster_field]
@@ -223,12 +263,14 @@ def run_annotate(args):
         txt.set_alpha(1.0)
 
     plt.savefig(
-        PLOT_DIR / f"UMAP_{args.label}.png",
+        umap_file,
         dpi=300,
         bbox_inches="tight"
     )
 
     plt.close()
+
+    generated_plots.append(str(umap_file))
 
     # --------------------------------------------------
     # Marker visualisation (optional)
@@ -351,13 +393,16 @@ def run_annotate(args):
                 show=False
             )
 
+            dotplot_file = PLOT_DIR / f"dotplot_{args.label}_{args.plot_markers}.png"
             plt.savefig(
-                PLOT_DIR / f"dotplot_{args.label}_{args.plot_markers}.png",
+                dotplot_file,
                 dpi=300,
                 bbox_inches="tight"
             )
 
             plt.close()
+
+            generated_plots.append(str(dotplot_file))
 
         # ------------------------------------------
         # Marker UMAPs
@@ -377,18 +422,24 @@ def run_annotate(args):
                     show=False
                 )
 
-                plt.savefig(
+                marker_umap_file = (
                     PLOT_DIR /
                     (
                         f"UMAP_"
                         f"{safe_name(cell_type)}_"
                         f"{safe_name(gene)}.png"
-                    ),
+                    )
+                )
+
+                plt.savefig(
+                    marker_umap_file,
                     dpi=300,
                     bbox_inches="tight"
                 )
 
                 plt.close()
+
+                generated_plots.append(str(marker_umap_file))
 
     # --------------------------------------------------
     # Save
@@ -399,6 +450,11 @@ def run_annotate(args):
     adata.write(output_file)
 
 
+    outputs = {
+        "output adata": str(output_file),
+        "plots": generated_plots,
+    }
+
     write_run_manifest(
         manifest_file=manifest_file,
         module="annotate",
@@ -406,7 +462,5 @@ def run_annotate(args):
         inputs={
             "input_file": str(input_file),
         },
-        outputs={
-            "output adata": str(output_file)
-        }
+        outputs=outputs,
     )

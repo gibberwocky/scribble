@@ -436,7 +436,9 @@ GitHub: https://github.com/gibberwocky/scribble
             "'cell_type_major' and UMAP expression plots for each marker "
             "(e.g. key_markers or canonical_markers)."))
     annotate_parser.add_argument("--cluster_field", default="curated_cluster",
-        help=("Field in AnData for cluster, e.g. curated_cluster or refine_cluster"))
+        help=("Field in AnnData of matching cluster label on worksheet, e.g. curated_cluster or refine_cluster"))
+    annotate_parser.add_argument("--cluster_destination", default="cluster",
+        help=("Field in AnnData for to assign new incremental cluster label to"))
     annotate_parser.add_argument("--label", default="cell_type_major",
         help=("Field from 'annotations' to plot as cluster colour / label"))
     annotate_parser.add_argument("--combined_label", action="store_true",
