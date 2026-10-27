@@ -38,10 +38,15 @@ def run_annotate(args):
 
     input_file = Path(args.input)
     annotation_file = Path(args.annotations)
-    umap_file = PLOT_DIR / f"UMAP_{args.label}.png"
     manifest_file = (MANIFEST_DIR / f"{input_file.stem}_annotate_manifest.json")
     cluster_field = args.cluster_field
     generated_plots = []
+    plot_prefix = (
+        f"{args.plot_prefix}_"
+        if args.plot_prefix
+        else ""
+    )
+    umap_file = PLOT_DIR / f"{plot_prefix}UMAP_{args.label}.png"
 
     output_file = input_file.with_name(
         f"{input_file.stem}_annotated.h5ad"
@@ -144,7 +149,7 @@ def run_annotate(args):
 
 
     # --------------------------------------------------
-    # Map annotations onto refine labels
+    # Map annotations onto clusters
     # --------------------------------------------------
 
     annotations[cluster_field] = (
@@ -165,7 +170,6 @@ def run_annotate(args):
             adata.obs[cluster_field]
             .map(mapping)
         )
-
 
         # Convert any columns with more than one type (e.g. str and int) to str
         types = adata.obs[col].dropna().map(type).unique()
@@ -213,19 +217,27 @@ def run_annotate(args):
     # --------------------------------------------------
     # UMAP cell type
     # --------------------------------------------------
+    plot_adata = adata
+    if args.plot_samples is not None:
+        plot_adata = adata[
+            adata.obs["sample"].isin(
+                args.plot_samples
+            )
+        ].copy()
+        print(f"Plotting subset contains {plot_adata.n_obs:,} cells")
 
     print(f"Generating {args.label} UMAP")
 
     if args.combined_label:
-        adata.obs["Annotation"] = (
-            "[" + adata.obs[cluster_field].astype(str) + "] "
-            + adata.obs[args.label].astype(str)
+        plot_adata.obs["Annotation"] = (
+            "[" + plot_adata.obs[cluster_field].astype(str) + "] "
+            + plot_adata.obs[args.label].astype(str)
         )
     else:
-        adata.obs["Annotation"] = adata.obs[args.label].astype(str)
+        plot_adata.obs["Annotation"] = plot_adata.obs[args.label].astype(str)
 
     sc.pl.umap(
-        adata,
+        plot_adata,
         color="Annotation",
         legend_loc="right margin",
         frameon=False,
@@ -325,12 +337,12 @@ def run_annotate(args):
 
             markers = sorted(
                 g for g in marker_set
-                if g in adata.var_names
+                if g in plot_adata.var_names
             )
 
             missing_markers = sorted(
                 g for g in marker_set
-                if g not in adata.var_names
+                if g not in plot_adata.var_names
             )
 
             if len(markers) == 0:
@@ -387,13 +399,13 @@ def run_annotate(args):
                     dotplot_dict[cell_type] = unique_markers
 
             sc.pl.dotplot(
-                adata,
+                plot_adata,
                 var_names=dotplot_dict,
                 groupby=args.label,
                 show=False
             )
 
-            dotplot_file = PLOT_DIR / f"dotplot_{args.label}_{args.plot_markers}.png"
+            dotplot_file = PLOT_DIR / f"{plot_prefix}dotplot_{args.label}_{args.plot_markers}.png"
             plt.savefig(
                 dotplot_file,
                 dpi=300,
@@ -415,7 +427,7 @@ def run_annotate(args):
             for gene in markers:
 
                 sc.pl.umap(
-                    adata,
+                    plot_adata,
                     color=gene,
                     cmap="Reds",
                     title=f"{cell_type} | {gene}",
@@ -425,7 +437,7 @@ def run_annotate(args):
                 marker_umap_file = (
                     PLOT_DIR /
                     (
-                        f"UMAP_"
+                        f"{plot_prefix}UMAP_"
                         f"{safe_name(cell_type)}_"
                         f"{safe_name(gene)}.png"
                     )

@@ -453,6 +453,11 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Combine cluster number with annotation label")
     annotate_parser.add_argument("--manifest",
         help="Load parameters from a previous Scribble JSON manifest")
+    annotate_parser.add_argument("--plot_samples", nargs="+", default=None,
+        help="Restrict UMAP, dotplot and marker UMAP generation to the specified samples.")
+    annotate_parser.add_argument("--plot_prefix", default="",
+        help="Optional prefix added to all plot filenames.")
+
 
     # -----------Pariwse similarity ---------
     similarity_parser = subparsers.add_parser(
