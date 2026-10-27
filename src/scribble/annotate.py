@@ -147,6 +147,15 @@ def run_annotate(args):
             f"'{cluster_field}'"
         )
 
+    if (
+        args.cluster_hex is not None
+        and args.cluster_hex not in annotations.columns
+    ):
+        raise ValueError(
+            f"{args.cluster_hex} not found in "
+            "annotations worksheet"
+        )
+
 
     # --------------------------------------------------
     # Map annotations onto clusters
@@ -226,6 +235,51 @@ def run_annotate(args):
         ].copy()
         print(f"Plotting subset contains {plot_adata.n_obs:,} cells")
 
+    palette = None
+
+    if args.cluster_hex is not None:
+
+        colour_df = (
+            annotations[
+                [args.label, args.cluster_hex]
+            ]
+            .dropna()
+            .drop_duplicates()
+        )
+
+        n_celltypes = (
+            colour_df[args.label]
+            .nunique()
+        )
+
+        n_hex = (
+            colour_df[args.cluster_hex]
+            .nunique()
+        )
+
+        if n_celltypes == n_hex:
+
+            palette = dict(
+                zip(
+                    colour_df[args.label],
+                    colour_df[args.cluster_hex]
+                )
+            )
+
+            print(
+                f"Using {n_hex} colours from "
+                f"{args.cluster_hex}"
+            )
+
+        else:
+
+            print(
+                "WARNING: "
+                f"{n_celltypes} unique cell types but "
+                f"{n_hex} unique colours. "
+                "Using default Scanpy palette."
+            )
+
     print(f"Generating {args.label} UMAP")
 
     if args.combined_label:
@@ -235,6 +289,30 @@ def run_annotate(args):
         )
     else:
         plot_adata.obs["Annotation"] = plot_adata.obs[args.label].astype(str)
+
+    if palette is not None:
+
+        # Scanpy expects categorical values
+        adata.obs["Annotation"] = (
+            adata.obs["Annotation"]
+            .astype("category")
+        )
+
+        categories = (
+            adata.obs["Annotation"]
+            .cat.categories
+        )
+
+        if set(categories).issubset(
+            set(palette.keys())
+        ):
+
+            adata.uns[
+                "Annotation_colors"
+            ] = [
+                palette[x]
+                for x in categories
+            ]
 
     sc.pl.umap(
         plot_adata,

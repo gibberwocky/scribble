@@ -457,7 +457,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Restrict UMAP, dotplot and marker UMAP generation to the specified samples.")
     annotate_parser.add_argument("--plot_prefix", default="",
         help="Optional prefix added to all plot filenames.")
-
+    annotate_parser.add_argument("--cluster_hex", default=None,
+        help="Column in the annotations worksheet containing hex colour codes to use for plotting.")
 
     # -----------Pariwse similarity ---------
     similarity_parser = subparsers.add_parser(
