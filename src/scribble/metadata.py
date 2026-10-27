@@ -102,7 +102,7 @@ def run_metadata(args):
     MANIFEST_DIR = (PROJECT_DIR / "scribble/manifests")
 
     input_file = Path(args.input)
-    metadata_file = Path(args.metadata)
+    metadata_file = Path(args.metadata_file)
 
     tag = datetime.now().strftime("%Y%m%d_%H%M%S")
     manifest_file = (MANIFEST_DIR / f"{input_file.stem}_metadata_{tag}_manifest.json")
