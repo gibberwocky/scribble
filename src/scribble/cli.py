@@ -351,8 +351,16 @@ GitHub: https://github.com/gibberwocky/scribble
     curate_parser.add_argument("--high_reassignment", type=float, default=0.30)
 
 
-
-
+    # -------------- Metadata ------------
+    metadata_parser = subparsers.add_parser("metadata", help="Update AnnData metadata")
+    metadata_parser.add_argument("--project_dir", required=True,
+        help="Project directory containing scribble/ subfolders")
+    metadata_parser.add_argument("--input", required=True,
+        help="Input AnnData (.h5ad) file (generated with scribble, will be overwritten)")
+    metadata_parser.add_argument("--metadata_file", required=True,
+        help="Excel metadata file with sheet 'meta' containing a 'sample' column matching input folder names")
+    metadata_parser.add_argument("--fields", nargs="+", required=True,
+        help="Metadata fields to update")
 
     # ------------- Map to atlas ---------
     map_parser = subparsers.add_parser("map",
@@ -542,6 +550,7 @@ GitHub: https://github.com/gibberwocky/scribble
         "evaluate": ("scribble.evaluate", "run_evaluate"),
         "refine": ("scribble.refine", "run_refine"),
         "curate": ("scribble.curate", "run_curate"),
+        "metadata": ("scribble.metadata", "run_metadata"),
         "map": ("scribble.map", "run_map"),
         "annotate": ("scribble.annotate", "run_annotate"),
         "similarity": ("scribble.similarity", "run_similarity"),

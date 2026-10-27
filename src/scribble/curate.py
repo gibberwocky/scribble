@@ -757,8 +757,32 @@ def run_curate(args):
     adata.uns["scribble_manifest"] = str(manifest_file)
 
 
-    output = input_file.with_name(f"{input_file.stem}_curated.h5ad")
+    # --------------------------------------------------
+    # Determine output filename
+    # --------------------------------------------------
+
+    if "scribble_curation_history" in adata.uns:
+
+        # Existing curated object
+        output = input_file
+
+        print(
+            "\nExisting curation history detected."
+        )
+
+        print(
+            "Overwriting curated AnnData."
+        )
+
+    else:
+
+        # First curate run
+        output = input_file.with_name(
+            f"{input_file.stem}_curated.h5ad"
+        )
+
     print(f"Saving → {output}")
+
     adata.write(output)
 
     print(f"Writing run manifest to {manifest_file}")
