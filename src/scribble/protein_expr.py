@@ -13,7 +13,7 @@ def run_protein_expr(args):
 
     PROJECT_DIR = Path(args.project_dir)
     MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
-    OUT_DIR = PROJECT_DIR / "scrible/protein"
+    OUT_DIR = PROJECT_DIR / "scribble/protein"
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
