@@ -7,7 +7,9 @@ def run_protein_expr(args):
     import scanpy as sc
     import pandas as pd
     import numpy as np
+    from scribble.refine import restore_counts
     from scribble.utils import write_run_manifest
+
 
     PROJECT_DIR = Path(args.project_dir)
     MANIFEST_DIR = PROJECT_DIR / "scribble/manifests"
