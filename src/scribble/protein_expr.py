@@ -159,7 +159,7 @@ def run_protein_expr(args):
         module="proteins",
         args=args,
         inputs={
-            "input_file": str(input_file),
+            "input_file": str(args.input_file),
         },
         outputs={
             "mean_expr tsv": str(mean_expr_file),
