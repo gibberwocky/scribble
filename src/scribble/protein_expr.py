@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from pathlib import Path
 
-run_protein_expr(args):
+def run_protein_expr(args):
 
     from pathlib import Path
     import scanpy as sc
@@ -20,7 +20,7 @@ run_protein_expr(args):
     score_expr_file = (OUT_DIR / f"{args.output_prefix}_expression_score.tsv")
     top_sources_file = (OUT_DIR / f"{args.output_prefix}_top_sources.tsv")
     protein_counts_file = (OUT_DIR / f"{args.output_prefix}_counts_by_celltype.tsv")
-    manifest_file = (OUT_DIR / f"{args.output_prefix}_proteins_manifest.json")
+    manifest_file = (MANIFEST_DIR / f"{args.output_prefix}_proteins_manifest.json")
 
     # Import adata
     adata = sc.read_h5ad(args.input_file)
