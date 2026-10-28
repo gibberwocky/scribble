@@ -580,6 +580,7 @@ GitHub: https://github.com/gibberwocky/scribble
         "metadata": ("scribble.metadata", "run_metadata"),
         "map": ("scribble.map", "run_map"),
         "annotate": ("scribble.annotate", "run_annotate"),
+        "dotplot": ("scribble.dotplot", "run_dotplot"),
         "similarity": ("scribble.similarity", "run_similarity"),
         "pseudotime": ("scribble.pseudotime", "run_pseudotime")
     }
