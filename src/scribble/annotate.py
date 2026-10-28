@@ -318,6 +318,8 @@ def run_annotate(args):
         plot_adata,
         color="Annotation",
         legend_loc=args.legend_loc,
+        legend_fontsize=args.legend_fontsize,
+        legend_fontoutline=args.legend_fontouline,
         add_outline=args.add_outline,
         frameon=False,
         show=False

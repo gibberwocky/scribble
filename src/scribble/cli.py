@@ -464,7 +464,11 @@ GitHub: https://github.com/gibberwocky/scribble
     annotate_parser.add_argument("--add_outline", action="store_true",
         help="Add cluster outline to UMAP")
     annotate_parser.add_argument("--legend_loc", default="right margin",
-        help=("Location of legend on UMAP (e.g. 'on data', 'right margin'), default = 'right margin'"))
+        help="Location of legend on UMAP (e.g. 'on data', 'right margin'), default = 'right margin'")
+    annotate_parser.add_argument("--legend_fontsize", default=8,
+        help="Legend font size, default 8")
+    annotate_parser.add_argument("--legend_fontoutline", default=1,
+        help="Legend font outline, default 1")
 
     # -----------Pariwse similarity ---------
     similarity_parser = subparsers.add_parser(
