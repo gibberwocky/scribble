@@ -317,7 +317,8 @@ def run_annotate(args):
     sc.pl.umap(
         plot_adata,
         color="Annotation",
-        legend_loc="right margin",
+        legend_loc=args.legend_loc,
+        add_outline=args.add_outline,
         frameon=False,
         show=False
     )

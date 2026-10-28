@@ -461,6 +461,10 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Column in the annotations worksheet containing hex colour codes to use for plotting.")
     annotate_parser.add_argument("--skip-write", action="store_true",
         help="Skip writing h5ad file")
+    annotate_parser.add_argument("--add_outline", action="store_true",
+        help="Add cluster outline to UMAP")
+    annotate_parser.add_argument("--legend_loc", default="right margin",
+        help=("Location of legend on UMAP (e.g. 'on data', 'right margin'), default = 'right margin'"))
 
     # -----------Pariwse similarity ---------
     similarity_parser = subparsers.add_parser(
