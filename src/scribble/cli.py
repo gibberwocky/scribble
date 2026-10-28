@@ -470,6 +470,17 @@ GitHub: https://github.com/gibberwocky/scribble
     annotate_parser.add_argument("--legend_fontoutline", default=1,
         help="Legend font outline, default 1")
 
+
+    # -----------Dot plot ---------
+    dotplot_parser = subparsers.add_parser("dotplot", help="Generate dotplot from selected genes")
+    dotplot_parser.add_argument("--project_dir", required=True)
+    dotplot_parser.add_argument("--input", required=True)
+    dotplot_parser.add_argument("--output", required=True, help="Output PNG filename")
+    dotplot_parser.add_argument("--annotation", required=True, help="Column in adata.obs used for grouping")
+    dotplot_parser.add_argument("--samples", nargs="+", default=None, help="Optional samples to retain")
+    dotplot_parser.add_argument("--genes", nargs="+", required=True, help="Genes to include in the dotplot")
+
+
     # -----------Pariwse similarity ---------
     similarity_parser = subparsers.add_parser(
         "similarity",
