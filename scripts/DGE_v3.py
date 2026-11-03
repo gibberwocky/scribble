@@ -250,7 +250,6 @@ with open(
     "run_manifest.json",
     "w",
 ) as handle:
-
     json.dump(
         run_manifest,
         handle,

@@ -1,5 +1,7 @@
 # Hippocampal foetal organoid snRNA-seq
 
+##### README is currently in development, is a guide only at this stage to illustrate how each module operates
+
 Here we take 10X snRNA-seq data of developing hippocampal tissue and of an organoid, and use `scribble` to pre-process both datasets, integrate and cluster for downstream annotation.
 
 
@@ -296,7 +298,7 @@ scribble evaluate \
     --project_dir ${SCRATCH}/tissue \
     --input ${INPUTS[@]} \
     --min_cells 100 \
-    --large_cells 800 \
+    --large_cluster_fraction 0.15 \
     --low_stability 0.75 \
     --high_stability 0.95 \
     --low_entropy 0 \
@@ -314,7 +316,7 @@ score = (
 )
 ```
 
-The output at command line is shown below.
+The output at command line is shown below (this example is old, output may differ).
 
 ```bash
 Comparison summary:
@@ -375,60 +377,31 @@ The below plots from `scribble cluster` are from this highest scoring run. Note,
 </table>
 <br>
 
-The `cluster_summary.tsv` from `scribble cluster` for this run is below and indicates for each cluster a range of metrics. These include the number of cells, mean stability, median stability, fraction of total cells, sample cell counts, entropy, whether the cluster has low stability or low sample mixing, the clustering resolution, embedding used, and number of clustering iterations undertaken.
+The `cluster_summary.tsv` from `scribble cluster` for this run is below and indicates for each cluster a range of metrics. These include the number of cells, mean stability, median stability, sample entropy, dominant_reassignment and dominant_reassignment_fraction, reassignment_summary, merge_candidate, and reassignment_class. The example below is not from the dataset analysed above,
+and needs updating.
 
 ```tsv
-cluster	n_cells	mean_stability	median_stability	fraction	FH451	HPC431	sample_entropy	low_stability	low_mixing	resolution	embedding	n_repeats
-0	3329	0.9293181135476118	0.9	0.15826004278583314	3310	19	0.03517556412578142	False	True	0.7470588235294119	X_pca_harmony	10
-11	2306	0.9685169124024284	1.0	0.10962681245543142	301	2005	0.38739118137130524	False	True	0.7470588235294119	X_pca_harmony	10
-10	1573	0.9341385886840433	1.0	0.0747801283574994	638	935	0.6752149000964861	False	False	0.7470588235294119	X_pca_harmony	10
-4	1539	0.7992202729044834	0.8	0.07316377466127882	1525	14	0.05180881064010117	False	True	0.7470588235294119	X_pca_harmony	10
-12	1535	0.9954397394136808	1.0	0.07297361540289993	145	1390	0.31274270304125307	False	True	0.7470588235294119	X_pca_harmony	10
-2	1495	0.9580602006688963	1.0	0.071072022819111	131	1364	0.29700920694746336	False	True	0.7470588235294119	X_pca_harmony	10
-1	1241	0.7736502820306205	0.8	0.058996909912051344	1030	211	0.45592454199442034	False	True	0.7470588235294119	X_pca_harmony	10
-6	1172	0.9997440273037543	1.0	0.05571666270501545	686	486	0.6785152262499295	False	False	0.7470588235294119	X_pca_harmony	10
-5	1088	0.9630514705882353	1.0	0.05172331827905871	685	403	0.6591705646639232	False	False	0.7470588235294119	X_pca_harmony	10
-8	991	0.9989909182643795	1.0	0.04711195626337057	222	769	0.5319442676039675	False	False	0.7470588235294119	X_pca_harmony	10
-21	932	0.9984978540772532	1.0	0.04430710720228191	0	932	0.0	False	True	0.7470588235294119	X_pca_harmony	10
-7	915	0.9995628415300547	1.0	0.04349893035417162	446	469	0.6928312226501077	False	False	0.7470588235294119	X_pca_harmony	10
-16	868	0.8794930875576037	0.9	0.04126455906821963	11	857	0.06795076507615734	False	True	0.7470588235294119	X_pca_harmony	10
-9	605	0.9198347107438016	1.0	0.028761587829807464	419	186	0.617035405538228	False	False	0.7470588235294119	X_pca_harmony	10
-13	418	1.0	1.0	0.01987164250059425	154	264	0.6581099875431143	False	False	0.7470588235294119	X_pca_harmony	10
-17	298	1.0	1.0	0.014166864749227478	34	264	0.35499006010413947	False	True	0.7470588235294119	X_pca_harmony	10
-3	290	0.9989655172413793	1.0	0.013786546232469693	271	19	0.24188595379927383	False	True	0.7470588235294119	X_pca_harmony	10
-14	101	1.0	1.0	0.004801521274067031	22	79	0.524137206754352	False	False	0.7470588235294119	X_pca_harmony	10
-15	100	1.0	1.0	0.004753981459472308	15	85	0.42270908780599087	False	True	0.7470588235294119	X_pca_harmony	10
-20	91	1.0	1.0	0.004326123128119801	5	86	0.21282591267100207	False	True	0.7470588235294119	X_pca_harmony	10
-18	88	1.0	1.0	0.0041835036843356314	12	76	0.39830711380528416	False	True	0.7470588235294119	X_pca_harmony	10
-19	60	0.9933333333333334	1.0	0.0028523888756833847	28	32	0.6909233093138181	False	False	0.7470588235294119	X_pca_harmony	10
+cluster	n_cells	mean_stability	median_stability	sample_entropy	dominant_reassignment	dominant_reassignment_fraction	reassignment_summary	merge_candidate	reassignment_class
+0	3222	0.9895716945996276	1.0	0.0			0:98.5%	False	weak
+2	1295	0.8202316602316603	0.9	0.0	0	0.16401544401544402	2:80.9%;0:16.4%;7:1.5%;3:1.2%	False	moderate
+3	3475	0.993179856115108	1.0	0.0			3:99.2%	False	weak
+4	215	0.9934883720930232	1.0	0.0			4:98.8%	False	weak
+5	1860	0.9966666666666666	1.0	0.0			5:99.6%	False	weak
+6	1138	0.978822495606327	1.0	0.0			6:97.9%;2:1.7%	False	weak
+7	416	0.5	0.5	0.0	2	0.5	7:50.0%;2:50.0%	True	strong
 ```
 
-The `summary_decisions.tsv` output from `scribble evaluate` is provided below. This step classifies clusters based on the number of cells, cluster stability, and entropy. In some datasets a recommendation will be made to subset or merge clusetrs. Here it suggests to merge clustres 0 and 1 when subsetting.
+The `summary_decisions.tsv` output from `scribble evaluate` is provided below. This step classifies clusters based on the number of cells, cluster stability, and entropy. In some datasets a recommendation will be made to subset or merge clusetrs. The example below is not from the dataset analysed above, and needs updating.
 
 ```tsv
-cluster	action	reason	detail	priority	merge_group
-0	subset	heterogeneous_large_cluster	n=3329; stability=0.93; entropy=0.04	high	group_1
-11	keep	well_defined_cluster	n=2306; stability=0.97; entropy=0.39	low
-10	subset	heterogeneous_large_cluster	n=1573; stability=0.93; entropy=0.68	high
-4	subset	heterogeneous_large_cluster	n=1539; stability=0.80; entropy=0.05	high
-12	keep	well_defined_cluster	n=1535; stability=1.00; entropy=0.31	low
-2	keep	well_defined_cluster	n=1495; stability=0.96; entropy=0.30	low
-1	subset	heterogeneous_large_cluster	n=1241; stability=0.77; entropy=0.46	high	group_1
-6	keep	well_defined_cluster	n=1172; stability=1.00; entropy=0.68	low
-5	keep	well_defined_cluster	n=1088; stability=0.96; entropy=0.66	low
-8	keep	well_defined_cluster	n=991; stability=1.00; entropy=0.53	low
-21	keep	well_defined_cluster	n=932; stability=1.00; entropy=0.00	low
-7	keep	well_defined_cluster	n=915; stability=1.00; entropy=0.69	low
-16	subset	heterogeneous_large_cluster	n=868; stability=0.88; entropy=0.07	high
-9	keep	well_defined_cluster	n=605; stability=0.92; entropy=0.62	low
-13	keep	well_defined_cluster	n=418; stability=1.00; entropy=0.66	low
-17	keep	well_defined_cluster	n=298; stability=1.00; entropy=0.35	low
-3	keep	well_defined_cluster	n=290; stability=1.00; entropy=0.24	low
-14	keep	well_defined_cluster	n=101; stability=1.00; entropy=0.52	low
-15	keep	well_defined_cluster	n=100; stability=1.00; entropy=0.42	low
-20	keep	small_cluster	n=91; stability=1.00; entropy=0.21	low
-18	keep	small_cluster	n=88; stability=1.00; entropy=0.40	low
-19	keep	small_cluster	n=60; stability=0.99; entropy=0.69	low
+cluster	n_cells	fraction_of_dataset	action	reason	detail	priority	suggested_merge_target	merge_group
+0	3234	0.2782893038464848	subset	large_cluster_requires_inspection	n=3234; stability=0.99; entropy=0.00	high
+1	3467	0.2983392134928147	subset	large_cluster_requires_inspection	n=3467; stability=1.00; entropy=0.00	high
+2	1145	0.09852852594441099	keep	well_defined_cluster	n=1145; stability=0.97; entropy=0.00	low
+3	217	0.018673091816539023	keep	well_defined_cluster	n=217; stability=0.96; entropy=0.00	low
+4	1859	0.1599690215988297	subset	large_cluster_requires_inspection	n=1859; stability=1.00; entropy=0.00	high
+5	1283	0.11040357972635746	keep	well_defined_cluster	n=1283; stability=0.89; entropy=0.00; dominant=0.0; reassign=22.6%	low		group_1
+6	416	0.03579726357456329	merge	high_reassignment_instability	n=416; stability=0.80; entropy=0.00; dominant=5.0; reassign=80.0%	high	5.0	group_1
 ```
 
 <br>
@@ -463,7 +436,7 @@ sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 16G --time=2:00:00 \
         --marker_strength_threshold 1.0
 ```
 
-This returns a UMAP with refined cluster labels in `scribble/plots` and an Excel file containing marker genes per cluster in `scribble/tables`. These should be used for cell type annotation, and any further cluster refinements will need to be made manually by importing the `scribble/adata/*_clustered_refined.h5ad` file into Python for processing.
+This returns a UMAP with refined cluster labels in `scribble/plots` and an Excel file containing marker genes per cluster in `scribble/tables`. These should be used for cell type annotation, and any further cluster refinements will need to be made manually by importing the `scribble/adata/*_clustered_refined.h5ad` file into Python for processing. This also outputs a `scribble/tables/refinment_report.tsv` providing cluster lineage tracing.
 
 <br>
 <table>
@@ -474,21 +447,57 @@ This returns a UMAP with refined cluster labels in `scribble/plots` and an Excel
 
 <br>
 
+```tsv
+cluster	n_cells	decision	decision_reason	parent	level	lineage_path	source	refinement_source	parent_clusters	n_parent_clusters	mean_stability	median_stability	sample_entropy	dominant_reassignment	dominant_reassignment_fraction	reassignment_summary	reassignment_class	merge_candidate
+R1	337			5_6	2	5_6 -> R1	refine	merge_group	5|6	2	0.9786350148367953	1.0	0.0			R1:96.9%;R4:2.6%	weak	False
+R2	202			5_6	2	5_6 -> R2	refine	merge_group	5|6	2	0.9777227722772277	1.0	0.0			R2:97.7%;R1:1.9%	weak	False
+R4	384			5_6	2	5_6 -> R4	refine	merge_group	5|6	2	0.99765625	1.0	0.0			R4:99.7%	weak	False
+R5	391			5_6	2	5_6 -> R5	refine	merge_group	5|6	2	0.9930946291560102	1.0	0.0			R5:97.9%;R4:2.1%	weak	False
+R3	385			5_6	2	5_6 -> R3	refine	merge_group	5|6	2	0.9828571428571428	1.0	0.0			R3:97.5%;R1:1.2%	weak	False
+R6	3129	subset	large_cluster_requires_inspection	0	2	0 -> R6	refine	single_cluster	0	1	0.995845317992969	1.0	0.0			R6:100.0%	weak	False
+R7	105	subset	large_cluster_requires_inspection	0	2	0 -> R7	refine	single_cluster	0	1	0.6971428571428571	0.7	0.0	R6	0.3142857142857143	R7:68.6%;R6:31.4%	strong	True
+R8	1632	subset	large_cluster_requires_inspection	1	2	1 -> R8	refine	single_cluster	1	1	0.9958333333333333	1.0	0.0			R8:99.5%	weak	False
+R10	157	subset	large_cluster_requires_inspection	1	2	1 -> R10	refine	single_cluster	1	1	0.9936305732484076	1.0	0.0			R10:99.4%	weak	False
+R9	1678	subset	large_cluster_requires_inspection	1	2	1 -> R9	refine	single_cluster	1	1	0.9738379022646007	1.0	0.0			R9:94.8%;R10:4.7%	weak	False
+R11	1372	subset	large_cluster_requires_inspection	4	2	4 -> R11	refine	single_cluster	4	1	0.9575801749271137	1.0	0.0	R12	0.2206997084548105	R11:77.9%;R12:22.1%	moderate	False
+R12	487	subset	large_cluster_requires_inspection	4	2	4 -> R12	refine	single_cluster	4	1	1.0	1.0	0.0			R12:100.0%	weak	False
+2	1145	keep	well_defined_cluster		1	2	unmodified	unmodified	2	1	0.9693449781659389	1.0	0.0				weak	False
+3	217	keep	well_defined_cluster		1	3	unmodified	unmodified	3	1	0.9585253456221198	1.0	0.0				weak	False
+```
+
+<br>
+
 ### Update with annotations
 
 Cluster annotations should be recorded on an `annotations` worksheet in the Excel file. The worksheet must include a field for `refine_cluster` which should contain values matching the clusters on the refine_cluster UMAP. Additional fields, such as cell type and key markers will be added as metadata. UMAPs and dot plots can be generated based on these values if the corresponding field name is passed to `--plot_markers`. The tool will output a new h5ad file in `scribble/adata` that includes the annotations from the Excel file.
 
 ```bash
-# Annotate
-sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 24G --time=1:00:00 \
-    -o ${SCRATCH}/logs/sc_annotate.%j.out -e ${SCRATCH}/logs/sc_annotate_%j.err \
-    scribble annotate \
-        --project_dir ${SCRATCH}/tissue \
-        --input ${SCRATCH}/tissue/scribble/adata/combined_npcs-30_k-30_theta-2_clustered_refined.h5ad \
-        --annotations ${SCRATCH}/tissue/scribble/samples.xlsx \
-        --plot_markers key_markers \
-        --label cell_type_minor
+declare -A SAMPLES
+SAMPLES[tissue]="HPC431 FH451"
+
+for PREFIX in "${!SAMPLES[@]}"; do
+    # Annotate
+    sbatch -p uoa-compute --ntasks 1 --cpus-per-task 1 --mem 24G --time=1:00:00 \
+        -o ${SCRATCH}/logs/sc_annotate.%j.out -e ${SCRATCH}/logs/sc_annotate_%j.err \
+        scribble annotate \
+            --project_dir ${SCRATCH}/tissue \
+            --input ${SCRATCH}/tissue/scribble/adata/combined_npcs-30_k-30_theta-2_clustered_refined.h5ad \
+            --annotations ${SCRATCH}/tissue/scribble/samples.xlsx \
+            --plot_markers key_markers \
+            --label cell_type_major \
+            --cluster_field curated_cluster \
+            --cluster_destination cluster \
+            --plot_samples ${SAMPLES[$PREFIX]} \
+            --plot_prefix r_${PREFIX} \
+            --cluster_hex hex_major \
+            --add_outline \
+            --legend_loc "right margin" \
+            --legend_fontsize 4 \
+            --legend_fontoutline 1
+done
 ```
+
+Note, in the above example, if you were to loop over several declared array values then you should also `--skip-write` to avoid multiple slurm jobs attempting to write to the same file resulting in corruption.
 
 <br>
 <br>
