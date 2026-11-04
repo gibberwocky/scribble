@@ -196,7 +196,7 @@ def classify_direction(values):
     return "MIXED_DIRECTION"
 
 
-def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
+def make_de_wide_for_cell(de_cell, analyses, reference_analysis, concordance_fdr, min_logFC):
     metrics = ["baseMean", "log2FoldChange", "lfcSE", "stat", "pval", "FDR"]
     merged = None
 
@@ -220,19 +220,15 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
         lfc = f"{analysis}_log2FoldChange"
         fdr = f"{analysis}_FDR"
         tested = f"{analysis}_tested"
-        sig = f"{analysis}_FDR_005"
+        sig = f"{analysis}_significant"
         merged[tested] = merged[stat].notna() if stat in merged.columns else False
-        merged[sig] = merged[fdr].lt(0.05) if fdr in merged.columns else False
+        merged[sig] = merged[fdr].lt(concordance_fdr) if fdr in merged.columns else False
         tested_cols.append(tested)
         if lfc in merged.columns:
             lfc_cols.append(lfc)
 
     merged["n_analyses_tested"] = merged[tested_cols].sum(axis=1)
-    merged["n_FDR_005"] = merged[[f"{a}_FDR_005" for a in analyses]].sum(axis=1)
-    for analysis in analyses:
-        sig = f"{analysis}_FDR_005"
-        if sig in merged.columns:
-            merged[f"{analysis}_significant"] = merged[sig]
+    merged["n_significant"] = merged[[f"{a}_significant" for a in analyses]].sum(axis=1)
     merged["direction_class"] = merged[lfc_cols].apply(classify_direction, axis=1)
     merged["all_same_direction"] = merged["direction_class"].isin(
         ["CONSISTENT_POSITIVE", "CONSISTENT_NEGATIVE"]
@@ -241,9 +237,9 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
     for a, b in combinations(analyses, 2):
 
         shared_sig = (
-            merged[f"{a}_FDR_005"]
+            merged[f"{a}_significant"]
             &
-            merged[f"{b}_FDR_005"]
+            merged[f"{b}_significant"]
         )
 
         merged[f"{a}_{b}_shared_sig"] = shared_sig
@@ -265,23 +261,15 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
     for a, b in combinations(analyses, 2):
 
         effect_a = (
-            merged[f"{a}_FDR_005"]
-            &
-            (
-                merged[f"{a}_log2FoldChange"]
-                .abs()
-                > args.min_logFC
-            )
+            merged[f"{a}_log2FoldChange"]
+            .abs()
+            > min_logFC
         )
 
         effect_b = (
-            merged[f"{b}_FDR_005"]
-            &
-            (
-                merged[f"{b}_log2FoldChange"]
-                .abs()
-                > args.min_logFC
-            )
+            merged[f"{b}_log2FoldChange"]
+            .abs()
+            > min_logFC
         )
 
         effect_either = (
@@ -334,7 +322,9 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
 def stat_concordance(
     de_long,
     analyses,
-    reference_analysis
+    reference_analysis,
+    concordance_fdr,
+    min_logFC
 ):
     rows = []
 
@@ -352,6 +342,8 @@ def stat_concordance(
             sub,
             analyses,
             reference_analysis,
+            concordance_fdr,
+            min_logFC
         )
 
         for a, b in combinations(
@@ -400,7 +392,7 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
     if de_long.empty:
         return pd.DataFrame()
     for cell_type, sub in de_long.groupby("cell_type", sort=True):
-        wide = make_de_wide_for_cell(sub, analyses, reference_analysis)
+        wide = make_de_wide_for_cell(sub, analyses, reference_analysis, concordance_fdr, min_logFC)
         for a, b in combinations(analyses, 2):
             x, y = f"{a}_log2FoldChange", f"{b}_log2FoldChange"
             if x not in wide.columns or y not in wide.columns:
@@ -573,7 +565,7 @@ def collect_gsea(analysis_dirs, analysis_names, annotation):
     return pd.concat(frames, ignore_index=True, sort=False) if frames else pd.DataFrame()
 
 
-def make_gsea_wide(group, analyses, reference_analysis):
+def make_gsea_wide(group, analyses, reference_analysis, concordance_fdr, min_logFC):
     metrics = ["ES", "NES", "NOM p-val", "FDR q-val", "FWER p-val", "Tag %", "Gene %", "Lead_genes"]
     merged = None
     for analysis in analyses:
@@ -592,15 +584,15 @@ def make_gsea_wide(group, analyses, reference_analysis):
         nes = f"{analysis}_NES"
         fdr = f"{analysis}_FDR q-val"
         tested = f"{analysis}_tested"
-        sig = f"{analysis}_FDR_005"
+        sig = f"{analysis}_significant"
         merged[tested] = merged[nes].notna() if nes in merged.columns else False
-        merged[sig] = merged[fdr].lt(0.05) if fdr in merged.columns else False
+        merged[sig] = merged[fdr].lt(concordance_fdr) if fdr in merged.columns else False
         tested_cols.append(tested); sig_cols.append(sig)
         if nes in merged.columns:
             nes_cols.append(nes)
 
-    merged["n_analyses_tested"] = merged[tested_cols].sum(axis=1)
-    merged["n_FDR_005"] = merged[sig_cols].sum(axis=1)
+    merged["n_significants_tested"] = merged[tested_cols].sum(axis=1)
+    merged["n_significant"] = merged[sig_cols].sum(axis=1)
     merged["direction_class"] = merged[nes_cols].apply(classify_direction, axis=1)
     merged["all_same_direction"] = merged["direction_class"].isin(
         ["CONSISTENT_POSITIVE", "CONSISTENT_NEGATIVE"]
@@ -631,23 +623,23 @@ def make_gsea_wide(group, analyses, reference_analysis):
     return merged
 
 
-def gsea_concordance(gsea_long, analyses, reference_analysis):
+def gsea_concordance(gsea_long, analyses, reference_analysis, concordance_fdr, min_logFC):
     rows = []
     if gsea_long.empty:
         return pd.DataFrame()
     for (cell_type, gene_set), sub in gsea_long.groupby(["cell_type", "gene_set"], sort=True):
-        wide = make_gsea_wide(sub, analyses, reference_analysis)
+        wide = make_gsea_wide(sub, analyses, reference_analysis, concordance_fdr, min_logFC)
         for a, b in combinations(analyses, 2):
             x, y = f"{a}_NES", f"{b}_NES"
             if x not in wide.columns or y not in wide.columns:
                 continue
             stats = correlation_pair(wide, x, y)
             sig_a = (
-                wide[f"{a}_FDR q-val"] < 0.05
+                wide[f"{a}_FDR q-val"] < concordance_fdr
             )
 
             sig_b = (
-                wide[f"{b}_FDR q-val"] < 0.05
+                wide[f"{b}_FDR q-val"] < concordance_fdr
             )
 
             shared_sig = (
@@ -767,11 +759,11 @@ def main():
     if not de_long.empty:
         de_long.to_csv(de_out / "all_DE_long.csv", index=False)
         for cell_type, sub in de_long.groupby("cell_type", sort=True):
-            wide = make_de_wide_for_cell(sub, analyses, args.reference_analysis)
+            wide = make_de_wide_for_cell(sub, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
             wide.to_csv(de_by_cell / f"{safe_filename(cell_type)}.csv", index=False)
         de_corr = de_concordance(de_long, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
         de_corr.to_csv(de_out / "pairwise_log2FC_concordance.csv", index=False)
-        stat_corr = stat_concordance(de_long, analyses, args.reference_analysis)
+        stat_corr = stat_concordance(de_long, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
         stat_corr.to_csv(de_out / "pairwise_stat_concordance.csv", index=False)
     else:
         print("WARNING: no DE all_genes files found")
@@ -787,9 +779,9 @@ def main():
         for (cell_type, gene_set), sub in gsea_long.groupby(["cell_type", "gene_set"], sort=True):
             target = gsea_by_cell / safe_filename(cell_type)
             target.mkdir(parents=True, exist_ok=True)
-            wide = make_gsea_wide(sub, analyses, args.reference_analysis)
+            wide = make_gsea_wide(sub, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
             wide.to_csv(target / f"{safe_filename(gene_set)}.csv", index=False)
-        gsea_corr = gsea_concordance(gsea_long, analyses, args.reference_analysis)
+        gsea_corr = gsea_concordance(gsea_long, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
         gsea_corr.to_csv(gsea_out / "pairwise_NES_concordance.csv", index=False)
     else:
         print("WARNING: no GSEA all_pathways files found")
