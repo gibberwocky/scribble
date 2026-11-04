@@ -227,10 +227,38 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
 
     merged["n_analyses_tested"] = merged[tested_cols].sum(axis=1)
     merged["n_FDR_005"] = merged[[f"{a}_FDR_005" for a in analyses]].sum(axis=1)
+    for analysis in analyses:
+        sig = f"{analysis}_FDR_005"
+        if sig in merged.columns:
+            merged[f"{analysis}_significant"] = merged[sig]
     merged["direction_class"] = merged[lfc_cols].apply(classify_direction, axis=1)
     merged["all_same_direction"] = merged["direction_class"].isin(
         ["CONSISTENT_POSITIVE", "CONSISTENT_NEGATIVE"]
     )
+
+    for a, b in combinations(analyses, 2):
+
+        shared_sig = (
+            merged[f"{a}_FDR_005"]
+            &
+            merged[f"{b}_FDR_005"]
+        )
+
+        merged[f"{a}_{b}_shared_sig"] = shared_sig
+
+        merged[f"{a}_{b}_shared_sig_same_direction"] = (
+            shared_sig
+            &
+            (
+                np.sign(
+                    merged[f"{a}_log2FoldChange"]
+                )
+                ==
+                np.sign(
+                    merged[f"{b}_log2FoldChange"]
+                )
+            )
+        )
 
     ref_lfc = f"{reference_analysis}_log2FoldChange"
     if ref_lfc in merged.columns:
@@ -259,6 +287,7 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
 def stat_concordance(
     de_long,
     analyses,
+    reference_analysis
 ):
     rows = []
 
@@ -275,7 +304,7 @@ def stat_concordance(
         wide = make_de_wide_for_cell(
             sub,
             analyses,
-            analyses[0],
+            reference_analysis,
         )
 
         for a, b in combinations(
@@ -319,12 +348,12 @@ def correlation_pair(df, x, y):
     return out
 
 
-def de_concordance(de_long, analyses):
+def de_concordance(de_long, analyses, reference_analysis):
     rows = []
     if de_long.empty:
         return pd.DataFrame()
     for cell_type, sub in de_long.groupby("cell_type", sort=True):
-        wide = make_de_wide_for_cell(sub, analyses, analyses[0])
+        wide = make_de_wide_for_cell(sub, analyses, reference_analysis)
         for a, b in combinations(analyses, 2):
             x, y = f"{a}_log2FoldChange", f"{b}_log2FoldChange"
             if x not in wide.columns or y not in wide.columns:
@@ -466,12 +495,12 @@ def make_gsea_wide(group, analyses, reference_analysis):
     return merged
 
 
-def gsea_concordance(gsea_long, analyses):
+def gsea_concordance(gsea_long, analyses, reference_analysis):
     rows = []
     if gsea_long.empty:
         return pd.DataFrame()
     for (cell_type, gene_set), sub in gsea_long.groupby(["cell_type", "gene_set"], sort=True):
-        wide = make_gsea_wide(sub, analyses, analyses[0])
+        wide = make_gsea_wide(sub, analyses, reference_analysis)
         for a, b in combinations(analyses, 2):
             x, y = f"{a}_NES", f"{b}_NES"
             if x not in wide.columns or y not in wide.columns:
@@ -569,6 +598,7 @@ def main():
         "reference_analysis": args.reference_analysis,
         "analysis_names": args.analysis_names,
         "analysis_dirs": args.analysis_dirs,
+        "outdir": str(args.outdir)
     }
 
     with open(
@@ -603,9 +633,9 @@ def main():
         for cell_type, sub in de_long.groupby("cell_type", sort=True):
             wide = make_de_wide_for_cell(sub, analyses, args.reference_analysis)
             wide.to_csv(de_by_cell / f"{safe_filename(cell_type)}.csv", index=False)
-        de_corr = de_concordance(de_long, analyses)
+        de_corr = de_concordance(de_long, analyses, args.reference_analysis)
         de_corr.to_csv(de_out / "pairwise_log2FC_concordance.csv", index=False)
-        stat_corr = stat_concordance(de_long, analyses)
+        stat_corr = stat_concordance(de_long, analyses, args.reference_analysis)
         stat_corr.to_csv(de_out / "pairwise_stat_concordance.csv", index=False)
     else:
         print("WARNING: no DE all_genes files found")
@@ -623,7 +653,7 @@ def main():
             target.mkdir(parents=True, exist_ok=True)
             wide = make_gsea_wide(sub, analyses, args.reference_analysis)
             wide.to_csv(target / f"{safe_filename(gene_set)}.csv", index=False)
-        gsea_corr = gsea_concordance(gsea_long, analyses)
+        gsea_corr = gsea_concordance(gsea_long, analyses, args.reference_analysis)
         gsea_corr.to_csv(gsea_out / "pairwise_NES_concordance.csv", index=False)
     else:
         print("WARNING: no GSEA all_pathways files found")
