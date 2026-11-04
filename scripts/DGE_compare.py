@@ -52,6 +52,7 @@ def parse_args():
     p.add_argument("--comparison_name", required=True,
         help="Name for this comparison, e.g. 'biological_subsets' or 'organoid_model_sensitivity'.")
     p.add_argument("--outdir", required=True, help="Output directory for results")
+    p.add_argument("--concordance_fdr", default=0.1, help="Concordance FDR threshold")
     return p.parse_args()
 
 
@@ -348,7 +349,7 @@ def correlation_pair(df, x, y):
     return out
 
 
-def de_concordance(de_long, analyses, reference_analysis):
+def de_concordance(de_long, analyses, reference_analysis, concordance_fdr):
     rows = []
     if de_long.empty:
         return pd.DataFrame()
@@ -360,11 +361,11 @@ def de_concordance(de_long, analyses, reference_analysis):
                 continue
             stats = correlation_pair(wide, x, y)
             sig_a = (
-                wide[f"{a}_FDR"] < 0.05
+                wide[f"{a}_FDR"] < concordance_fdr
             )
 
             sig_b = (
-                wide[f"{b}_FDR"] < 0.05
+                wide[f"{b}_FDR"] < concordance_fdr
             )
 
             shared_sig = (
@@ -374,6 +375,35 @@ def de_concordance(de_long, analyses, reference_analysis):
 
             same_direction = (
                 shared_sig
+                &
+                (
+                    np.sign(
+                        wide[x]
+                    )
+                    ==
+                    np.sign(
+                        wide[y]
+                    )
+                )
+            )
+
+            effect_a = (
+                wide[f"{a}_log2FoldChange"]
+                .abs() > 0.5
+            )
+
+            effect_b = (
+                wide[f"{b}_log2FoldChange"]
+                .abs() > 0.5
+            )
+
+            shared_effect = (
+                effect_a
+                & effect_b
+            )
+
+            effect_same_direction = (
+                shared_effect
                 &
                 (
                     np.sign(
@@ -398,6 +428,21 @@ def de_concordance(de_long, analyses, reference_analysis):
                 same_direction.sum()
                 / shared_sig.sum()
                 if shared_sig.sum() > 0
+                else np.nan
+            )
+
+            stats["n_effect_shared"] = (
+                shared_effect.sum()
+            )
+
+            stats["n_effect_same_direction"] = (
+                effect_same_direction.sum()
+            )
+
+            stats["fraction_effect_same_direction"] = (
+                effect_same_direction.sum()
+                / shared_effect.sum()
+                if shared_effect.sum() > 0
                 else np.nan
             )
             rows.append({"cell_type": cell_type, "analysis_a": a, "analysis_b": b, **stats})
@@ -633,7 +678,7 @@ def main():
         for cell_type, sub in de_long.groupby("cell_type", sort=True):
             wide = make_de_wide_for_cell(sub, analyses, args.reference_analysis)
             wide.to_csv(de_by_cell / f"{safe_filename(cell_type)}.csv", index=False)
-        de_corr = de_concordance(de_long, analyses, args.reference_analysis)
+        de_corr = de_concordance(de_long, analyses, args.reference_analysis, args.concordance_fdr)
         de_corr.to_csv(de_out / "pairwise_log2FC_concordance.csv", index=False)
         stat_corr = stat_concordance(de_long, analyses, args.reference_analysis)
         stat_corr.to_csv(de_out / "pairwise_stat_concordance.csv", index=False)
