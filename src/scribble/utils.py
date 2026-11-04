@@ -304,9 +304,19 @@ def compute_cluster_summary(
             .unstack(fill_value=0)
         )
 
+        n_total_samples = (
+            adata.obs[sample_key]
+            .nunique()
+        )
+
+        max_entropy = np.log(n_total_samples)
+
         summary["sample_entropy"] = (
             sample_counts.apply(
-                lambda row: entropy(row / row.sum()),
+                lambda row: (
+                    entropy(row / row.sum())
+                    / max_entropy
+                ),
                 axis=1,
             ).values
         )
