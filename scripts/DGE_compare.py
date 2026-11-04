@@ -54,6 +54,7 @@ def parse_args():
     p.add_argument("--outdir", required=True, help="Output directory for results")
     p.add_argument("--concordance_fdr", type=float, default=0.2, help="FDR threshold for concordance")
     p.add_argument("--min_logFC", type=float, default=0.5, help="Minimum absolute log2FC for effect concordance")
+    parser.add_argument("--concordance_pval", type=float, default=0.05, help="Nominal P threshold for concordance")
     return p.parse_args()
 
 
@@ -387,7 +388,7 @@ def correlation_pair(df, x, y):
     return out
 
 
-def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_logFC):
+def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_logFC, concordance_pval):
     rows = []
     if de_long.empty:
         return pd.DataFrame()
@@ -412,11 +413,11 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
             )
 
             nominal_a = (
-                wide[f"{a}_pval"] < 0.05
+                wide[f"{a}_pval"] < concordance_pval
             )
 
             nominal_b = (
-                wide[f"{b}_pval"] < 0.05
+                wide[f"{b}_pval"] < concordance_pval
             )
 
             shared_nominal = (
@@ -453,14 +454,14 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
             )
 
             effect_a = (
-#                (wide[f"{a}_FDR"] < concordance_fdr)
-#                &
+                (wide[f"{a}_FDR"] < concordance_fdr)
+                &
                 (wide[f"{a}_log2FoldChange"].abs() > min_logFC)
             )
 
             effect_b = (
-#                (wide[f"{b}_FDR"] < concordance_fdr)
-#                &
+                (wide[f"{b}_FDR"] < concordance_fdr)
+                &
                 (wide[f"{b}_log2FoldChange"].abs() > min_logFC)
             )
 
@@ -761,7 +762,7 @@ def main():
         for cell_type, sub in de_long.groupby("cell_type", sort=True):
             wide = make_de_wide_for_cell(sub, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
             wide.to_csv(de_by_cell / f"{safe_filename(cell_type)}.csv", index=False)
-        de_corr = de_concordance(de_long, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
+        de_corr = de_concordance(de_long, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC, args.concordance_pval)
         de_corr.to_csv(de_out / "pairwise_log2FC_concordance.csv", index=False)
         stat_corr = stat_concordance(de_long, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
         stat_corr.to_csv(de_out / "pairwise_stat_concordance.csv", index=False)
