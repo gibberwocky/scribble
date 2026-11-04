@@ -453,14 +453,14 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
             )
 
             effect_a = (
-                (wide[f"{a}_FDR"] < concordance_fdr)
-                &
+#                (wide[f"{a}_FDR"] < concordance_fdr)
+#                &
                 (wide[f"{a}_log2FoldChange"].abs() > min_logFC)
             )
 
             effect_b = (
-                (wide[f"{b}_FDR"] < concordance_fdr)
-                &
+#                (wide[f"{b}_FDR"] < concordance_fdr)
+#                &
                 (wide[f"{b}_log2FoldChange"].abs() > min_logFC)
             )
 
