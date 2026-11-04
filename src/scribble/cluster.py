@@ -132,12 +132,27 @@ def optimise_resolution(np, pd, sc, adata, embedding, neighbors,
             "sample": adata.obs["sample"].values
         })
 
+        # Total samples in the whole dataset
+        n_total_samples = adata.obs["sample"].nunique()
+
+        if n_total_samples <= 1:
+            return np.nan
+
+        max_entropy = np.log(n_total_samples)
+
         entropies = []
 
         for _, sub in df.groupby("cluster"):
+
             counts = sub["sample"].value_counts().values
             probs = counts / counts.sum()
-            entropies.append(entropy(probs))
+
+            raw_entropy = entropy(probs)
+
+            # Normalize to 0–1
+            norm_entropy = raw_entropy / max_entropy
+
+            entropies.append(norm_entropy)
 
         return np.mean(entropies)
 
