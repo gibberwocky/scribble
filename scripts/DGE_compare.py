@@ -54,7 +54,7 @@ def parse_args():
     p.add_argument("--outdir", required=True, help="Output directory for results")
     p.add_argument("--concordance_fdr", type=float, default=0.2, help="FDR threshold for concordance")
     p.add_argument("--min_logFC", type=float, default=0.5, help="Minimum absolute log2FC for effect concordance")
-    parser.add_argument("--concordance_pval", type=float, default=0.05, help="Nominal P threshold for concordance")
+    p.add_argument("--concordance_pval", type=float, default=0.05, help="Nominal P threshold for concordance")
     return p.parse_args()
 
 
