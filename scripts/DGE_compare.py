@@ -375,7 +375,7 @@ def de_concordance(de_long, analyses):
     return pd.DataFrame(rows)
 
 
-def find_gsea_files(anslysis_dir, annotation):
+def find_gsea_files(analysis_dir, annotation):
     root = (Path(analysis_dir) / "GSEA" / annotation)
     if not root.exists():
         return []
