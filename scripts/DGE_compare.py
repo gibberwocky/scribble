@@ -43,8 +43,8 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--analysis_dirs", nargs="+", required=True,
         help="Full paths to analysis directories, e.g. .../DGE/exvivo_major .../DGE/organoid_major")
-    p.add_argument"--analysis_names", nargs="+", required=True,
-        help=("Names used in outputs corresponding to analysis_dirs")
+    p.add_argument("--analysis_names", nargs="+", required=True,
+        help="Names used in outputs corresponding to analysis_dirs")
     p.add_argument("--annotation", required=True,
         help="Annotation level, e.g. cell_type_major or cell_type_minor")
     p.add_argument("--reference_analysis", required=True,
