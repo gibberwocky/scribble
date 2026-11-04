@@ -52,7 +52,8 @@ def parse_args():
     p.add_argument("--comparison_name", required=True,
         help="Name for this comparison, e.g. 'biological_subsets' or 'organoid_model_sensitivity'.")
     p.add_argument("--outdir", required=True, help="Output directory for results")
-    p.add_argument("--concordance_fdr", default=0.1, help="Concordance FDR threshold")
+    p.add_argument("--concordance_fdr", default=0.2, help="Concordance FDR threshold")
+    p.add_argument("--min_logFC", default=0.5, help="Concordance FDR threshold")
     return p.parse_args()
 
 
@@ -261,6 +262,44 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
             )
         )
 
+    for a, b in combinations(analyses, 2):
+
+        effect_a = (
+            merged[f"{a}_log2FoldChange"]
+            .abs()
+            > 0.5
+        )
+
+        effect_b = (
+            merged[f"{b}_log2FoldChange"]
+            .abs()
+            > 0.5
+        )
+
+        shared_effect = (
+            effect_a
+            &
+            effect_b
+        )
+
+        merged[f"{a}_{b}_shared_effect"] = (
+            shared_effect
+        )
+
+        merged[f"{a}_{b}_shared_effect_same_direction"] = (
+            shared_effect
+            &
+            (
+                np.sign(
+                    merged[f"{a}_log2FoldChange"]
+                )
+                ==
+                np.sign(
+                    merged[f"{b}_log2FoldChange"]
+                )
+            )
+        )
+
     ref_lfc = f"{reference_analysis}_log2FoldChange"
     if ref_lfc in merged.columns:
         for analysis in analyses:
@@ -349,7 +388,7 @@ def correlation_pair(df, x, y):
     return out
 
 
-def de_concordance(de_long, analyses, reference_analysis, concordance_fdr):
+def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_logFC):
     rows = []
     if de_long.empty:
         return pd.DataFrame()
@@ -388,13 +427,15 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr):
             )
 
             effect_a = (
-                wide[f"{a}_log2FoldChange"]
-                .abs() > 0.5
+                (wide[f"{a}_FDR"] < concordance_fdr)
+                &
+                (wide[f"{a}_log2FoldChange"].abs() > min_log2FC)
             )
 
             effect_b = (
-                wide[f"{b}_log2FoldChange"]
-                .abs() > 0.5
+                (wide[f"{b}_FDR"] < concordance_fdr)
+                &
+                (wide[f"{b}_log2FoldChange"].abs() > min_log2FC)
             )
 
             shared_effect = (
@@ -678,7 +719,7 @@ def main():
         for cell_type, sub in de_long.groupby("cell_type", sort=True):
             wide = make_de_wide_for_cell(sub, analyses, args.reference_analysis)
             wide.to_csv(de_by_cell / f"{safe_filename(cell_type)}.csv", index=False)
-        de_corr = de_concordance(de_long, analyses, args.reference_analysis, args.concordance_fdr)
+        de_corr = de_concordance(de_long, analyses, args.reference_analysis, args.concordance_fdr, args.min_logFC)
         de_corr.to_csv(de_out / "pairwise_log2FC_concordance.csv", index=False)
         stat_corr = stat_concordance(de_long, analyses, args.reference_analysis)
         stat_corr.to_csv(de_out / "pairwise_stat_concordance.csv", index=False)
