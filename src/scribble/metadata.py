@@ -54,21 +54,13 @@ def update_metadata(
     # Fix mixed datatypes
     # ---------------------------------------
 
-    for field in updated_fields:
+    for field in adata.obs.columns:
 
-        types = (
-            adata.obs[field]
-            .dropna()
-            .map(type)
-            .unique()
-        )
-
-        if len(types) > 1:
+        if adata.obs[field].dtype == object:
 
             print(
-                f"{field}: mixed types "
-                f"{[x.__name__ for x in types]}"
-                f" -> converting to string"
+                f"{field}: converting object dtype "
+                "to string"
             )
 
             adata.obs[field] = (
