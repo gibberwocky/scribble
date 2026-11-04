@@ -591,7 +591,7 @@ def make_gsea_wide(group, analyses, reference_analysis, concordance_fdr, min_log
         if nes in merged.columns:
             nes_cols.append(nes)
 
-    merged["n_significants_tested"] = merged[tested_cols].sum(axis=1)
+    merged["n_tested"] = merged[tested_cols].sum(axis=1)
     merged["n_significant"] = merged[sig_cols].sum(axis=1)
     merged["direction_class"] = merged[nes_cols].apply(classify_direction, axis=1)
     merged["all_same_direction"] = merged["direction_class"].isin(

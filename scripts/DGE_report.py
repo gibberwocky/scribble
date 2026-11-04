@@ -52,6 +52,15 @@ def parse_args():
     parser.add_argument("--min_abs_nes", type=float, default=1.5)
     parser.add_argument("--min_delta_nes", type=float, default=0.5)
     parser.add_argument("--min_supporting_analyses", type=int, default=2)
+    parser.add_argument(
+        "--concordance_fdr",
+        type=float,
+        default=0.2,
+        help=(
+            "Must match compare_DGE.py "
+            "concordance threshold."
+        ),
+    )
 
     # Display limits
     parser.add_argument("--top_genes", type=int, default=20)
@@ -197,17 +206,32 @@ def gene_pair_evidence(df, analysis, reference, args):
         & (ref_meaningful | sec_meaningful)
     )
 
-    secondary_fdr_hit = (
-        sec_fdr.lt(args.fdr)
-        & sec_lfc.abs().ge(args.min_abs_log2fc)
+    secondary_effect_hit = (
+        sec_lfc.abs().ge(
+            args.min_abs_log2fc
+        )
+        &
+        (
+            sec_fdr.lt(
+                args.concordance_fdr
+            )
+            |
+            sec_p.lt(
+                args.nominal_p
+            )
+        )
     )
 
-    supported_subset = secondary_fdr_hit & same_direction
+    supported_subset = secondary_effect_hit & same_direction
     potential_subset_specific = (
-        secondary_fdr_hit
-        & (
-            ref_lfc.abs().lt(args.min_abs_log2fc / 2)
-            | opposite_direction
+        secondary_effect_hit
+        &
+        (
+            ref_lfc.abs().lt(
+                args.min_abs_log2fc / 2
+            )
+            |
+            opposite_direction
         )
     )
 
@@ -217,7 +241,7 @@ def gene_pair_evidence(df, analysis, reference, args):
         "opposite_direction": opposite_direction,
         "delta": delta,
         "meaningful_discordance": meaningful_discordance,
-        "secondary_fdr_hit": secondary_fdr_hit,
+        "secondary_effect_hit": secondary_effect_hit,
         "supported_subset": supported_subset,
         "potential_subset_specific": potential_subset_specific,
     }
@@ -248,10 +272,23 @@ def classify_gene_table(df, analyses, reference, args):
     ]
 
     out["n_available_effects"] = out[lfc_cols].notna().sum(axis=1)
-    out["n_significant"] = sum(
-        numeric(out[col]).lt(args.fdr)
-        for col in fdr_cols
-    )
+    sig_cols = [
+        f"{analysis}_significant"
+        for analysis in analyses
+        if f"{analysis}_significant" in out.columns
+    ]
+
+    if sig_cols:
+        out["n_significant"] = (
+            out[sig_cols]
+            .fillna(False)
+            .sum(axis=1)
+        )
+    else:
+        out["n_significant"] = sum(
+            numeric(out[col]).lt(args.concordance_fdr)
+            for col in fdr_cols
+        )
 
     lfc_matrix = out[lfc_cols].apply(numeric)
     out["n_positive"] = np.sign(lfc_matrix).gt(0).sum(axis=1)
@@ -274,7 +311,21 @@ def classify_gene_table(df, analyses, reference, args):
     ref_p = numeric(out[f"{reference}_pval"])
     ref_stat = numeric(out[f"{reference}_stat"])
 
-    out["reference_significant"] = ref_fdr.lt(args.fdr)
+    sig_col = (
+        f"{reference}_significant"
+    )
+
+    if sig_col in out.columns:
+        out["reference_significant"] = (
+            out[sig_col]
+            .fillna(False)
+            .astype(bool)
+        )
+    else:
+        out["reference_significant"] = (
+            ref_fdr.lt(args.concordance_fdr)
+        )
+
     out["reference_reportable_effect"] = (
         ref_lfc.abs().ge(args.min_abs_log2fc)
     )
@@ -455,10 +506,24 @@ def classify_pathway_table(df, analyses, reference, args):
 
     nes_matrix = out[nes_cols].apply(numeric)
     out["n_available_NES"] = nes_matrix.notna().sum(axis=1)
-    out["n_significant"] = sum(
-        numeric(out[col]).lt(args.fdr)
-        for col in fdr_cols
-    )
+    sig_cols = [
+        f"{analysis}_significant"
+        for analysis in analyses
+        if f"{analysis}_significant" in out.columns
+    ]
+
+    if sig_cols:
+        out["n_significant"] = (
+            out[sig_cols]
+            .fillna(False)
+            .sum(axis=1)
+        )
+    else:
+        out["n_significant"] = sum(
+            numeric(out[col]).lt(args.concordance_fdr)
+            for col in fdr_cols
+        )
+
     out["n_positive"] = np.sign(nes_matrix).gt(0).sum(axis=1)
     out["n_negative"] = np.sign(nes_matrix).lt(0).sum(axis=1)
     out["mean_abs_NES"] = nes_matrix.abs().mean(axis=1)
@@ -477,7 +542,21 @@ def classify_pathway_table(df, analyses, reference, args):
     ref_nes = numeric(out[f"{reference}_NES"])
     ref_fdr = numeric(out[f"{reference}_FDR q-val"])
 
-    out["reference_significant"] = ref_fdr.lt(args.fdr)
+    sig_col = (
+        f"{reference}_significant"
+    )
+
+    if sig_col in out.columns:
+        out["reference_significant"] = (
+            out[sig_col]
+            .fillna(False)
+            .astype(bool)
+        )
+    else:
+            out["reference_significant"] = (
+                ref_fdr.lt(args.concordance_fdr)
+            )
+
     out["reference_reportable_NES"] = (
         ref_nes.abs().ge(args.min_abs_nes)
     )
@@ -1060,7 +1139,6 @@ def is_ribosomal_gene(gene):
 
 def plot_de_concordance(df, cell_type, analyses, reference, outdir, args):
     ref_col = f"{reference}_log2FoldChange"
-    ref_fdr = f"{reference}_FDR"
 
     for analysis in analyses:
         if analysis == reference:
@@ -1073,7 +1151,7 @@ def plot_de_concordance(df, cell_type, analyses, reference, outdir, args):
             {
                 "ref": numeric(df[ref_col]),
                 "sec": numeric(df[sec_col]),
-                "ref_sig": numeric(df[ref_fdr]).lt(args.fdr),
+                "ref_sig": df["reference_significant"],
                 "discordant": df.get(
                     f"{analysis}_meaningful_discordance",
                     False,
@@ -1164,7 +1242,7 @@ def plot_nes_concordance(
             {
                 "ref": numeric(df[ref_col]),
                 "sec": numeric(df[sec_col]),
-                "ref_sig": numeric(df[ref_fdr]).lt(args.fdr),
+                "ref_sig": df["reference_significant"],
                 "discordant": df.get(
                     f"{analysis}_meaningful_discordance",
                     False,
@@ -1620,6 +1698,28 @@ def explanatory_html(args):
       <h3>Fields used in interpretation</h3>
       <dl>
         <dt>n_significant</dt><dd>Number of analyses with FDR below the report threshold.</dd>
+        <dt>n_nominal_shared</dt>
+        <dd>
+        Number of genes nominally significant in both analyses.
+        </dd>
+
+        <dt>nominal_direction_concordance</dt>
+        <dd>
+        Fraction of shared nominal genes that move in the same direction.
+        Values above 0.5 indicate greater-than-random directional agreement.
+        </dd>
+
+        <dt>effect_direction_concordance</dt>
+        <dd>
+        Fraction of genes passing effect-size criteria that move in the
+        same direction across analyses.
+        </dd>
+
+        <dt>reactome_direction_concordance</dt>
+        <dd>
+        Fraction of shared Reactome pathways with matching enrichment
+        direction across analyses.
+        </dd>
         <dt>n_available_effects / n_available_NES</dt><dd>Number of analyses contributing an estimated gene effect or pathway NES.</dd>
         <dt>n_supporting_secondary</dt><dd>Number of secondary analyses with the same direction as the reference estimate.</dd>
         <dt>mean_abs_log2FC / mean_abs_NES</dt><dd>Mean absolute effect magnitude across available analyses.</dd>
@@ -1675,6 +1775,30 @@ def main():
         comparison_dir
         / "GSEA"
         / "by_cell_type"
+    )
+
+    de_concordance_file = (
+        comparison_dir
+        / "DE"
+        / "pairwise_log2FC_concordance.csv"
+    )
+
+    gsea_concordance_file = (
+        comparison_dir
+        / "GSEA"
+        / "pairwise_NES_concordance.csv"
+    )
+
+    de_concordance = (
+        pd.read_csv(de_concordance_file)
+        if de_concordance_file.exists()
+        else pd.DataFrame()
+    )
+
+    gsea_concordance = (
+        pd.read_csv(gsea_concordance_file)
+        if gsea_concordance_file.exists()
+        else pd.DataFrame()
     )
 
     if not de_source.exists():
@@ -2034,6 +2158,39 @@ def main():
             else pd.DataFrame()
         )
 
+        de_conc = (
+            de_concordance[
+                de_concordance["cell_type"] == cell_type
+            ]
+            if not de_concordance.empty
+            else pd.DataFrame()
+        )
+
+        gsea_conc = (
+            gsea_concordance[
+                gsea_concordance["cell_type"] == cell_type
+            ]
+            if not gsea_concordance.empty
+            else pd.DataFrame()
+        )
+
+        if len(de_conc) == 1:
+            de_row = de_conc.iloc[0]
+        else:
+            de_row = pd.Series(dtype=object)
+
+        reactome_row = (
+            gsea_conc[
+                gsea_conc["gene_set"] == "Reactome"
+            ]
+        )
+
+        reactome_row = (
+            reactome_row.iloc[0]
+            if len(reactome_row) > 0
+            else pd.Series(dtype=object)
+        )
+
         summary_rows.append(
             {
                 "cell_type": cell_type,
@@ -2147,6 +2304,55 @@ def main():
                     ).sum()
                     if not leading_edge_sub.empty
                     else 0
+                ),
+
+                "gene_pearson": (
+                    de_row.get(
+                        "pearson",
+                        np.nan,
+                    )
+                ),
+
+                "gene_spearman": (
+                    de_row.get(
+                        "spearman",
+                        np.nan,
+                    )
+                ),
+
+                "nominal_direction_concordance": (
+                    de_row.get(
+                        "fraction_nominal_same_direction",
+                        np.nan,
+                    )
+                ),
+
+                "effect_direction_concordance": (
+                    de_row.get(
+                        "fraction_effect_same_direction",
+                        np.nan,
+                    )
+                ),
+
+                "n_nominal_shared": (
+                    de_row.get(
+                        "n_nominal_shared",
+                        np.nan,
+                    )
+                ),
+
+                "reactome_direction_concordance": (
+                    reactome_row.get(
+                        "fraction_pathways_same_direction",
+                        np.nan,
+                    )
+                ),
+
+                "reactome_shared_pathways": (
+                    reactome_row.get(
+                        "n_pathways_shared",
+                        np.nan,
+                    )
                 ),
             }
         )
@@ -2314,6 +2520,30 @@ def main():
                 html_table(
                     summary,
                     list(summary.columns),
+                    len(summary),
+                ),
+            ]
+        )
+
+    if not summary.empty:
+
+        concordance_columns = [
+            "cell_type",
+            "gene_pearson",
+            "gene_spearman",
+            "n_nominal_shared",
+            "nominal_direction_concordance",
+            "effect_direction_concordance",
+            "reactome_shared_pathways",
+            "reactome_direction_concordance",
+        ]
+
+        html_parts.extend(
+            [
+                "<h2>Cross-analysis concordance summary</h2>",
+                html_table(
+                    summary,
+                    concordance_columns,
                     len(summary),
                 ),
             ]
