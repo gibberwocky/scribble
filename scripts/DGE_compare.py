@@ -567,7 +567,8 @@ def main():
         "comparison_name": args.comparison_name,
         "annotation": args.annotation,
         "reference_analysis": args.reference_analysis,
-        "analyses": args.analyses,
+        "analysis_names": args.analysis_names,
+        "analysis_dirs": args.analysis_dirs,
     }
 
     with open(
