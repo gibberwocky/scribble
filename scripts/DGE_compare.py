@@ -41,16 +41,17 @@ def safe_filename(value):
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--dge_dir", required=True,
-        help="Directory containing analysis subdirectories, e.g. project/scribble/DGE")
-    p.add_argument("--analyses", nargs="+", required=True,
-        help="Analysis directory names to compare")
+    p.add_argument("--analysis_dirs", nargs="+", required=True,
+        help="Full paths to analysis directories, e.g. .../DGE/exvivo_major .../DGE/organoid_major")
+    p.add_argument"--analysis_names", nargs="+", required=True,
+        help=("Names used in outputs corresponding to analysis_dirs")
     p.add_argument("--annotation", required=True,
         help="Annotation level, e.g. cell_type_major or cell_type_minor")
     p.add_argument("--reference_analysis", required=True,
         help="Primary/reference analysis used for reference-relative fields")
     p.add_argument("--comparison_name", required=True,
         help="Name for this comparison, e.g. 'biological_subsets' or 'organoid_model_sensitivity'.")
+    p.add_argument("--outdir", required=True, help="Output directory for results")
     return p.parse_args()
 
 
@@ -60,8 +61,8 @@ def require_columns(df, columns, path):
         raise ValueError(f"Missing columns {missing} in {path}")
 
 
-def find_de_files(dge_dir, analysis, annotation):
-    root = dge_dir / analysis / "DE" / annotation
+def find_de_files(analysis_dir, annotation):
+    root = Path(analysis_dir) / "DE" / annotation
     if not root.exists():
         return []
     return sorted(root.glob("*_all_genes.csv"))
@@ -74,28 +75,47 @@ def cell_type_from_de_filename(path):
     return path.name[:-len(suffix)]
 
 
-def load_summary(dge_dir, analysis, annotation):
-    path = dge_dir / analysis / f"{annotation}_DE_GSEA_summary.csv"
+def load_summary(analysis_dir, analysis_name, annotation):
+    path = (Path(analysis_dir) / f"{annotation}_DE_GSEA_summary.csv")
     if not path.exists():
         print(f"WARNING: summary missing: {path}")
         return None
     df = pd.read_csv(path)
     require_columns(df, ["cell_type"], path)
     if "analysis_name" not in df.columns:
-        df.insert(0, "analysis_name", analysis)
+        df.insert(0, "analysis_name", analysis_name)
     else:
-        df["analysis_name"] = analysis
-    df["analysis_dir"] = analysis
+        df["analysis_name"] = analysis_name
+    df["analysis_dir"] = analysis_name
     return df
 
 
-def collect_summaries(dge_dir, analyses, annotation):
+def collect_summaries(analysis_dirs, analysis_names, annotation):
     frames = []
-    for analysis in analyses:
-        df = load_summary(dge_dir, analysis, annotation)
+
+    for analysis_dir, analysis_name in zip(
+        analysis_dirs,
+        analysis_names,
+    ):
+
+        df = load_summary(
+            analysis_dir,
+            analysis_name,
+            annotation,
+        )
+
         if df is not None:
             frames.append(df)
-    return pd.concat(frames, ignore_index=True, sort=False) if frames else pd.DataFrame()
+
+    return (
+        pd.concat(
+            frames,
+            ignore_index=True,
+            sort=False,
+        )
+        if frames
+        else pd.DataFrame()
+    )
 
 
 def make_summary_wide(summary_long, analyses):
@@ -103,7 +123,7 @@ def make_summary_wide(summary_long, analyses):
         return pd.DataFrame()
 
     id_cols = {
-        "analysis_name", "analysis_dir", "cell_type",
+        "analysis_name", "analysis_dir", "method", "cell_type",
         "formula", "contrast_variable", "contrast_test", "contrast_reference"
     }
     value_cols = [c for c in summary_long.columns if c not in id_cols]
@@ -124,17 +144,36 @@ def make_summary_wide(summary_long, analyses):
     return pd.DataFrame(parts)
 
 
-def collect_de(dge_dir, analyses, annotation):
+def collect_de(analysis_dirs, analysis_names, annotation):
     frames = []
-    for analysis in analyses:
-        for path in find_de_files(dge_dir, analysis, annotation):
+    for analysis_dir, analysis in zip(analysis_dirs, analysis_names):
+        for path in find_de_files(analysis_dir, annotation):
             df = pd.read_csv(path)
             require_columns(
                 df,
-                ["gene", "baseMean", "log2FoldChange", "lfcSE", "Wald_stat", "pval", "FDR"],
+                [
+                    "gene",
+                    "baseMean",
+                    "log2FoldChange",
+                    "lfcSE",
+                    "stat",
+                    "pval",
+                    "FDR",
+                ],
                 path,
             )
-            df = df[["gene", "baseMean", "log2FoldChange", "lfcSE", "Wald_stat", "pval", "FDR"]].copy()
+
+            df = df[
+                [
+                    "gene",
+                    "baseMean",
+                    "log2FoldChange",
+                    "lfcSE",
+                    "stat",
+                    "pval",
+                    "FDR",
+                ]
+            ].copy()
             df.insert(0, "cell_type", cell_type_from_de_filename(path))
             df.insert(0, "analysis", analysis)
             frames.append(df)
@@ -156,7 +195,7 @@ def classify_direction(values):
 
 
 def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
-    metrics = ["baseMean", "log2FoldChange", "lfcSE", "Wald_stat", "pval", "FDR"]
+    metrics = ["baseMean", "log2FoldChange", "lfcSE", "stat", "pval", "FDR"]
     merged = None
 
     for analysis in analyses:
@@ -175,12 +214,12 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
     tested_cols = []
     lfc_cols = []
     for analysis in analyses:
-        wald = f"{analysis}_Wald_stat"
+        stat = f"{analysis}_stat"
         lfc = f"{analysis}_log2FoldChange"
         fdr = f"{analysis}_FDR"
         tested = f"{analysis}_tested"
         sig = f"{analysis}_FDR_005"
-        merged[tested] = merged[wald].notna() if wald in merged.columns else False
+        merged[tested] = merged[stat].notna() if stat in merged.columns else False
         merged[sig] = merged[fdr].lt(0.05) if fdr in merged.columns else False
         tested_cols.append(tested)
         if lfc in merged.columns:
@@ -217,6 +256,60 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
     return merged
 
 
+def stat_concordance(
+    de_long,
+    analyses,
+):
+    rows = []
+
+    if de_long.empty:
+        return pd.DataFrame()
+
+    for cell_type, sub in (
+        de_long.groupby(
+            "cell_type",
+            sort=True,
+        )
+    ):
+
+        wide = make_de_wide_for_cell(
+            sub,
+            analyses,
+            analyses[0],
+        )
+
+        for a, b in combinations(
+            analyses,
+            2,
+        ):
+
+            x = f"{a}_stat"
+            y = f"{b}_stat"
+
+            if (
+                x not in wide.columns
+                or
+                y not in wide.columns
+            ):
+                continue
+
+            stats = correlation_pair(
+                wide,
+                x,
+                y,
+            )
+
+            rows.append(
+                {
+                    "cell_type": cell_type,
+                    "analysis_a": a,
+                    "analysis_b": b,
+                    **stats,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
 def correlation_pair(df, x, y):
     tmp = df[[x, y]].replace([np.inf, -np.inf], np.nan).dropna()
     out = {"n_common": len(tmp), "pearson": np.nan, "spearman": np.nan}
@@ -237,19 +330,60 @@ def de_concordance(de_long, analyses):
             if x not in wide.columns or y not in wide.columns:
                 continue
             stats = correlation_pair(wide, x, y)
+            sig_a = (
+                wide[f"{a}_FDR"] < 0.05
+            )
+
+            sig_b = (
+                wide[f"{b}_FDR"] < 0.05
+            )
+
+            shared_sig = (
+                sig_a
+                & sig_b
+            )
+
+            same_direction = (
+                shared_sig
+                &
+                (
+                    np.sign(
+                        wide[x]
+                    )
+                    ==
+                    np.sign(
+                        wide[y]
+                    )
+                )
+            )
+
+            stats["n_sig_shared"] = (
+                shared_sig.sum()
+            )
+
+            stats["n_sig_same_direction"] = (
+                same_direction.sum()
+            )
+
+            stats["fraction_sig_same_direction"] = (
+                same_direction.sum()
+                / shared_sig.sum()
+                if shared_sig.sum() > 0
+                else np.nan
+            )
             rows.append({"cell_type": cell_type, "analysis_a": a, "analysis_b": b, **stats})
     return pd.DataFrame(rows)
 
 
-def find_gsea_files(dge_dir, analysis, annotation):
-    root = dge_dir / analysis / "GSEA" / annotation
+def find_gsea_files(anslysis_dir, annotation):
+    root = (Path(analysis_dir) / "GSEA" / annotation)
     if not root.exists():
         return []
     return sorted(root.glob("*/*/all_pathways.csv"))
 
 
-def parse_gsea_path(path, dge_dir, analysis, annotation):
-    root = dge_dir / analysis / "GSEA" / annotation
+def parse_gsea_path(path, analysis_dir, annotation):
+    root = (Path(analysis_dir) / "GSEA" / annotation)
     rel = path.relative_to(root)
     if len(rel.parts) != 3:
         raise ValueError(f"Unexpected GSEA path: {path}")
@@ -257,12 +391,12 @@ def parse_gsea_path(path, dge_dir, analysis, annotation):
     return cell_type, gene_set
 
 
-def collect_gsea(dge_dir, analyses, annotation):
+def collect_gsea(analysis_dirs, analysis_names, annotation):
     frames = []
     keep = ["Term", "ES", "NES", "NOM p-val", "FDR q-val", "FWER p-val", "Tag %", "Gene %", "Lead_genes"]
-    for analysis in analyses:
-        for path in find_gsea_files(dge_dir, analysis, annotation):
-            cell_type, gene_set = parse_gsea_path(path, dge_dir, analysis, annotation)
+    for analysis_dir, analysis in zip(analysis_dirs, analysis_names):
+        for path in find_gsea_files(analysis_dir, annotation):
+            cell_type, gene_set = parse_gsea_path(path, analysis_dir, annotation)
             df = pd.read_csv(path)
             require_columns(df, ["Term", "NES", "FDR q-val"], path)
             cols = [c for c in keep if c in df.columns]
@@ -343,19 +477,76 @@ def gsea_concordance(gsea_long, analyses):
             if x not in wide.columns or y not in wide.columns:
                 continue
             stats = correlation_pair(wide, x, y)
+            sig_a = (
+                wide[f"{a}_FDR q-val"] < 0.05
+            )
+
+            sig_b = (
+                wide[f"{b}_FDR q-val"] < 0.05
+            )
+
+            shared_sig = (
+                sig_a
+                & sig_b
+            )
+
+            same_direction = (
+                shared_sig
+                &
+                (
+                    np.sign(
+                        wide[x]
+                    )
+                    ==
+                    np.sign(
+                        wide[y]
+                    )
+                )
+            )
+
+            stats["n_pathways_shared"] = (
+                shared_sig.sum()
+            )
+
+            stats["n_pathways_same_direction"] = (
+                same_direction.sum()
+            )
+
+            stats["fraction_pathways_same_direction"] = (
+                same_direction.sum()
+                / shared_sig.sum()
+                if shared_sig.sum() > 0
+                else np.nan
+            )
             rows.append({"cell_type": cell_type, "gene_set": gene_set, "analysis_a": a, "analysis_b": b, **stats})
     return pd.DataFrame(rows)
 
 
 def main():
     args = parse_args()
-    dge_dir = Path(args.dge_dir).resolve()
-    analyses = args.analyses
+    analysis_dirs = [
+        Path(x).resolve()
+        for x in args.analysis_dirs
+    ]
+
+    analyses = args.analysis_names
+
+    if len(analysis_dirs) != len(analyses):
+
+        raise ValueError(
+            "--analysis_dirs and "
+            "--analysis_names must "
+            "have the same length"
+        )
 
     if args.reference_analysis not in analyses:
         raise ValueError("--reference_analysis must also be listed in --analyses")
 
-    missing_analysis_dirs = [a for a in analyses if not (dge_dir / a).exists()]
+    missing_analysis_dirs = [
+        str(x)
+        for x in analysis_dirs
+        if not x.exists()
+    ]
     if missing_analysis_dirs:
         raise FileNotFoundError(f"Analysis directories not found: {missing_analysis_dirs}")
 
@@ -363,7 +554,7 @@ def main():
         args.comparison_name
     )
 
-    outdir = (dge_dir / "comparison" / comparison_name / args.annotation)
+    outdir = Path(args.outdir)
     de_out = outdir / "DE"
     de_by_cell = de_out / "by_cell_type"
     gsea_out = outdir / "GSEA"
@@ -390,14 +581,22 @@ def main():
         )
 
     # Analysis summary
-    summary_long = collect_summaries(dge_dir, analyses, args.annotation)
+    summary_long = collect_summaries(
+        analysis_dirs,
+        analyses,
+        args.annotation,
+    )
     if not summary_long.empty:
         summary_long.to_csv(outdir / "analysis_summary_long.csv", index=False)
         summary_wide = make_summary_wide(summary_long, analyses)
         summary_wide.to_csv(outdir / "analysis_summary_wide.csv", index=False)
 
     # DE
-    de_long = collect_de(dge_dir, analyses, args.annotation)
+    de_long = collect_de(
+        analysis_dirs,
+        analyses,
+        args.annotation,
+    )
     if not de_long.empty:
         de_long.to_csv(de_out / "all_DE_long.csv", index=False)
         for cell_type, sub in de_long.groupby("cell_type", sort=True):
@@ -405,11 +604,17 @@ def main():
             wide.to_csv(de_by_cell / f"{safe_filename(cell_type)}.csv", index=False)
         de_corr = de_concordance(de_long, analyses)
         de_corr.to_csv(de_out / "pairwise_log2FC_concordance.csv", index=False)
+        stat_corr = stat_concordance(de_long, analyses)
+        stat_corr.to_csv(de_out / "pairwise_stat_concordance.csv", index=False)
     else:
         print("WARNING: no DE all_genes files found")
 
     # GSEA
-    gsea_long = collect_gsea(dge_dir, analyses, args.annotation)
+    gsea_long = collect_gsea(
+        analysis_dirs,
+        analyses,
+        args.annotation,
+    )
     if not gsea_long.empty:
         gsea_long.to_csv(gsea_out / "all_GSEA_long.csv", index=False)
         for (cell_type, gene_set), sub in gsea_long.groupby(["cell_type", "gene_set"], sort=True):
