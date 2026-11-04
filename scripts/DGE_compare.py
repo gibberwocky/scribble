@@ -52,8 +52,8 @@ def parse_args():
     p.add_argument("--comparison_name", required=True,
         help="Name for this comparison, e.g. 'biological_subsets' or 'organoid_model_sensitivity'.")
     p.add_argument("--outdir", required=True, help="Output directory for results")
-    p.add_argument("--concordance_fdr", default=0.2, help="Concordance FDR threshold")
-    p.add_argument("--min_logFC", default=0.5, help="Concordance FDR threshold")
+    p.add_argument("--concordance_fdr", type=float, default=0.2, help="FDR threshold for concordance")
+    p.add_argument("--min_logFC", type=float, default=0.5, help="Minimum absolute log2FC for effect concordance")
     return p.parse_args()
 
 
@@ -265,29 +265,36 @@ def make_de_wide_for_cell(de_cell, analyses, reference_analysis):
     for a, b in combinations(analyses, 2):
 
         effect_a = (
-            merged[f"{a}_log2FoldChange"]
-            .abs()
-            > 0.5
+            merged[f"{a}_FDR_005"]
+            &
+            (
+                merged[f"{a}_log2FoldChange"]
+                .abs()
+                > args.min_logFC
+            )
         )
 
         effect_b = (
-            merged[f"{b}_log2FoldChange"]
-            .abs()
-            > 0.5
-        )
-
-        shared_effect = (
-            effect_a
+            merged[f"{b}_FDR_005"]
             &
-            effect_b
+            (
+                merged[f"{b}_log2FoldChange"]
+                .abs()
+                > args.min_logFC
+            )
         )
 
-        merged[f"{a}_{b}_shared_effect"] = (
-            shared_effect
+        effect_either = (
+            effect_a
+            | effect_b
         )
 
-        merged[f"{a}_{b}_shared_effect_same_direction"] = (
-            shared_effect
+        merged[f"{a}_{b}_effect_either"] = (
+            effect_either
+        )
+
+        merged[f"{a}_{b}_effect_same_direction"] = (
+            effect_either
             &
             (
                 np.sign(
@@ -429,22 +436,22 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
             effect_a = (
                 (wide[f"{a}_FDR"] < concordance_fdr)
                 &
-                (wide[f"{a}_log2FoldChange"].abs() > min_log2FC)
+                (wide[f"{a}_log2FoldChange"].abs() > min_logFC)
             )
 
             effect_b = (
                 (wide[f"{b}_FDR"] < concordance_fdr)
                 &
-                (wide[f"{b}_log2FoldChange"].abs() > min_log2FC)
+                (wide[f"{b}_log2FoldChange"].abs() > min_logFC)
             )
 
-            shared_effect = (
+            either_effect = (
                 effect_a
-                & effect_b
+                | effect_b
             )
 
             effect_same_direction = (
-                shared_effect
+                either_effect
                 &
                 (
                     np.sign(
@@ -472,8 +479,8 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
                 else np.nan
             )
 
-            stats["n_effect_shared"] = (
-                shared_effect.sum()
+            stats["n_effect_either"] = (
+                either_effect.sum()
             )
 
             stats["n_effect_same_direction"] = (
@@ -482,10 +489,11 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
 
             stats["fraction_effect_same_direction"] = (
                 effect_same_direction.sum()
-                / shared_effect.sum()
-                if shared_effect.sum() > 0
+                / either_effect.sum()
+                if either_effect.sum() > 0
                 else np.nan
             )
+
             rows.append({"cell_type": cell_type, "analysis_a": a, "analysis_b": b, **stats})
     return pd.DataFrame(rows)
 
