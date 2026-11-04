@@ -419,6 +419,33 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
                 & sig_b
             )
 
+            nominal_a = (
+                wide[f"{a}_pval"] < 0.05
+            )
+
+            nominal_b = (
+                wide[f"{b}_pval"] < 0.05
+            )
+
+            shared_nominal = (
+                nominal_a
+                & nominal_b
+            )
+
+            nominal_same_direction = (
+                shared_nominal
+                &
+                (
+                    np.sign(
+                        wide[x]
+                    )
+                    ==
+                    np.sign(
+                        wide[y]
+                    )
+                )
+            )
+
             same_direction = (
                 shared_sig
                 &
@@ -462,6 +489,21 @@ def de_concordance(de_long, analyses, reference_analysis, concordance_fdr, min_l
                         wide[y]
                     )
                 )
+            )
+
+            stats["n_nominal_shared"] = (
+                shared_nominal.sum()
+            )
+
+            stats["n_nominal_same_direction"] = (
+                nominal_same_direction.sum()
+            )
+
+            stats["fraction_nominal_same_direction"] = (
+                nominal_same_direction.sum()
+                / shared_nominal.sum()
+                if shared_nominal.sum() > 0
+                else np.nan
             )
 
             stats["n_sig_shared"] = (
