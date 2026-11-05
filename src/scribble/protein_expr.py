@@ -50,11 +50,12 @@ def run_protein_expr(args):
     adata_counts.obs = adata.obs.copy()
 
     # Subset samples
-    adata_counts = adata_counts[
-        adata_counts.obs["sample"].isin(
-            args.samples
-        )
-    ].copy()
+    if args.samples:
+        adata_counts = adata_counts[
+            adata_counts.obs["sample"].isin(
+                args.samples
+            )
+        ].copy()
 
     # Normalise + log transform
     sc.pp.normalize_total(adata_counts)
