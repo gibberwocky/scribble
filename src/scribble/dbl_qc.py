@@ -128,8 +128,7 @@ def run_dbl_qc(args):
 
             ad <- read_h5ad("{tmp_h5ad}")
             sce <- ad$as_SingleCellExperiment()
-            print(assayNames(sce))
-            assay(sce, "counts") <- assay(sce, "X")
+            assay(sce, "counts") <- assay(sce, assayNames(sce)[1])
             sce <- scDblFinder(sce)
 
             write.csv(
@@ -332,6 +331,8 @@ def run_dbl_qc(args):
 
     for sample in adata.obs["sample"].unique():
 
+        dbl = adata.uns["doublet_qc"].get(sample, {})
+
         row = {
             "sample": sample,
             "n_cells_pre": dbl.get("n_cells_pre"),
@@ -352,7 +353,7 @@ def run_dbl_qc(args):
 
     qc_df = pd.DataFrame(rows)
 
-    # -------- Save as Excel file --------
+    # -------- Save summary as TSV file --------
     qc_df.to_csv(tsv_file, sep="\t", index=False)
     print(f"Saved QC summary → {tsv_file}")
 
