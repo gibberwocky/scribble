@@ -119,16 +119,25 @@ def mt_qc_panel(np, plt, adata, outfile, nmads):
 
 # ------------ Doublet Panel -------------
 def doublet_qc_panel(np, plt, sns, adata, outfile, threshold=0.93):
-    scores = adata.obs["doublet_score"].values
+    has_scrublet = ("scrublet_score" in adata.obs.columns)
+
+    scores = None
+    if has_scrublet:
+        scores = (adata.obs["scrublet_score"].values)
+
     counts = adata.obs["total_counts"].values
     outliers = adata.obs["doublet_outlier"].values
     frac_total = float(np.mean(outliers) * 100)
     # -------- compute per-sample thresholds --------
     sample_thresholds = {}
-    for sample in adata.obs["sample"].unique():
-        mask = adata.obs["sample"] == sample
-        s = adata.obs.loc[mask, "doublet_score"]
-        sample_thresholds[sample] = np.quantile(s, threshold)
+
+    if has_scrublet:
+        for sample in adata.obs["sample"].unique():
+            mask = (adata.obs["sample"] == sample)
+            s = (adata.obs.loc[mask, "scrublet_score"].dropna())
+            if len(s) > 0:
+                sample_thresholds[sample] = (np.quantile(s, threshold))
+
     # -------- layout --------
     fig = plt.figure(figsize=(12,8))
     gs = fig.add_gridspec(2, 2)
@@ -136,54 +145,141 @@ def doublet_qc_panel(np, plt, sns, adata, outfile, threshold=0.93):
     ax2 = fig.add_subplot(gs[0, 1])   # scatter
     ax3 = fig.add_subplot(gs[1, :])   # wide violin
     # -------- 1. DISTRIBUTION --------
-    ax1.hist(scores, bins=100, color="gray", alpha=0.7, log=True)
-    ax1.set_xlabel("Doublet score")
-    ax1.set_ylabel("Number of cells (log scale)")
-    ax1.set_title("Doublet score distribution")
+    if has_scrublet:
+
+        ax1.hist(scores, bins=100, color="gray", alpha=0.7, log=True,)
+        ax1.set_xlabel("Scrublet score")
+        ax1.set_ylabel("Number of cells (log scale)")
+        ax1.set_title("Scrublet score distribution")
+
+    else:
+
+        call_counts = {
+            "doublet": int(
+                adata.obs[
+                    "doublet_outlier"
+                ].sum()
+            ),
+            "singlet": int(
+                (~adata.obs[
+                    "doublet_outlier"
+                ]).sum()
+            ),
+        }
+        ax1.bar(call_counts.keys(), call_counts.values(),)
+        ax1.set_ylabel("Number of cells")
+        ax1.set_title("Doublet calls")
+
+
     # -------- 2. OUTLIER SCATTER --------
-    ax2.scatter(
-        counts[~outliers],
-        scores[~outliers],
-        c="lightgray",
-        s=5,
-        label="Kept"
-    )
-    ax2.scatter(
-        counts[outliers],
-        scores[outliers],
-        c="red",
-        s=5,
-        label="Removed"
-    )
+    if has_scrublet:
+
+        ax2.scatter(
+            counts[~outliers],
+            scores[~outliers],
+            c="lightgray",
+            s=5,
+            label="Kept"
+        )
+
+        ax2.scatter(
+            counts[outliers],
+            scores[outliers],
+            c="red",
+            s=5,
+            label="Removed"
+        )
+
+        ax2.set_ylabel("Scrublet score")
+
+    else:
+
+        ax2.scatter(
+            counts,
+            np.zeros_like(counts),
+            c=np.where(
+                outliers,
+                "red",
+                "lightgray"
+            ),
+            s=5,
+        )
+
+        ax2.set_ylabel("Doublet call")
+
     ax2.set_xscale("log")
     ax2.set_xlabel("Total counts (log scale)")
-    ax2.set_ylabel("Doublet score")
-    ax2.set_title(f"Doublet outliers ({frac_total:.1f}% of cells)")
-    ax2.legend(markerscale=3)
+    ax2.set_title(f"Cells flagged as doublets ({frac_total:.1f}% of cells)")
+
+    handles, labels = (ax2.get_legend_handles_labels())
+    if len(handles) > 0:
+        ax2.legend(
+            markerscale=3
+        )
+
     # -------- 3. VIOLIN PLOT --------
-    sns.violinplot(
-        data=adata.obs,
-        x="sample",
-        y="doublet_score",
-        ax=ax3,
-        inner=None
-    )
+    if has_scrublet:
+
+        sns.violinplot(
+            data=adata.obs,
+            x="sample",
+            y="scrublet_score",
+            ax=ax3,
+            inner=None
+        )
+        ax3.set_ylabel("Scrublet score")
+
+    else:
+
+        call_fraction = (
+            adata.obs
+            .groupby("sample")[
+                "doublet_outlier"
+            ]
+            .mean()
+            .reset_index()
+        )
+
+        sns.barplot(
+            data=call_fraction,
+            x="sample",
+            y="doublet_outlier",
+            ax=ax3,
+        )
+
+        ax3.set_ylabel("Doublet fraction")
+
     # overlay thresholds per sample
-    for i, sample in enumerate(adata.obs["sample"].cat.categories):
-        if sample in sample_thresholds:
-            ax3.hlines(
-                sample_thresholds[sample],
-                i - 0.4,
-                i + 0.4,
-                colors="red",
-                linestyles="--"
-            )
-    ax3.set_title("Doublet score per sample")
+    if has_scrublet:
+
+        sample_order = (
+            adata.obs["sample"]
+            .astype(str)
+            .unique()
+        )
+
+        for i, sample in enumerate(sample_order):
+            if sample in sample_thresholds:
+                ax3.hlines(
+                    sample_thresholds[sample],
+                    i - 0.4,
+                    i + 0.4,
+                    colors="red",
+                    linestyles="--",
+                )
+
+        ax3.set_title("Scrublet score per sample")
+
+    else:
+
+        ax3.set_title("Doublet fraction per sample")
+
     ax3.set_xlabel("Sample")
-    ax3.set_ylabel("Doublet score")
-    # rotate labels (important!)
+
+    # rotate labels
     for label in ax3.get_xticklabels():
         label.set_rotation(90)
+
     plt.tight_layout()
     plt.savefig(outfile, dpi=300, bbox_inches="tight")
     plt.close()
