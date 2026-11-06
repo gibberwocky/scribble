@@ -58,8 +58,8 @@ def run_mt_qc(args):
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
-    output_file = input_file.with_name(f"{input_file.stem}_mtqc_nMADs-{args.nmads}.h5ad")
-    plot_file = PLOT_DIR / f"{input_file.stem}_mtqc_nMADs-{args.nmads}.png"
+    output_file = input_file.with_name(f"{input_file.stem}_mtqc.h5ad")
+    plot_file = PLOT_DIR / f"{input_file.stem}_mtqc.png"
     manifest_file = (MANIFEST_DIR / f"{input_file.stem}_mt_manifest.json")
 
     print(f"Loading {input_file}")
