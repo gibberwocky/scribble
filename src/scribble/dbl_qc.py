@@ -98,20 +98,21 @@ def run_dbl_qc(args):
             sc.pp.normalize_total(ad_sample, target_sum=1e4)
             sc.pp.log1p(ad_sample)
 
-        scrublet_pred = None
-        scores = None
-        scrub_thresh = np.nan
-
         # -------- run Scrublet --------
+        scrublet_pred = None
+        scrublet_scores = None
+        scrub_thresh = np.nan
         if args.scrublet:
             sc.external.pp.scrublet(ad_sample, expected_doublet_rate=args.scrublet_expected, threshold=None)
-            scores = ad_sample.obs["doublet_score"].values
+            scrublet_scores = ad_sample.obs["doublet_score"].values
             scrublet_pred = ad_sample.obs["predicted_doublet"].values
-            adata.obs.loc[mask, "scrublet_score"] = scores
+            adata.obs.loc[mask, "scrublet_score"] = scrublet_scores
             adata.obs.loc[mask, "scrublet_doublet"] = scrublet_pred
             scrub_thresh = float(ad_sample.uns.get("scrublet", {}).get("threshold", np.nan))
 
         # -------- run scDblFinder --------
+        scdblfinder_pred = None
+        scdblfinder_score = None
         if args.scdblfinder:
             scdblfinder_pred = np.zeros(ad_sample.n_obs, dtype=bool,)
             tmp_h5ad = (ADATA_DIR / f"{sample}_scdblfinder.h5ad")
@@ -199,31 +200,62 @@ def run_dbl_qc(args):
 
         # -------- diagnostic plot --------
         fig, ax = plt.subplots(figsize=(5, 4))
+        plotted = False
 
         if (
             args.scrublet
-            and scores is not None
-            and np.unique(scores).size > 1
+            and scrublet_scores is not None
+            and np.unique(scrublet_scores).size > 1
         ):
-            sns.histplot(scores, bins=50, ax=ax, color="steelblue")
-        elif args.scrublet:
-            ax.text(0.5, 0.5, "Constant scores", ha="center")
-        else:
-            ax.text(0.5, 0.5, "No Scrublet scores", ha="center")
 
+            sns.histplot(
+                scrublet_scores,
+                bins=50,
+                ax=ax,
+                color="steelblue",
+                alpha=0.5,
+                label="Scrublet",
+            )
+            plotted = True
+
+        if (
+            args.scdblfinder
+            and "scdblfinder_score" in adata.obs.columns
+        ):
+
+            scdbl_scores = (adata.obs.loc[mask, "scdblfinder_score"].values)
+            if np.unique(scdbl_scores).size > 1:
+                sns.histplot(
+                    scdbl_scores,
+                    bins=50,
+                    ax=ax,
+                    color="darkorange",
+                    alpha=0.5,
+                    label="scDblFinder",
+                )
+
+                plotted = True
+
+        if not plotted:
+            ax.text(0.5, 0.5, "No score distribution available", ha="center",)
 
         if (
             args.scrublet
             and np.isfinite(scrub_thresh)
         ):
-            ax.axvline(scrub_thresh, color="green", linestyle=":", label="Scrublet")
 
-        ax.set_title(f"{sample} doublet score")
+            ax.axvline(
+                scrub_thresh,
+                color="green",
+                linestyle=":",
+                label="Scrublet threshold",
+            )
+
+        ax.set_title(f"{sample} doublet detection")
         ax.set_xlabel("Score")
         ax.set_ylabel("Cells")
 
         handles, labels = ax.get_legend_handles_labels()
-
         if len(handles) > 0:
             ax.legend()
 
