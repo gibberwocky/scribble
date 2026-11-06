@@ -113,16 +113,23 @@ def run_dbl_qc(args):
         if args.scdblfinder:
             scdblfinder_pred = np.zeros(ad_sample.n_obs, dtype=bool,)
             # save temporary counts
-            tmp_h5ad = (ADATA_DIR / f"{sample}_scdblfinder.h5ad")
-            ad_sample.write(tmp_h5ad)
+            tmp_dir = (ADATA_DIR / f"{sample}_scdblfinder")
+            tmp_dir.mkdir(exist_ok=True)
+            sc.write_10x_mtx(tmp_dir, ad_sample, overwrite=True,)
             r_script = f"""
             suppressPackageStartupMessages(
                 library(scDblFinder)
             )
-            suppressPackageStartupMessages(
-                library(zellkonverter)
+            library(DropletUtils)
+            library(SingleCellExperiment)
+
+            counts <- read10xCounts(
+                "{tmp_dir}"
             )
-            sce <- readH5AD("{tmp_h5ad}", use_hdf5 = FALSE)
+
+            sce <- scDblFinder(
+                counts
+            )
             sce <- scDblFinder(sce)
 
             write.csv(
