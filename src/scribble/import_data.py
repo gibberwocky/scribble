@@ -66,49 +66,100 @@ def get_inflection(np, df, lower=100):
 
 
 # ---------- Process one sample ----------
-def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, inflection_lower):
+def process_sample(
+    sc,
+    sp,
+    np,
+    pd,
+    sample,
+    cellranger_dir,
+    cellbender_dir,
+    velo_dir,
+    plot_dir,
+    inflection_lower
+):
+
     from scribble.plots import qc_hexbin_ax, knee_plot_ax
     import matplotlib.pyplot as plt
 
     print(f"Processing {sample}")
 
+    # Read velocyto data
     loom_file = list((velo_dir / sample).glob("*.loom"))[0]
-    adata = sc.read(loom_file)
-    adata.obs_names = clean_barcodes(adata.obs_names, sample)
+    adata_velo = sc.read(loom_file)
+    adata_velo.obs_names = clean_barcodes(adata_velo.obs_names, sample)
+    adata_velo.var_names = adata_velo.var.index
+    adata_velo.var_names_make_unique()
 
-    adata_10X = sc.read_10x_mtx(
-        cellranger_dir / sample / "outs/filtered_feature_bc_matrix"
-    )
-    adata_10X.obs_names = clean_barcodes(adata_10X.obs_names, sample)
+
+    # Read CellBender or CellRanger data
+    adata_primary = None
+    # CellBender preferred
+    if (cellbender_dir is not None and (cellbender_dir / sample / f"{sample}_filtered.h5").exists()):
+        print(f"{sample}: using CellBender counts for X")
+        adata_primary = sc.read_10x_h5(cellbender_dir / sample / f"{sample}_filtered.h5")
+    # Fallback to Cell Ranger
+    elif cellranger_dir is not None and (cellranger_dir / sample / "outs/filtered_feature_bc_matrix").exists()):
+        print(f"{sample}: using Cell Ranger counts for X")
+        adata_primary = sc.read_10x_mtx(cellranger_dir / sample / "outs/filtered_feature_bc_matrix")
+    # Else raise error
+    else:
+        raise ValueError(f"{sample}: no CellBender or CellRanger count matrix available")
+
+
+    # Clean barcodes
+    adata_primary.obs_names = clean_barcodes(adata_primary.obs_names, sample)
+
+    # Check for shared cells with velocyto data
+    shared_cells = (adata_primary.obs_names.intersection(adata_velo.obs_names))
+    if len(shared_cells) == 0:
+        raise ValueError(
+            f"{sample}: no overlapping cells between "
+            "primary counts and velocyto data"
+        )
+    adata_primary = adata_primary[shared_cells].copy()
+    adata_velo = adata_velo[shared_cells].copy()
 
     # MT + QC
-    adata_10X.var["mt"] = adata_10X.var_names.str.contains("^MT-|^mt-")
-    sc.pp.calculate_qc_metrics(adata_10X, qc_vars=["mt"], inplace=True)
+    adata_primary.var["mt"] = adata_primary.var_names.str.contains("^MT-|^mt-")
+    sc.pp.calculate_qc_metrics(adata_primary, qc_vars=["mt"], inplace=True)
 
     # Use gene symbol for name and ensure unique
-    adata.var_names = adata.var.index
-    adata.var_names_make_unique()
+    adata_primary.var_names = adata_primary.var.index
+    adata_primary.var_names_make_unique()
 
-    # Layers
-    spliced = sp.csr_matrix(adata.layers["spliced"], dtype=np.float32)
-    unspliced = sp.csr_matrix(adata.layers["unspliced"], dtype=np.float32)
-    counts = spliced + unspliced
+    # Velocyto layers
+    spliced = sp.csr_matrix(adata_velo.layers["spliced"], dtype=np.float32)
+    unspliced = sp.csr_matrix(adata_velo.layers["unspliced"], dtype=np.float32)
 
     # Build final object
+    counts = sp.csr_matrix(adata_primary.X, dtype=np.float32)
     adata_clean = sc.AnnData(
         X=counts.copy(),
-        obs=adata.obs.copy(),
-        var=adata.var.copy()
+        obs=adata_primary.obs.copy(),
+        var=adata_primary.var.copy()
     )
     adata_clean.layers["counts"] = counts.copy()
     adata_clean.layers["spliced"] = spliced
     adata_clean.layers["unspliced"] = unspliced
 
-    # Transfer MT metrics from adta_10X to adata
-    meta_10X = adata_10X.obs.loc[adata_clean.obs_names]
-    adata_clean.obs["pct_counts_mt"] = meta_10X["pct_counts_mt"].values
-    adata_clean.obs["total_counts"] = meta_10X["total_counts"].values
-    adata_clean.obs["n_genes_by_counts"] = meta_10X["n_genes_by_counts"].values
+    # Transfer MT metrics from adata_10X to adata
+    meta_primary = adata_primary.obs.loc[adata_clean.obs_names]
+    adata_clean.obs["pct_counts_mt"] = meta_primary["pct_counts_mt"].values
+    adata_clean.obs["total_counts"] = meta_primary["total_counts"].values
+    adata_clean.obs["n_genes_by_counts"] = meta_primary["n_genes_by_counts"].values
+
+    # Add provenance
+    adata_clean.uns["count_source"] = (
+        "cellbender"
+        if cellbender_dir is not None
+        and (
+            cellbender_dir /
+            sample /
+            f"{sample}_filtered.h5"
+        ).exists()
+        else "cellranger"
+    )
 
     # Data for knee plot and inflection point
     knee_df = pd.DataFrame({
@@ -168,7 +219,7 @@ def process_sample(sc, sp, np, pd, sample, cellranger_dir, velo_dir, plot_dir, i
     return adata_clean
 
 # Check sampels present in cellranger and velocyto directories
-def get_samples(cellranger_dir, velo_dir, requested_samples=None):
+def get_samples(cellranger_dir, cellbender_dir, velo_dir, requested_samples=None):
 
     available_cr = {
         d.name for d in cellranger_dir.iterdir()
@@ -180,7 +231,21 @@ def get_samples(cellranger_dir, velo_dir, requested_samples=None):
         if d.is_dir()
     }
 
-    available = available_cr & available_velo
+    available_counts = set()
+    if cellranger_dir.exists():
+        available_counts |= available_cr
+    if (
+        cellbender_dir is not None
+        and cellbender_dir.exists()
+    ):
+        available_cb = {
+            d.name
+            for d in cellbender_dir.iterdir()
+            if d.is_dir()
+        }
+        available_counts |= available_cb
+
+    available = (available_counts & available_velo)
 
     if requested_samples is None:
         samples = sorted(available)
@@ -189,7 +254,7 @@ def get_samples(cellranger_dir, velo_dir, requested_samples=None):
 
         if missing:
             raise ValueError(
-                f"Samples missing from Cell Ranger and/or Velocyto:\n"
+                f"Samples missing from CellBender|CellRanger and/or Velocyto:\n"
                 + "\n".join(missing)
             )
 
@@ -210,6 +275,7 @@ def run_import(args):
     PROJECT_DIR = Path(args.project_dir)
 
     CELLRANGER_DIR = Path(args.cellranger_dir)
+    CELLBENDER_DIR = (Path(args.cellbender_dir) if args.cellbender_dir else None)
     VELO_DIR = Path(args.velocyto_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
     ADATA_DIR = PROJECT_DIR / "scribble/adata"
@@ -239,6 +305,7 @@ def run_import(args):
 
     samples = get_samples(
         CELLRANGER_DIR,
+        CELLBENDER_DIR,
         VELO_DIR,
         requested_samples
     )
@@ -248,7 +315,7 @@ def run_import(args):
     adatas = []
 
     for sample in samples:
-        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, VELO_DIR, PLOT_DIR, args.inflection_lower)
+        ad = process_sample(sc, sp, np, pd, sample, CELLRANGER_DIR, CELLBENDER_DIR, VELO_DIR, PLOT_DIR, args.inflection_lower)
         ad.obs["sample"] = sample
         adatas.append(ad)
 
@@ -271,6 +338,7 @@ def run_import(args):
         args=args,
         inputs={
             "cellranger_dir": str(CELLRANGER_DIR),
+            "cellbender_dir": str(CELLBENDER_DIR),
             "velocyto_dir": str(VELO_DIR),
             "metadata_file": str(args.metadata_file),
         },

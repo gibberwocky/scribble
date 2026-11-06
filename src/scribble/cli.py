@@ -45,6 +45,8 @@ GitHub: https://github.com/gibberwocky/scribble
         help='Root project directory')
     import_parser.add_argument("--cellranger_dir", required=True,
         help='Directory containing cellranger/ sample subdirectories')
+    import_parser.add_argument("--cellbender_dir", required=True,
+        help='Directory containing cellbender/ sample subdirectories')
     import_parser.add_argument("--velocyto_dir", required=True,
         help='Directory containing velocyto/ sample subdirectories')
     import_parser.add_argument("--samples", nargs="+",
