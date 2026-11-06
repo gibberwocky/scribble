@@ -120,10 +120,17 @@ def mt_qc_panel(np, plt, adata, outfile, nmads):
 # ------------ Doublet Panel -------------
 def doublet_qc_panel(np, plt, sns, adata, outfile, threshold=0.93):
     has_scrublet = ("scrublet_score" in adata.obs.columns)
+    has_scdblfinder = ("scdblfinder_score" in adata.obs.columns)
+    has_score = (has_scrublet or has_scdblfinder)
 
-    scores = None
+    scrublet_scores = None
+    scdblfinder_scores = None
+
     if has_scrublet:
-        scores = (adata.obs["scrublet_score"].values)
+        scrublet_scores = (adata.obs["scrublet_score"].values)
+
+    if has_scdblfinder:
+        scdblfinder_scores = (adata.obs["scdblfinder_score"].values)
 
     counts = adata.obs["total_counts"].values
     outliers = adata.obs["doublet_outlier"].values
@@ -145,12 +152,32 @@ def doublet_qc_panel(np, plt, sns, adata, outfile, threshold=0.93):
     ax2 = fig.add_subplot(gs[0, 1])   # scatter
     ax3 = fig.add_subplot(gs[1, :])   # wide violin
     # -------- 1. DISTRIBUTION --------
-    if has_scrublet:
+    if has_score:
 
-        ax1.hist(scores, bins=100, color="gray", alpha=0.7, log=True,)
-        ax1.set_xlabel("Scrublet score")
+        if has_scrublet:
+
+            ax1.hist(
+                scrublet_scores,
+                bins=100,
+                alpha=0.5,
+                log=True,
+                label="Scrublet",
+            )
+
+        if (has_scdblfinder and np.unique(scdblfinder_scores).size > 1):
+
+            ax1.hist(
+                scdblfinder_scores,
+                bins=100,
+                alpha=0.5,
+                log=True,
+                label="scDblFinder",
+            )
+
+        ax1.set_xlabel("Doublet score")
         ax1.set_ylabel("Number of cells (log scale)")
-        ax1.set_title("Scrublet score distribution")
+        ax1.set_title("Doublet score distribution")
+        ax1.legend()
 
     else:
 
@@ -172,25 +199,39 @@ def doublet_qc_panel(np, plt, sns, adata, outfile, threshold=0.93):
 
 
     # -------- 2. OUTLIER SCATTER --------
-    if has_scrublet:
+    if has_score:
 
-        ax2.scatter(
-            counts[~outliers],
-            scores[~outliers],
-            c="lightgray",
-            s=5,
-            label="Kept"
-        )
+        if has_scrublet:
 
-        ax2.scatter(
-            counts[outliers],
-            scores[outliers],
-            c="red",
-            s=5,
-            label="Removed"
-        )
+            ax2.scatter(
+                counts,
+                scrublet_scores,
+                c=np.where(
+                    outliers,
+                    "red",
+                    "lightgray"
+                ),
+                s=5,
+                alpha=0.5,
+                label="Scrublet",
+            )
 
-        ax2.set_ylabel("Scrublet score")
+        if has_scdblfinder:
+
+            ax2.scatter(
+                counts,
+                scdblfinder_scores,
+                c=np.where(
+                    outliers,
+                    "darkblue",
+                    "steelblue"
+                ),
+                s=5,
+                alpha=0.5,
+                label="scDblFinder",
+            )
+
+        ax2.set_ylabel("Doublet score")
 
     else:
 
@@ -218,16 +259,32 @@ def doublet_qc_panel(np, plt, sns, adata, outfile, threshold=0.93):
         )
 
     # -------- 3. VIOLIN PLOT --------
-    if has_scrublet:
+    if has_score:
 
-        sns.violinplot(
-            data=adata.obs,
-            x="sample",
-            y="scrublet_score",
-            ax=ax3,
-            inner=None
-        )
-        ax3.set_ylabel("Scrublet score")
+        if has_scrublet:
+
+            sns.violinplot(
+                data=adata.obs,
+                x="sample",
+                y="scrublet_score",
+                ax=ax3,
+                inner=None,
+                color="lightgrey",
+            )
+
+        if has_scdblfinder:
+
+            sns.stripplot(
+                data=adata.obs,
+                x="sample",
+                y="scdblfinder_score",
+                ax=ax3,
+                color="darkblue",
+                size=1,
+                alpha=0.3,
+            )
+
+        ax3.set_ylabel("Doublet score")
 
     else:
 

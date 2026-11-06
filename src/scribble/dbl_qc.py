@@ -50,6 +50,7 @@ def run_dbl_qc(args):
 
     if args.scdblfinder:
         adata.obs["scdblfinder_doublet"] = False
+        adata.obs["scdblfinder_score"] = np.nan
 
     adata.obs["doublet_outlier"] = False
 
@@ -133,7 +134,8 @@ def run_dbl_qc(args):
             write.csv(
                 data.frame(
                     cell = colnames(sce),
-                    class = sce$scDblFinder.class
+                    class = sce$scDblFinder.class,
+                    score = sce$scDblFinder.score
                 ),
                 "{tmp_csv}",
                 row.names = FALSE
@@ -153,7 +155,9 @@ def run_dbl_qc(args):
 
             sdf = pd.read_csv(tmp_csv)
             scdblfinder_pred = (sdf["class"].eq("doublet").values)
+            scdblfinder_score = (sdf["score"].values)
             adata.obs.loc[mask, "scdblfinder_doublet"] = scdblfinder_pred
+            adata.obs.loc[mask, "scdblfinder_score"] = scdblfinder_score
 
             # cleanup
             tmp_h5ad.unlink(missing_ok=True)
