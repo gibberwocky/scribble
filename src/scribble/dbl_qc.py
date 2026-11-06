@@ -283,6 +283,7 @@ def run_dbl_qc(args):
     print("Generating global doublet QC plot...")
     doublet_qc_panel(
         np,
+        pd,
         plt,
         sns,
         adata,

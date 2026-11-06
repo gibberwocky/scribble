@@ -118,37 +118,20 @@ def mt_qc_panel(np, plt, adata, outfile, nmads):
 
 
 # ------------ Doublet Panel -------------
-# ------------ Doublet Panel -------------
 def doublet_qc_panel(
     np,
+    pd,
     plt,
     sns,
-    pd,
     adata,
     outfile,
     threshold=0.93,
 ):
-    has_scrublet = (
-        "scrublet_score"
-        in adata.obs.columns
-    )
-
-    has_scdblfinder = (
-        "scdblfinder_score"
-        in adata.obs.columns
-    )
-
-    counts = adata.obs[
-        "total_counts"
-    ].values
-
-    outliers = adata.obs[
-        "doublet_outlier"
-    ].values
-
-    frac_total = float(
-        np.mean(outliers) * 100
-    )
+    has_scrublet = ("scrublet_score" in adata.obs.columns)
+    has_scdblfinder = ("scdblfinder_score" in adata.obs.columns)
+    counts = adata.obs["total_counts"].values
+    outliers = adata.obs["doublet_outlier"].values
+    frac_total = float(np.mean(outliers) * 100)
 
     # --------------------------------------------------
     # Scrublet thresholds
