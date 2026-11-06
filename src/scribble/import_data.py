@@ -99,7 +99,7 @@ def process_sample(
         print(f"{sample}: using CellBender counts for X")
         adata_primary = sc.read_10x_h5(cellbender_dir / sample / f"{sample}_filtered.h5")
     # Fallback to Cell Ranger
-    elif cellranger_dir is not None and (cellranger_dir / sample / "outs/filtered_feature_bc_matrix").exists()):
+    elif (cellranger_dir is not None and (cellranger_dir / sample / "outs/filtered_feature_bc_matrix").exists()):
         print(f"{sample}: using Cell Ranger counts for X")
         adata_primary = sc.read_10x_mtx(cellranger_dir / sample / "outs/filtered_feature_bc_matrix")
     # Else raise error
