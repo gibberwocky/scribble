@@ -28,8 +28,8 @@ def run_dbl_qc(args):
     setup_environment(sc, np, random, PLOT_DIR)
 
     input_file = Path(args.input)
-    output_file = input_file.with_name(f"{input_file.stem}_dblqc_exp-{args.expected}.h5ad")
-    plot_file = PLOT_DIR / f"{input_file.stem}_dblqc_exp-{args.expected}.png"
+    output_file = input_file.with_name(f"{input_file.stem}_dblqc.h5ad")
+    plot_file = PLOT_DIR / f"{input_file.stem}_dblqc.png"
     xlsx_file = TABLE_DIR / f"{input_file.stem}_doublet_qc_summary.xlsx"
     manifest_file = (MANIFEST_DIR / f"{input_file.stem}_dbl_manifest.json")
 
@@ -69,11 +69,11 @@ def run_dbl_qc(args):
                 "n_cells_pre": n_cells,
                 "n_outliers": 0,
                 "fraction_outliers": 0.0,
-                "expected_rate": args.expected,
                 "skipped": True,
             }
 
             if args.scrublet:
+                stats["expected_rate"]: args.scrublet_expected
                 stats["n_scrublet"] = 0
                 stats["scrublet_threshold"] = np.nan
 
@@ -103,7 +103,7 @@ def run_dbl_qc(args):
 
         # -------- run Scrublet --------
         if args.scrublet:
-            sc.external.pp.scrublet(ad_sample, expected_doublet_rate=args.expected, threshold=None)
+            sc.external.pp.scrublet(ad_sample, expected_doublet_rate=args.scrublet_expected, threshold=None)
             scores = ad_sample.obs["doublet_score"].values
             scrublet_pred = ad_sample.obs["predicted_doublet"].values
             adata.obs.loc[mask, "scrublet_score"] = scores
@@ -165,11 +165,11 @@ def run_dbl_qc(args):
             "n_cells_pre": n_cells,
             "n_outliers": n_outliers,
             "fraction_outliers": frac,
-            "expected_rate": args.expected,
             "skipped": False,
         }
 
         if args.scrublet:
+            stats["expected_rate"]: args.scrublet_expected
             stats["n_scrublet"] = int(scrublet_pred.sum())
             stats["scrublet_threshold"] = (scrub_thresh)
 
@@ -236,7 +236,7 @@ def run_dbl_qc(args):
         sns,
         adata,
         outfile=plot_file,
-        threshold=1 - args.expected
+        threshold=1 - args.scrublet_expected
     )
 
     # -------- retention stats --------
@@ -288,13 +288,13 @@ def run_dbl_qc(args):
             "n_cells_pre": dbl.get("n_cells_pre"),
             "n_doublets": dbl.get("n_outliers"),
             "doublet_fraction": dbl.get("fraction_outliers"),
-            "expected_doublet_rate": dbl.get("expected_rate"),
             "n_cells_post": ret.get("n_cells_post"),
             "fraction_kept": ret.get("fraction_kept"),
             "fraction_removed": ret.get("fraction_removed"),
         }
 
         if args.scrublet:
+            row["scrublet_expected_doublet_rate"] = dbl.get("expected_rate")
             row["n_scrublet"] = (dbl.get("n_scrublet"))
             row["scrublet_threshold"] = (dbl.get("scrublet_threshold"))
 

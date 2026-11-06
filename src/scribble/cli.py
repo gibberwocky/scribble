@@ -77,15 +77,14 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Project directory containing scribble output folder")
     dbl_parser.add_argument("--input", required=True,
         help="Input AnnData (.h5ad) file (generated with scribble)")
-    dbl_parser.add_argument("--expected", type=float, default=0.07,
-        help=("Expected doublet rate (used for Scrublet prior and quantile-based thresholding). "
-              "Actual doublet fraction may differ due to hybrid thresholding."))
-    parser.add_argument("--scrublet", action="store_true", help="Apply Scrublet.")
-    parser.add_argument("--scdblfinder", action="store_true", help="Apply scDblFinder.")
+    dbl_parser.add_argument("--scrublet_expected", type=float, default=0.07,
+        help="Expected doublet rate (used for Scrublet only)")
+    parser.add_argument("--scrublet", action="store_true", help="Apply Scrublet")
+    parser.add_argument("--scdblfinder", action="store_true", help="Apply scDblFinder")
     dbl_parser.add_argument("--normalize", action="store_true",
-        help="Apply normalization before Scrublet")
+        help="Apply normalization before doublet detection")
     dbl_parser.add_argument("--min_cells", type=int, default=200,
-        help="Warn if sample has fewer cells than this for Scrublet")
+        help="Warn if sample has fewer cells than this prior to doublet detection")
     dbl_parser.add_argument("--manifest",
         help="Load parameters from a previous Scribble JSON manifest")
 
