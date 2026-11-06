@@ -110,39 +110,34 @@ def run_dbl_qc(args):
             adata.obs.loc[mask, "scrublet_doublet"] = scrublet_pred
             scrub_thresh = float(ad_sample.uns.get("scrublet", {}).get("threshold", np.nan))
 
+        # -------- run scDblFinder --------
         if args.scdblfinder:
             scdblfinder_pred = np.zeros(ad_sample.n_obs, dtype=bool,)
-            # save temporary counts
-            tmp_dir = (ADATA_DIR / f"{sample}_scdblfinder")
-            tmp_dir.mkdir(exist_ok=True)
-            sc.write_10x_mtx(tmp_dir, ad_sample, overwrite=True,)
+            tmp_h5ad = (ADATA_DIR / f"{sample}_scdblfinder.h5ad")
+            tmp_csv = (ADATA_DIR / f"{sample}_scdblfinder.csv")
+
+            # save temporary AnnData
+            ad_sample.write(tmp_h5ad, compression="gzip",)
+
             r_script = f"""
-            suppressPackageStartupMessages(
-                library(scDblFinder)
-            )
-            library(DropletUtils)
-            library(SingleCellExperiment)
+            suppressPackageStartupMessages(library(scDblFinder))
+            suppressPackageStartupMessages(library(anndataR))
+            suppressPackageStartupMessages(library(SingleCellExperiment))
 
-            counts <- read10xCounts(
-                "{tmp_dir}"
-            )
-
-            sce <- scDblFinder(
-                counts
-            )
+            ad <- read_h5ad("{tmp_h5ad}")
+            sce <- as(ad, "SingleCellExperiment")
             sce <- scDblFinder(sce)
 
             write.csv(
                 data.frame(
-                    cell=colnames(sce),
-                    class=sce$scDblFinder.class
+                    cell = colnames(sce),
+                    class = sce$scDblFinder.class
                 ),
-                "{tmp_h5ad}.csv",
-                row.names=FALSE
+                "{tmp_csv}",
+                row.names = FALSE
             )
             """
 
-            # run via Rscript
             result = subprocess.run(
                 ["Rscript", "-e", r_script],
                 capture_output=True,
@@ -150,16 +145,17 @@ def run_dbl_qc(args):
             )
 
             if result.returncode != 0:
-
                 print(result.stdout)
                 print(result.stderr)
+                raise RuntimeError(f"scDblFinder failed for {sample}")
 
-                raise RuntimeError(
-                    f"scDblFinder failed for {sample}"
-                )
-            sdf = pd.read_csv(f"{tmp_h5ad}.csv")
+            sdf = pd.read_csv(tmp_csv)
             scdblfinder_pred = (sdf["class"].eq("doublet").values)
             adata.obs.loc[mask, "scdblfinder_doublet"] = scdblfinder_pred
+
+            # cleanup
+            tmp_h5ad.unlink(missing_ok=True)
+            tmp_csv.unlink(missing_ok=True)
 
 
         outliers = np.zeros(ad_sample.n_obs, dtype=bool,)
