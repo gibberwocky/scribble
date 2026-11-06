@@ -347,10 +347,11 @@ def pca_qc_panel(
     np, sc, plt,
     adata,
     outfile,
+    doublets,
     min_genes=200,
     max_genes=6000,
     hvg=3000,
-    vmax_pc=0.99
+    vmax_pc=0.99,
 ):
     # ---------- PREP GLOBAL METRICS ----------
     # log counts stored in obs (fix for Scanpy behaviour)
@@ -366,7 +367,7 @@ def pca_qc_panel(
     # ---------- AFTER ----------
     adata_after = adata[
         (~adata.obs["mt_outlier"]) &
-        (~adata.obs["doublet_outlier"]) &
+        (~adata.obs[doublets]) &
         (adata.obs["n_genes_by_counts"] > min_genes) &
         (adata.obs["n_genes_by_counts"] < max_genes)
     ].copy()
@@ -374,6 +375,21 @@ def pca_qc_panel(
     adata_after.obs["log10_total_counts"] = np.log10(
         adata_after.obs["total_counts"] + 1
     )
+    # Identify doublet score column
+    score_column = None
+
+    if doublets == "scrublet_doublet":
+        score_column = "scrublet_score"
+
+    elif doublets == "scdblfinder_doublet":
+        score_column = "scdblfinder_score"
+
+    elif "scrublet_score" in adata.obs.columns:
+        score_column = "scrublet_score"
+
+    elif "scdblfinder_score" in adata.obs.columns:
+        score_column = "scdblfinder_score"
+    # Process data
     sc.pp.normalize_total(adata_after)
     sc.pp.log1p(adata_after)
     sc.pp.highly_variable_genes(adata_after, n_top_genes=hvg)
@@ -391,14 +407,27 @@ def pca_qc_panel(
         np.quantile(adata_after.obs["log10_total_counts"], vmax_pc)
     )
     # doublet score
-    vmin_dbl = min(
-        adata.obs["doublet_score"].min(),
-        adata_after.obs["doublet_score"].min()
-    )
-    vmax_dbl = max(
-        np.quantile(adata.obs["doublet_score"], vmax_pc),
-        np.quantile(adata_after.obs["doublet_score"], vmax_pc)
-    )
+    vmin_dbl = None
+    vmax_dbl = None
+
+    if score_column is not None:
+
+        vmin_dbl = min(
+            adata.obs[score_column].min(),
+            adata_after.obs[score_column].min()
+        )
+
+        vmax_dbl = max(
+            np.quantile(
+                adata.obs[score_column].dropna(),
+                vmax_pc
+            ),
+            np.quantile(
+                adata_after.obs[score_column].dropna(),
+                vmax_pc
+            )
+        )
+
     # MT %
     vmin_mt = min(
         adata.obs["pct_counts_mt"].min(),
@@ -449,24 +478,49 @@ def pca_qc_panel(
     )
     axes[1, 2].set_title("After (MT %)")
     # ----- DOUBLETS -----
-    sc.pl.pca(
-        adata_before,
-        color="doublet_score",
-        vmin=vmin_dbl,
-        vmax=vmax_dbl,
-        ax=axes[0, 1],
-        show=False
-    )
-    axes[0, 1].set_title("Before (doublet score)")
-    sc.pl.pca(
-        adata_after,
-        color="doublet_score",
-        vmin=vmin_dbl,
-        vmax=vmax_dbl,
-        ax=axes[1, 1],
-        show=False
-    )
-    axes[1, 1].set_title("After (doublet score)")
+    if score_column is not None:
+
+        sc.pl.pca(
+            adata_before,
+            color=score_column,
+            vmin=vmin_dbl,
+            vmax=vmax_dbl,
+            ax=axes[0, 1],
+            show=False
+        )
+
+        axes[0, 1].set_title(
+            f"Before ({score_column})"
+        )
+
+        sc.pl.pca(
+            adata_after,
+            color=score_column,
+            vmin=vmin_dbl,
+            vmax=vmax_dbl,
+            ax=axes[1, 1],
+            show=False
+        )
+
+        axes[1, 1].set_title(
+            f"After ({score_column})"
+        )
+
+    else:
+
+        sc.pl.pca(
+            adata_before,
+            color=doublets,
+            ax=axes[0, 1],
+            show=False
+        )
+
+        sc.pl.pca(
+            adata_after,
+            color=doublets,
+            ax=axes[1, 1],
+            show=False
+        )
     # ---------- GLOBAL ANNOTATION ----------
     frac_kept = adata_after.n_obs / adata.n_obs * 100
     fig.suptitle(

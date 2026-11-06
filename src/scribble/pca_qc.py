@@ -24,9 +24,14 @@ def run_pca_qc(args):
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
 
+    if args.doublets not in adata.obs.columns:
+        raise ValueError(
+            f"{args.doublets} not found in adata.obs"
+        )
+
     print("Generating PCA before/after filtering plot...")
     pca_qc_panel(np, sc, plt, adata, plot_file,
-        args.mingenes, args.maxgenes, args.hvgs, args.vmax)
+        args.doublets, args.mingenes, args.maxgenes, args.hvgs, args.vmax)
 
     print(f"Writing run manifest to {manifest_file}")
     write_run_manifest(

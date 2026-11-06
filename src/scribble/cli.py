@@ -102,6 +102,13 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Number of highly variable genes used for PCA")
     pca_parser.add_argument("--vmax", type=float, default=0.99,
         help="Upper limit for PCA variance ratio plot scaling")
+    pca_parser.add_argument("--doublets", default="doublet_outlier",
+        help=(
+            "Column used to identify cells for removal. "
+            "Examples: doublet_outlier, "
+            "scrublet_doublet, scdblfinder_doublet"
+        )
+    )
     pca_parser.add_argument("--manifest",
         help="Load parameters from a previous Scribble JSON manifest")
 
