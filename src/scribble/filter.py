@@ -25,6 +25,11 @@ def run_filter(args):
     print(f"Loading {input_file}")
     adata = sc.read(input_file)
 
+    if args.doublets not in adata.obs.columns:
+        raise ValueError(
+            f"{args.doublets} not found in adata.obs"
+        )
+
     # --------------------------------------------------
     # Load filters from Excel (optional)
     # --------------------------------------------------
@@ -58,7 +63,7 @@ def run_filter(args):
     print("Building filter masks...")
 
     mt_mask = ~adata.obs["mt_outlier"]
-    dbl_mask = ~adata.obs["doublet_outlier"]
+    dbl_mask = ~adata.obs[args.doublets]
 
     # gene mask (sample-aware)
     if filter_dict:
@@ -126,7 +131,7 @@ def run_filter(args):
         print(f"  kept:    {after}/{before} ({retained_frac:.1%})")
         print(f"  removed: {removed} ({removed/before:.1%})")
         print(f"    - mt_outlier:      {mt_fail}")
-        print(f"    - doublet_outlier: {dbl_fail}")
+        print(f"    - {args.doublets}: {dbl_fail}")
         print(f"    - gene_filter:     {gene_fail}")
         print()
 
@@ -138,7 +143,7 @@ def run_filter(args):
             "retained_frac": retained_frac,
             "removed": removed,
             "mt_outlier": mt_fail,
-            "doublet_outlier": dbl_fail,
+            f"{args.doublets}": dbl_fail,
             "gene_filter": gene_fail,
         })
 
@@ -149,7 +154,7 @@ def run_filter(args):
         "retained_frac": n_after / n_before,
         "removed": n_before - n_after,
         "mt_outlier": (~mt_mask).sum(),
-        "doublet_outlier": (~dbl_mask).sum(),
+        f"{args.doublets}": (~dbl_mask).sum(),
         "gene_filter": (~gene_mask).sum(),
     })
 

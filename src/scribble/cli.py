@@ -122,6 +122,12 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Minimum number of genes with non-zero counts in a given cell")
     filter_parser.add_argument("--maxgenes", type=int, default=6000,
         help="Maximum number of genes with non-zero counts in a given cell")
+    filter_parser.add_argument("--doublets", default="doublet_outlier",
+        help=(
+            "Column used to identify cells for removal. "
+            "Examples: doublet_outlier, scrublet_doublet, scdblfinder_doublet"
+        )
+    )
     filter_parser.add_argument("--filter_xlsx",
         help="Optional Excel file with per-sample filtering thresholds (sheet 'filters', must include 'sample' column)")
     filter_parser.add_argument("--manifest",
