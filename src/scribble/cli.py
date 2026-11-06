@@ -80,8 +80,8 @@ GitHub: https://github.com/gibberwocky/scribble
     dbl_parser.add_argument("--expected", type=float, default=0.07,
         help=("Expected doublet rate (used for Scrublet prior and quantile-based thresholding). "
               "Actual doublet fraction may differ due to hybrid thresholding."))
-    dbl_parser.add_argument("--mode", choices=["hybrid", "scrublet", "quantile"], default="hybrid",
-        help="Doublet calling strategy")
+    parser.add_argument("--scrublet", action="store_true", help="Apply Scrublet.")
+    parser.add_argument("--scdblfinder", action="store_true", help="Apply scDblFinder.")
     dbl_parser.add_argument("--normalize", action="store_true",
         help="Apply normalization before Scrublet")
     dbl_parser.add_argument("--min_cells", type=int, default=200,
