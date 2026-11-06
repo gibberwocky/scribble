@@ -113,6 +113,7 @@ def run_preintegration(args):
         adata,
         color=args.vars, # ["sample", "batchinfo", "sex"]
         wspace=0.4,
+        legend_fontsize=6,
         show=False
     )
     plt.savefig(pca_vars_file, dpi=300, bbox_inches="tight")
@@ -121,6 +122,7 @@ def run_preintegration(args):
     sc.pl.pca(adata,
         color=["total_counts", "pct_counts_mt"],
         wspace=0.4,
+        legend_fontsize=6,
         show=False
     )
     plt.savefig(pca_counts_file, dpi=300, bbox_inches="tight")
@@ -134,6 +136,7 @@ def run_preintegration(args):
         adata,
         color=args.vars, # ["sample", "batchinfo", "sex"]
         wspace=0.4,
+        legend_fontsize=6,
         show=False
     )
     plt.savefig(umap_file, dpi=300, bbox_inches="tight")
