@@ -125,9 +125,9 @@ def run_dbl_qc(args):
             suppressPackageStartupMessages(library(SingleCellExperiment))
 
             ad <- read_h5ad("{tmp_h5ad}")
-            class(ad)
             sce <- ad$as_SingleCellExperiment()
-            class(sce)
+            print(assayNames(sce))
+            assay(sce, "counts") <- assay(sce, "X")
             sce <- scDblFinder(sce)
 
             write.csv(
