@@ -155,6 +155,7 @@ def run_dbl_qc(args):
                 raise RuntimeError(f"scDblFinder failed for {sample}")
 
             sdf = pd.read_csv(tmp_csv)
+            sdf = (sdf.set_index("cell").loc[ad_sample.obs_names])
             scdblfinder_pred = (sdf["class"].eq("doublet").values)
             scdblfinder_score = (sdf["score"].values)
             adata.obs.loc[mask, "scdblfinder_doublet"] = scdblfinder_pred
@@ -188,10 +189,12 @@ def run_dbl_qc(args):
         if args.scrublet:
             stats["expected_rate"] = args.scrublet_expected
             stats["n_scrublet"] = int(scrublet_pred.sum())
+            stats["fraction_scrublet"] = (float(scrublet_pred.mean()))
             stats["scrublet_threshold"] = (scrub_thresh)
 
         if args.scdblfinder:
             stats["n_scdblfinder"] = int(scdblfinder_pred.sum())
+            stats["fraction_scdblfinder"] = (float(scdblfinder_pred.mean()))
 
         doublet_stats[sample] = stats
 
