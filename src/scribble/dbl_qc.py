@@ -73,7 +73,7 @@ def run_dbl_qc(args):
             }
 
             if args.scrublet:
-                stats["expected_rate"]: args.scrublet_expected
+                stats["expected_rate"] = args.scrublet_expected
                 stats["n_scrublet"] = 0
                 stats["scrublet_threshold"] = np.nan
 
@@ -122,14 +122,8 @@ def run_dbl_qc(args):
             suppressPackageStartupMessages(
                 library(zellkonverter)
             )
-
-            sce <- readH5AD(
-                "{tmp_h5ad}"
-            )
-
-            sce <- scDblFinder(
-                sce
-            )
+            sce <- readH5AD("{tmp_h5ad}", use_hdf5 = FALSE)
+            sce <- scDblFinder(sce)
 
             write.csv(
                 data.frame(
@@ -142,7 +136,20 @@ def run_dbl_qc(args):
             """
 
             # run via Rscript
-            subprocess.run(["Rscript", "-e", r_script,], check=True,)
+            result = subprocess.run(
+                ["Rscript", "-e", r_script],
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode != 0:
+
+                print(result.stdout)
+                print(result.stderr)
+
+                raise RuntimeError(
+                    f"scDblFinder failed for {sample}"
+                )
             sdf = pd.read_csv(f"{tmp_h5ad}.csv")
             scdblfinder_pred = (sdf["class"].eq("doublet").values)
             adata.obs.loc[mask, "scdblfinder_doublet"] = scdblfinder_pred
@@ -169,7 +176,7 @@ def run_dbl_qc(args):
         }
 
         if args.scrublet:
-            stats["expected_rate"]: args.scrublet_expected
+            stats["expected_rate"] = args.scrublet_expected
             stats["n_scrublet"] = int(scrublet_pred.sum())
             stats["scrublet_threshold"] = (scrub_thresh)
 
