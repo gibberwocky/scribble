@@ -118,15 +118,8 @@ def mt_qc_panel(np, plt, adata, outfile, nmads):
 
 
 # ------------ Doublet Panel -------------
-def doublet_qc_panel(
-    np,
-    pd,
-    plt,
-    sns,
-    adata,
-    outfile,
-    threshold=0.93,
-):
+def doublet_qc_panel(np, pd, plt, sns, adata, outfile, threshold=0.93,):
+
     has_scrublet = ("scrublet_score" in adata.obs.columns)
     has_scdblfinder = ("scdblfinder_score" in adata.obs.columns)
     counts = adata.obs["total_counts"].values
@@ -138,58 +131,23 @@ def doublet_qc_panel(
     # --------------------------------------------------
 
     sample_thresholds = {}
-
     if has_scrublet:
-
-        for sample in (
-            adata.obs["sample"]
-            .astype(str)
-            .unique()
-        ):
-
-            mask = (
-                adata.obs["sample"]
-                .astype(str)
-                == sample
-            )
-
-            s = (
-                adata.obs.loc[
-                    mask,
-                    "scrublet_score"
-                ]
-                .dropna()
-            )
-
+        for sample in (adata.obs["sample"].astype(str).unique()):
+            mask = (adata.obs["sample"].astype(str) == sample)
+            s = (adata.obs.loc[mask, "scrublet_score"].dropna())
             if len(s) > 0:
-
-                sample_thresholds[
-                    sample
-                ] = np.quantile(
-                    s,
-                    threshold
-                )
+                sample_thresholds[sample] = np.quantile(s, threshold)
 
     # --------------------------------------------------
     # Figure layout
     # --------------------------------------------------
 
-    fig = plt.figure(
-        figsize=(16, 12)
-    )
-
-    gs = fig.add_gridspec(
-        3,
-        2,
-        height_ratios=[1, 1, 1.2]
-    )
-
+    fig = plt.figure(figsize=(16, 12))
+    gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 1.2])
     ax1 = fig.add_subplot(gs[0, 0])  # scrublet hist
     ax2 = fig.add_subplot(gs[0, 1])  # scrublet scatter
-
     ax3 = fig.add_subplot(gs[1, 0])  # scdblfinder hist
     ax4 = fig.add_subplot(gs[1, 1])  # scdblfinder scatter
-
     ax5 = fig.add_subplot(gs[2, :])  # sample summary
 
     # --------------------------------------------------
@@ -197,49 +155,15 @@ def doublet_qc_panel(
     # --------------------------------------------------
 
     if has_scrublet:
-
-        scrublet_scores = (
-            adata.obs[
-                "scrublet_score"
-            ]
-            .dropna()
-            .values
-        )
-
-        ax1.hist(
-            scrublet_scores,
-            bins=100,
-            color="steelblue",
-            alpha=0.8,
-            log=True,
-        )
-
-        global_threshold = np.quantile(
-            scrublet_scores,
-            threshold
-        )
-
-        ax1.axvline(
-            global_threshold,
-            color="red",
-            linestyle="--",
-            linewidth=2,
-        )
-
-        ax1.set_title(
-            "Scrublet score distribution"
-        )
-
-        ax1.set_xlabel(
-            "Scrublet score"
-        )
-
-        ax1.set_ylabel(
-            "Cells (log scale)"
-        )
+        scrublet_scores = (adata.obs["scrublet_score"].dropna().values)
+        ax1.hist(scrublet_scores, bins=100, color="steelblue", alpha=0.8, log=True,)
+        global_threshold = np.quantile(scrublet_scores, threshold)
+        ax1.axvline(global_threshold, color="red", linestyle="--", linewidth=2,)
+        ax1.set_title("Scrublet score distribution")
+        ax1.set_xlabel("Scrublet score")
+        ax1.set_ylabel("Cells (log scale)")
 
     else:
-
         ax1.axis("off")
 
     # --------------------------------------------------
@@ -247,46 +171,15 @@ def doublet_qc_panel(
     # --------------------------------------------------
 
     if has_scrublet:
-
-        scrublet_scores = (
-            adata.obs[
-                "scrublet_score"
-            ]
-            .values
-        )
-
-        ax2.scatter(
-            counts[~outliers],
-            scrublet_scores[~outliers],
-            c="lightgrey",
-            s=4,
-            alpha=0.4,
-        )
-
-        ax2.scatter(
-            counts[outliers],
-            scrublet_scores[outliers],
-            c="red",
-            s=4,
-            alpha=0.4,
-        )
-
+        scrublet_scores = (adata.obs["scrublet_score"].values)
+        ax2.scatter(counts[~outliers], scrublet_scores[~outliers], c="lightgrey", s=4, alpha=0.4,)
+        ax2.scatter(counts[outliers], scrublet_scores[outliers], c="red", s=4, alpha=0.4,)
         ax2.set_xscale("log")
-
-        ax2.set_title(
-            "Scrublet score vs counts"
-        )
-
-        ax2.set_xlabel(
-            "Total counts"
-        )
-
-        ax2.set_ylabel(
-            "Scrublet score"
-        )
+        ax2.set_title("Scrublet score vs counts")
+        ax2.set_xlabel("Total counts")
+        ax2.set_ylabel("Scrublet score")
 
     else:
-
         ax2.axis("off")
 
     # --------------------------------------------------
@@ -294,37 +187,13 @@ def doublet_qc_panel(
     # --------------------------------------------------
 
     if has_scdblfinder:
-
-        scdbl_scores = (
-            adata.obs[
-                "scdblfinder_score"
-            ]
-            .dropna()
-            .values
-        )
-
-        ax3.hist(
-            scdbl_scores,
-            bins=100,
-            color="darkorange",
-            alpha=0.8,
-            log=True,
-        )
-
-        ax3.set_title(
-            "scDblFinder score distribution"
-        )
-
-        ax3.set_xlabel(
-            "scDblFinder score"
-        )
-
-        ax3.set_ylabel(
-            "Cells (log scale)"
-        )
+        scdbl_scores = (adata.obs["scdblfinder_score"].dropna().values)
+        ax3.hist(scdbl_scores, bins=100, color="darkorange", alpha=0.8, log=True,)
+        ax3.set_title("scDblFinder score distribution")
+        ax3.set_xlabel("scDblFinder score")
+        ax3.set_ylabel("Cells (log scale)")
 
     else:
-
         ax3.axis("off")
 
     # --------------------------------------------------
@@ -332,46 +201,15 @@ def doublet_qc_panel(
     # --------------------------------------------------
 
     if has_scdblfinder:
-
-        scdbl_scores = (
-            adata.obs[
-                "scdblfinder_score"
-            ]
-            .values
-        )
-
-        ax4.scatter(
-            counts[~outliers],
-            scdbl_scores[~outliers],
-            c="lightgrey",
-            s=4,
-            alpha=0.4,
-        )
-
-        ax4.scatter(
-            counts[outliers],
-            scdbl_scores[outliers],
-            c="red",
-            s=4,
-            alpha=0.4,
-        )
-
+        scdbl_scores = (adata.obs["scdblfinder_score"].values)
+        ax4.scatter(counts[~outliers], scdbl_scores[~outliers], c="lightgrey", s=4, alpha=0.4,)
+        ax4.scatter(counts[outliers], scdbl_scores[outliers], c="red", s=4, alpha=0.4,)
         ax4.set_xscale("log")
-
-        ax4.set_title(
-            "scDblFinder score vs counts"
-        )
-
-        ax4.set_xlabel(
-            "Total counts"
-        )
-
-        ax4.set_ylabel(
-            "scDblFinder score"
-        )
+        ax4.set_title("scDblFinder score vs counts")
+        ax4.set_xlabel("Total counts")
+        ax4.set_ylabel("scDblFinder score")
 
     else:
-
         ax4.axis("off")
 
     # --------------------------------------------------
@@ -380,94 +218,34 @@ def doublet_qc_panel(
 
     rows = []
 
-    for sample in (
-        adata.obs["sample"]
-        .astype(str)
-        .unique()
-    ):
-
-        mask = (
-            adata.obs["sample"]
-            .astype(str)
-            == sample
-        )
-
+    for sample in (adata.obs["sample"].astype(str).unique()):
+        mask = (adata.obs["sample"].astype(str) == sample)
         row = {
             "sample": sample,
-            "Union": (
-                adata.obs.loc[
-                    mask,
-                    "doublet_outlier"
-                ]
-                .mean()
-            )
+            "Union": (adata.obs.loc[mask, "doublet_outlier"].mean())
         }
 
         if has_scrublet:
-
-            row["Scrublet"] = (
-                adata.obs.loc[
-                    mask,
-                    "scrublet_doublet"
-                ]
-                .mean()
-            )
+            row["Scrublet"] = (adata.obs.loc[mask, "scrublet_doublet"].mean())
 
         if has_scdblfinder:
-
-            row["scDblFinder"] = (
-                adata.obs.loc[
-                    mask,
-                    "scdblfinder_doublet"
-                ]
-                .mean()
-            )
+            row["scDblFinder"] = (adata.obs.loc[mask, "scdblfinder_doublet"].mean())
 
         rows.append(row)
 
     frac_df = pd.DataFrame(rows)
+    plot_df = frac_df.melt(id_vars="sample", var_name="method", value_name="fraction")
 
-    plot_df = frac_df.melt(
-        id_vars="sample",
-        var_name="method",
-        value_name="fraction"
-    )
-
-    sns.barplot(
-        data=plot_df,
-        x="sample",
-        y="fraction",
-        hue="method",
-        ax=ax5,
-    )
-
-    ax5.set_ylabel(
-        "Fraction flagged"
-    )
-
-    ax5.set_xlabel(
-        "Sample"
-    )
-
-    ax5.set_title(
-        (
-            f"Doublet detection summary "
-            f"(union={frac_total:.1f}% cells)"
-        )
-    )
+    sns.barplot(data=plot_df, x="sample", y="fraction", hue="method", ax=ax5,)
+    ax5.set_ylabel("Fraction flagged")
+    ax5.set_xlabel("Sample")
+    ax5.set_title(f"Doublet detection summary (union={frac_total:.1f}% cells)")
 
     for label in ax5.get_xticklabels():
-
         label.set_rotation(90)
 
     plt.tight_layout()
-
-    plt.savefig(
-        outfile,
-        dpi=300,
-        bbox_inches="tight",
-    )
-
+    plt.savefig(outfile, dpi=300, bbox_inches="tight",)
     plt.close()
 
 
@@ -547,14 +325,8 @@ def pca_qc_panel(
         )
 
         vmax_dbl = max(
-            np.quantile(
-                adata.obs[score_column].dropna(),
-                vmax_pc
-            ),
-            np.quantile(
-                adata_after.obs[score_column].dropna(),
-                vmax_pc
-            )
+            np.quantile(adata.obs[score_column].dropna(), vmax_pc),
+            np.quantile(adata_after.obs[score_column].dropna(), vmax_pc)
         )
 
     # MT %
@@ -618,9 +390,7 @@ def pca_qc_panel(
             show=False
         )
 
-        axes[0, 1].set_title(
-            f"Before ({score_column})"
-        )
+        axes[0, 1].set_title(f"Before ({score_column})")
 
         sc.pl.pca(
             adata_after,
@@ -631,9 +401,7 @@ def pca_qc_panel(
             show=False
         )
 
-        axes[1, 1].set_title(
-            f"After ({score_column})"
-        )
+        axes[1, 1].set_title(f"After ({score_column})")
 
     else:
 
@@ -652,10 +420,8 @@ def pca_qc_panel(
         )
     # ---------- GLOBAL ANNOTATION ----------
     frac_kept = adata_after.n_obs / adata.n_obs * 100
-    fig.suptitle(
-        f"QC filtering retained {frac_kept:.1f}% of cells",
-        fontsize=14
-    )
+    fig.suptitle(f"QC filtering retained {frac_kept:.1f}% of cells", fontsize=14)
+
     plt.tight_layout()
     plt.savefig(outfile, dpi=300, bbox_inches="tight")
     plt.close()
