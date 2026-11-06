@@ -30,7 +30,7 @@ def run_dbl_qc(args):
     input_file = Path(args.input)
     output_file = input_file.with_name(f"{input_file.stem}_dblqc.h5ad")
     plot_file = PLOT_DIR / f"{input_file.stem}_dblqc.png"
-    xlsx_file = TABLE_DIR / f"{input_file.stem}_doublet_qc_summary.xlsx"
+    tsv_file = TABLE_DIR / f"{input_file.stem}_dblqc_summary.tsv"
     manifest_file = (MANIFEST_DIR / f"{input_file.stem}_dbl_manifest.json")
 
     if not any([
@@ -332,34 +332,29 @@ def run_dbl_qc(args):
 
     for sample in adata.obs["sample"].unique():
 
-        dbl = adata.uns["doublet_qc"].get(sample, {})
-        ret = adata.uns["qc_retention"].get(sample, {})
-
         row = {
             "sample": sample,
             "n_cells_pre": dbl.get("n_cells_pre"),
-            "n_doublets": dbl.get("n_outliers"),
-            "doublet_fraction": dbl.get("fraction_outliers"),
-            "n_cells_post": ret.get("n_cells_post"),
-            "fraction_kept": ret.get("fraction_kept"),
-            "fraction_removed": ret.get("fraction_removed"),
         }
 
         if args.scrublet:
-            row["scrublet_expected_doublet_rate"] = dbl.get("expected_rate")
-            row["n_scrublet"] = (dbl.get("n_scrublet"))
-            row["scrublet_threshold"] = (dbl.get("scrublet_threshold"))
+            row["scrublet_doublets"] = (dbl.get("n_scrublet"))
+            row["scrublet_fraction"] = (dbl.get("fraction_scrublet"))
 
         if args.scdblfinder:
-            row["n_scdblfinder"] = (dbl.get("n_scdblfinder"))
+            row["scdblfinder_doublets"] = (dbl.get("n_scdblfinder"))
+            row["scdblfinder_fraction"] = (dbl.get("fraction_scdblfinder"))
+
+        row["union_doublets"] = (dbl.get("n_outliers"))
+        row["union_fraction"] = (dbl.get("fraction_outliers"))
 
         rows.append(row)
 
     qc_df = pd.DataFrame(rows)
 
     # -------- Save as Excel file --------
-    qc_df.to_excel(xlsx_file, index=False)
-    print(f"Saved QC summary → {xlsx_file}")
+    qc_df.to_csv(tsv_file, sep="\t", index=False)
+    print(f"Saved QC summary → {tsv_file}")
 
     adata.uns["scribble_manifest"] = str(manifest_file)
     print(f"Saving updated AnnData → {output_file}")
@@ -377,6 +372,6 @@ def run_dbl_qc(args):
             "adata": str(output_file),
             "plot(s)": [str(fig_path) for fig_path in fig_paths],
             "doublet qc plot": str(plot_file),
-            "summary xlsx": str(xlsx_file)
+            "summary tsv": str(tsv_file)
         },
     )
