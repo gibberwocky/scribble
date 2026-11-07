@@ -42,7 +42,7 @@ def classify_cluster(row, thresholds):
     if entropy < thresholds["low_entropy"]:
         return (
             "flag_bias",
-            "sample_specific_cluster",
+            "sample_biased_cluster",
             "medium",
         )
 

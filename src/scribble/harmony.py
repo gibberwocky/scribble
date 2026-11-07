@@ -47,6 +47,7 @@ def run_harmony(args):
         adata,
         color=args.vars, # ["sample", "batchinfo", "sex"]
         wspace=0.4,
+        legend_fontsize=6,
         show=False
     )
     plt.savefig(umap_file, dpi=300, bbox_inches="tight")

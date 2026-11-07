@@ -106,9 +106,12 @@ def run_dbl_qc(args):
             sc.external.pp.scrublet(ad_sample, expected_doublet_rate=args.scrublet_expected, threshold=None)
             scrublet_scores = ad_sample.obs["doublet_score"].values
             scrublet_pred = ad_sample.obs["predicted_doublet"].values
+            scrub_thresh = float(ad_sample.uns.get("scrublet", {}).get("threshold", np.nan))
             adata.obs.loc[mask, "scrublet_score"] = scrublet_scores
             adata.obs.loc[mask, "scrublet_doublet"] = scrublet_pred
-            scrub_thresh = float(ad_sample.uns.get("scrublet", {}).get("threshold", np.nan))
+            print(sample, "scrublet predicted:", int(scrublet_pred.sum()))
+            print(sample, "score > threshold:", int((scrublet_scores > scrub_thresh).sum()))
+            print(sample, "threshold:", scrub_thresh)
 
         # -------- run scDblFinder --------
         scdblfinder_pred = None

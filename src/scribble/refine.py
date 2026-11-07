@@ -994,7 +994,7 @@ def run_refine(args):
             # Save workbook for this refinement step
             out_file = (
                 TABLE_DIR
-                / f"L{task['level']}_{clusters_str}_markers.xlsx"
+                / f"refine_L{task['level']}_{clusters_str}_markers.xlsx"
             )
 
             with pd.ExcelWriter(out_file) as writer:
@@ -1252,7 +1252,7 @@ def run_refine(args):
     # --------------------------------------------------
     master_file = (
         TABLE_DIR
-        / "L2_markers.xlsx"
+        / "refine_markers.xlsx"
     )
 
     with pd.ExcelWriter(master_file) as writer:
