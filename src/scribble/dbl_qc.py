@@ -112,6 +112,10 @@ def run_dbl_qc(args):
             print(sample, "scrublet predicted:", int(scrublet_pred.sum()))
             print(sample, "score > threshold:", int((scrublet_scores > scrub_thresh).sum()))
             print(sample, "threshold:", scrub_thresh)
+            print(sample, "median:", np.median(scrublet_scores))
+            print(sample, "q95:", np.quantile(scrublet_scores, 0.95))
+            print(sample, "max:", scrublet_scores.max())
+
 
         # -------- run scDblFinder --------
         scdblfinder_pred = None
