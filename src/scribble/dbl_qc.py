@@ -76,7 +76,8 @@ def run_dbl_qc(args):
             if args.scrublet:
                 stats["expected_rate"] = args.scrublet_expected
                 stats["n_scrublet"] = 0
-                stats["scrublet_threshold"] = np.nan
+                stats["scrublet_auto_threshold"] = np.nan
+                stats["scrublet_quantile_threshold"] = np.nan
 
             if args.scdblfinder:
                 stats["n_scdblfinder"] = 0
@@ -105,17 +106,14 @@ def run_dbl_qc(args):
         if args.scrublet:
             sc.external.pp.scrublet(ad_sample, expected_doublet_rate=args.scrublet_expected, threshold=None)
             scrublet_scores = ad_sample.obs["doublet_score"].values
-            scrublet_pred = ad_sample.obs["predicted_doublet"].values
-            scrub_thresh = float(ad_sample.uns.get("scrublet", {}).get("threshold", np.nan))
+            scrublet_auto_threshold = float(ad_sample.uns.get("scrublet", {}).get("threshold", np.nan))
+            #scrublet_pred = ad_sample.obs["predicted_doublet"].values
+            #scrub_thresh = float(ad_sample.uns.get("scrublet", {}).get("threshold", np.nan))
+            scrublet_scores = (ad_sample.obs["doublet_score"].values)
+            scrub_thresh = np.quantile(scrublet_scores, 1 - args.scrublet_expected)
+            scrublet_pred = (scrublet_scores > scrub_thresh)
             adata.obs.loc[mask, "scrublet_score"] = scrublet_scores
             adata.obs.loc[mask, "scrublet_doublet"] = scrublet_pred
-            print(sample, "scrublet predicted:", int(scrublet_pred.sum()))
-            print(sample, "score > threshold:", int((scrublet_scores > scrub_thresh).sum()))
-            print(sample, "threshold:", scrub_thresh)
-            print(sample, "median:", np.median(scrublet_scores))
-            print(sample, "q95:", np.quantile(scrublet_scores, 0.95))
-            print(sample, "max:", scrublet_scores.max())
-
 
         # -------- run scDblFinder --------
         scdblfinder_pred = None
@@ -193,10 +191,11 @@ def run_dbl_qc(args):
         }
 
         if args.scrublet:
+            stats["scrublet_auto_threshold"] = scrublet_auto_threshold
+            stats["scrublet_quantile_threshold"] = (scrub_thresh)
             stats["expected_rate"] = args.scrublet_expected
             stats["n_scrublet"] = int(scrublet_pred.sum())
             stats["fraction_scrublet"] = (float(scrublet_pred.mean()))
-            stats["scrublet_threshold"] = (scrub_thresh)
 
         if args.scdblfinder:
             stats["n_scdblfinder"] = int(scdblfinder_pred.sum())
