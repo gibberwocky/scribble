@@ -43,10 +43,10 @@ GitHub: https://github.com/gibberwocky/scribble
     import_parser = subparsers.add_parser("import")
     import_parser.add_argument("--project_dir", required=True,
         help='Root project directory')
-    import_parser.add_argument("--cellranger_dir", required=True,
-        help='Directory containing cellranger/ sample subdirectories')
+    import_parser.add_argument("--cellranger_dir", default=None,
+        help='Directory containing cellranger/ sample subdirectories, required if cellbender_dir not provided')
     import_parser.add_argument("--cellbender_dir", default=None,
-        help='Directory containing cellbender/ sample subdirectories')
+        help='Directory containing cellbender/ sample subdirectories, required if cellranger_dir not provided')
     import_parser.add_argument("--velocyto_dir", required=True,
         help='Directory containing velocyto/ sample subdirectories')
     import_parser.add_argument("--samples", nargs="+",
