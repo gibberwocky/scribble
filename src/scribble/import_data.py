@@ -221,23 +221,16 @@ def process_sample(
 # Check sampels present in cellranger and velocyto directories
 def get_samples(cellranger_dir, cellbender_dir, velo_dir, requested_samples=None):
 
-    available_cr = {
-        d.name for d in cellranger_dir.iterdir()
-        if d.is_dir()
-    }
-
-    available_velo = {
-        d.name for d in velo_dir.iterdir()
-        if d.is_dir()
-    }
-
     available_counts = set()
-    if cellranger_dir.exists():
+
+    if (cellranger_dir is not None and cellranger_dir.exists()):
+        available_cr = {
+            d.name for d in cellranger_dir.iterdir()
+            if d.is_dir()
+        }
         available_counts |= available_cr
-    if (
-        cellbender_dir is not None
-        and cellbender_dir.exists()
-    ):
+
+    if (cellbender_dir is not None and cellbender_dir.exists()):
         available_cb = {
             d.name
             for d in cellbender_dir.iterdir()
@@ -245,7 +238,13 @@ def get_samples(cellranger_dir, cellbender_dir, velo_dir, requested_samples=None
         }
         available_counts |= available_cb
 
-    available = (available_counts & available_velo)
+    if (velo_dir is not None and velo_dir.exists()):
+        available_velo = {
+            d.name for d in velo_dir.iterdir()
+            if d.is_dir()
+        }
+        available = (available_counts & available_velo)
+
 
     if requested_samples is None:
         samples = sorted(available)
