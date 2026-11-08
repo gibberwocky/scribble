@@ -274,7 +274,7 @@ def run_import(args):
 
     PROJECT_DIR = Path(args.project_dir)
 
-    CELLRANGER_DIR = Path(args.cellranger_dir)
+    CELLRANGER_DIR = (Path(args.cellranger_dir) if args.cellranger_dir else None)
     CELLBENDER_DIR = (Path(args.cellbender_dir) if args.cellbender_dir else None)
     VELO_DIR = Path(args.velocyto_dir)
     PLOT_DIR = PROJECT_DIR / "scribble/plots"
