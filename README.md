@@ -9,6 +9,9 @@
 
 - [Hippocampus](docs/examples/hippo_int.md)
 
+---
+
+
 ## Core Analysis Workflow
 
 ### Data import and QC
