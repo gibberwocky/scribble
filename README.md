@@ -1,6 +1,8 @@
 <img src="./img/scribble.png" alt="scribble" width="200">
 
-###### > a single-cell workflow based on scanpy
+###### a single-cell workflow based on scanpy
+
+> a single-cell workflow based on scanpy
 
 
 <br>
