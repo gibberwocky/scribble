@@ -594,6 +594,20 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Load parameters from a previous Scribble JSON manifest")
 
 
+    # ------------- cellxgene compatible file -------------
+    cellxgene_parser = subparsers.add_parser(
+        "cellxgene",
+        description="""
+    Reformat scribble h5ad file to be compatible with cellxgene browser.
+    """
+    )
+    cellxgene_parser.add_argument("--input", required=True,
+        help="A .h5ad file returned by scribble")
+    cellxgene_parser.add_argument("--output", required=True,
+        help="The .h5ad file to be returned")
+
+
+
     args = parser.parse_args()
     args = apply_manifest(parser, args)
     args.cli_overrides = [
@@ -622,6 +636,7 @@ GitHub: https://github.com/gibberwocky/scribble
         "proteins": ("scribble.protein_expr", "run_protein_expr"),
         "similarity": ("scribble.similarity", "run_similarity"),
         "pseudotime": ("scribble.pseudotime", "run_pseudotime")
+        "cellxgene": ("scribble.cellxgene", "run_cellxgene")
     }
     module_path, func_name = COMMANDS[args.command]
 
