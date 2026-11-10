@@ -1,11 +1,20 @@
-# scribble
-A single-cell RNA-seq workflow based on scanpy.
+<table>
+  <tr>
+    <td>
+        <h1>scribble</h1>
+        A single-cell RNA-seq workflow based on scanpy.
+    </td>
+    <td>
+      <img src="./img/scribble.png" alt="scribble" width="200">
+    </td>
+  </tr>
+</table>
 
-<img style="float:right;width:200px;" src="./img/scribble.png" alt="scribble"/>
+
 
 ## Examples
 
-- [Hippocampus](docs/examples/hipp_int.md)
+- [Hippocampus](docs/examples/hippo_int.md)
 
 ## Core Analysis Workflow
 

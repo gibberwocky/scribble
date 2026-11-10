@@ -1,6 +1,6 @@
-# Hippocampal foetal organoid snRNA-seq
+# To be updated (currently very old)
 
-##### README is currently in development, is a guide only at this stage to illustrate how each module operates
+# Hippocampal foetal organoid snRNA-seq
 
 Here we take 10X snRNA-seq data of developing hippocampal tissue and of an organoid, and use `scribble` to pre-process both datasets, integrate and cluster for downstream annotation.
 
