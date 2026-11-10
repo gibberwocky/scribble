@@ -1,10 +1,10 @@
-<table style="border:0">
+<table>
   <tr>
-    <td>
+    <td style="border: none !important;">
         <h1>scribble</h1>
         A single-cell RNA-seq workflow based on scanpy.
     </td>
-    <td>
+    <td style="border: none !important;">
       <img src="./img/scribble.png" alt="scribble" width="200">
     </td>
   </tr>
