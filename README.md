@@ -36,15 +36,15 @@ A single-cell RNA-seq workflow based on scanpy.
 
 ## Differential Expression
 
-- [DGE](docs/dge.md)
+- [DGE](docs/DGE.md)
 
 ## Cross-Analysis Comparison
 
-- [DGE Compare](docs/dge_compare.md)
+- [DGE Compare](docs/DGE_compare.md)
 
 ## Interpretation and Reporting
 
-- [DGE Report](docs/dge_report.md)
+- [DGE Report](docs/DGE_report.md)
 
 ---
 
