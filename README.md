@@ -1,4 +1,4 @@
-<table border="0">
+<table style="border:0">
   <tr>
     <td>
         <h1>scribble</h1>
