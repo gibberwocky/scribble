@@ -11,7 +11,7 @@ Cells can be removed based on:
 - Minimum detected genes
 - Maximum detected genes
 
-Filtering can be applied globally or using sample-specific thresholds loaded from an Excel workbook.
+Filtering can be applied globally or using sample-specific thresholds (currently only for --mingenes and --maxgenes) loaded from an Excel workbook.
 
 The output is a filtered AnnData object that is used for downstream dimensionality reduction, integration, clustering, and annotation.
 
@@ -66,12 +66,12 @@ cluster
 |------------|-------------|
 | `--project_dir` | Root Scribble project directory. |
 | `--input` | Input AnnData object, typically the output from the `dbl` module. |
-| `--doublets` | Name of the doublet classification column in `adata.obs` to use for filtering (e.g. `doublet_outlier`). |
 
 ### Gene Count Filtering
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
+| `--doublets` | doublet_outlier | Name of the doublet classification column in `adata.obs` to use for filtering (e.g. `doublet_outlier`, `scrublet_doublet`, or `scdblfinder_doublet`). |
 | `--mingenes` | 200 | Minimum number of detected genes required for a cell to be retained. |
 | `--maxgenes` | 6000 | Maximum number of detected genes allowed for a cell to be retained. |
 
@@ -111,5 +111,6 @@ These thresholds override the global `--mingenes` and `--maxgenes` values for ma
   - below `min_genes`
   - above `max_genes`
 - Filtering is performed independently for each sample when a filter workbook is supplied.
+- Filtering doublets with the `doublet_outlier` removes outliers flagged by either Scrublet or scDblFinder.
 - A summary TSV containing cell retention statistics is generated automatically.
 - Filtered cells are permanently removed from the output AnnData object.

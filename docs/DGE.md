@@ -4,7 +4,7 @@
 
 The `DGE` script performs pseudobulk differential expression (DE) analysis and gene set enrichment analysis (GSEA) for annotated cell populations.
 
-Cells are aggregated to the sample level, statistical testing is performed using either PyDESeq2 or edgeR, and pathway enrichment is assessed using pre-ranked GSEA. The module also generates extensive model diagnostics, QC reports, sample-level PCA analyses, and fit-quality assessments.
+Cells are aggregated to the sample level, statistical testing is performed using either PyDESeq2 or edgeR, and pathway enrichment is assessed using pre-ranked GSEA with gseapy. The module also generates extensive model diagnostics, QC reports, sample-level PCA analyses, and fit-quality assessments.
 
 This module is intended for downstream biological interpretation of annotated cell populations rather than routine preprocessing.
 
@@ -96,7 +96,7 @@ DGE
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
-| `--samples` | All eligible samples | Restrict analysis to specific samples. |
+| `--samples` | None | Restrict analysis to specific samples (by default all samples are analysed). |
 
 ### Gene Filtering
 

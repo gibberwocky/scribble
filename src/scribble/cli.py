@@ -164,7 +164,7 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Project directory containing scribble output folder")
     harmony_parser.add_argument("--input", required=True,
         help="Input AnnData (.h5ad) file (generated with scribble)")
-    harmony_parser.add_argument("--npcs", type=int, default=50,
+    harmony_parser.add_argument("--npcs", type=int, default=30,
         help="Number of principal components used for Harmony integration")
     harmony_parser.add_argument("--neighbors", type=int, default=15,
         help="Number of nearest neighbours used to build the integrated graph")
@@ -204,7 +204,7 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Upper bound for automatic resolution scan")
     cluster_parser.add_argument("--res_steps", type=int, default=10,
         help="Number of resolution values tested")
-    cluster_parser.add_argument("--fine_width", type=float, default=0.3,
+    cluster_parser.add_argument("--fine_width", type=float, default=0.1,
         help="Width of fine search window around best coarse resolution")
     cluster_parser.add_argument("--nmarkers", type=int, default=100,
         help="Number of top marker genes exported per cluster")
@@ -285,9 +285,9 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Fixed Leiden resolution for refined clustering")
     refine_parser.add_argument("--auto_resolution", action="store_true",
         help="Automatically determine optimal Leiden resolution")
-    refine_parser.add_argument("--res_min", type=float, default=0.1,
+    refine_parser.add_argument("--res_min", type=float, default=0.2,
         help="Lower bound for automatic resolution scan")
-    refine_parser.add_argument("--res_max", type=float, default=1.5,
+    refine_parser.add_argument("--res_max", type=float, default=2.0,
         help="Upper bound for automatic resolution scan")
     refine_parser.add_argument("--res_steps", type=int, default=10,
         help="Number of resolution values tested")
@@ -297,13 +297,13 @@ GitHub: https://github.com/gibberwocky/scribble
         help="Number of top marker genes exported per cluster")
     refine_parser.add_argument("--n_repeats", type=int, default=10,
         help="Number of repeated clustering runs used to estimate cluster stability")
-    refine_parser.add_argument("--min_cells_per_group", type=int, default=500,
+    refine_parser.add_argument("--min_cells_per_group", type=int, default=200,
         help="Minimum number of cells required to refine a cluster group")
     refine_parser.add_argument("--min_cells_per_gene", "--min_cells", dest="min_cells_per_gene", type=int, default=10,
         help="Minimum number of cells a gene must be expressed in")
     refine_parser.add_argument("--max_refine_depth", type=int, default=2,
         help="Maximum recusrive refinement depth")
-    refine_parser.add_argument("--stability_threshold", type=float, default=0.9,
+    refine_parser.add_argument("--stability_threshold", type=float, default=0.95,
         help="Threshold for unstable clusters")
     refine_parser.add_argument("--min_cells_per_cluster", type=int, default=50,
         help="Minimum number of cells permitted per cluster")
@@ -347,8 +347,8 @@ GitHub: https://github.com/gibberwocky/scribble
     curate_parser.add_argument("--theta", type=float, default=1)
     curate_parser.add_argument("--resolution", type=float, default=0.5)
     curate_parser.add_argument("--auto_resolution", action="store_true")
-    curate_parser.add_argument("--res_min", type=float, default=0.1)
-    curate_parser.add_argument("--res_max", type=float, default=1.5)
+    curate_parser.add_argument("--res_min", type=float, default=0.2)
+    curate_parser.add_argument("--res_max", type=float, default=2.0)
     curate_parser.add_argument("--res_steps", type=int, default=10)
     curate_parser.add_argument("--fine_width", type=float, default=0.2)
     curate_parser.add_argument("--nmarkers", type=int, default=100)

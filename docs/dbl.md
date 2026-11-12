@@ -40,7 +40,7 @@ cluster
 
 - `<input>_dblqc.h5ad`
 - Per-sample doublet score distributions
-- Global doublet QC report
+- Global doublet QC plot
 - Doublet summary TSV
 - Module manifest
 
@@ -95,7 +95,7 @@ At least one method must be enabled.
 ### Notes
 
 - Doublet detection is performed independently for each sample.
-- Scrublet scores are converted to doublet calls using a sample-specific quantile threshold based on the expected doublet fraction.
+- Scrublet scores are converted to doublet calls using a sample-specific quantile threshold based on the expected doublet fraction; Scrublet scores exceeding this threshold are classed as outliers (rather than applying Scrublet's auto threshold).
 - scDblFinder is executed through R using the SingleCellExperiment framework.
 - Cells identified by either enabled method are flagged as `doublet_outlier`.
 - Cells are not removed by this module; filtering occurs later in the workflow.

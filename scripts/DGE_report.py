@@ -52,15 +52,8 @@ def parse_args():
     parser.add_argument("--min_abs_nes", type=float, default=1.5)
     parser.add_argument("--min_delta_nes", type=float, default=0.5)
     parser.add_argument("--min_supporting_analyses", type=int, default=2)
-    parser.add_argument(
-        "--concordance_fdr",
-        type=float,
-        default=0.2,
-        help=(
-            "Must match compare_DGE.py "
-            "concordance threshold."
-        ),
-    )
+    parser.add_argument("--concordance_fdr", type=float, default=0.2,
+        help="Must match compare_DGE.py concordance threshold.")
 
     # Display limits
     parser.add_argument("--top_genes", type=int, default=20)

@@ -6,7 +6,7 @@ The `mt` module identifies cells with unusually high mitochondrial RNA content, 
 
 Mitochondrial outliers are detected independently within each sample using a median absolute deviation (MAD) approach. Cells identified as outliers are flagged but not removed at this stage.
 
-The module generates a mitochondrial QC report and writes an updated AnnData object for downstream filtering.
+The module generates a mitochondrial QC plot and writes an updated AnnData object for downstream filtering.
 
 ## Workflow Position
 

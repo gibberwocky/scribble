@@ -71,14 +71,14 @@ annotate
 | `--project_dir` | Root Scribble project directory. |
 | `--input` | Curated or refined AnnData object to annotate. |
 | `--annotations` | Excel workbook containing cluster annotations. |
-| `--cluster_field` | Cluster column in `adata.obs` used for mapping annotations (e.g. `refine_cluster`). |
-| `--label` | Annotation column to use when generating annotated UMAPs. |
+| `--cluster_field` | Cluster column in `adata.obs` used for mapping annotations (e.g. `curated_cluster`). |
+| `--label` | Annotation column to use when generating annotated UMAPs (e.g. `cell_type_major`). |
 
 ### Cluster Mapping
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
-| `--cluster_destination` | curated_cluster | Name of the sequential cluster ID field created in `adata.obs`. |
+| `--cluster_destination` | cluster | Name of the sequential cluster ID field created in `adata.obs`. |
 
 ### UMAP Visualisation
 
@@ -86,10 +86,10 @@ annotate
 |------------|----------|-------------|
 | `--legend_loc` | right margin | Location of the UMAP legend. |
 | `--legend_fontsize` | 6 | Legend text size. |
-| `--legend_fontoutline` | 0 | Outline width applied to legend text. |
+| `--legend_fontoutline` | 1 | Outline width applied to legend text. |
 | `--add_outline` | False | Add outlines around plotted cell groups. |
 | `--plot_prefix` | None | Prefix applied to generated plot filenames. |
-| `--plot_samples` | All samples | Restrict visualisation to a subset of samples. |
+| `--plot_samples` | None | Restrict visualisation to a subset of samples (plot all samples by default). |
 | `--combined_label` | False | Prefix annotation labels with cluster IDs in UMAP legends. |
 
 ### Annotation Colours
@@ -108,7 +108,7 @@ annotate
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
-| `--skip_write` | False | Generate plots and annotation metadata without writing a new AnnData file. |
+| `--skip_write` | False | Generate plots and annotation metadata without writing a new AnnData file (e.g. to allow parallel running wihout risking I/O corruption). |
 
 ### Reproducibility
 

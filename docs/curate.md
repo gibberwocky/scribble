@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `curate` module applies manual curation decisions to an existing clustering result.
+The `curate` module applies manual curation decisions to an existing clustering result. This typically becomes necessary when formally annotating cluster cell types. Unless specified otherwise when running `curate`, the module will inherit and apply any shared parameters that were passed to the `refine` module.
 
 It supports:
 
@@ -44,9 +44,6 @@ annotate
 
 - Refined or clustered AnnData object
 - Cluster refinement decisions
-- Existing cluster stability metrics
-- Existing marker tables
-- Existing lineage information
 
 ## Outputs
 
@@ -82,7 +79,7 @@ annotate
 | Parameter | Default | Description |
 |------------|----------|-------------|
 | `--refine` | None | Comma-separated list of clusters to subcluster (e.g. `R8,R10`). |
-| `--max_refine_depth` | 5 | Maximum recursive refinement depth when refinement is performed. |
+| `--max_refine_depth` | 2 | Maximum recursive refinement depth when refinement is performed. |
 | `--min_cells_per_group` | 200 | Minimum cells required before a cluster can be refined. |
 | `--min_cells_per_cluster` | 50 | Minimum size for refined subclusters. Smaller clusters are collapsed back into the parent. |
 

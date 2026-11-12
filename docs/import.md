@@ -71,7 +71,7 @@ cluster
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
-| `--samples` | All samples | Import only the specified samples. |
+| `--samples` | None | Import only the specified samples, if none passed and no --samples_file the all samples available are processed. |
 | `--samples_file` | None | Text file containing one sample name per line. |
 
 ### Cell Calling

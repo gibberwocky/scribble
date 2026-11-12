@@ -56,7 +56,7 @@ cluster
 |------------|-------------|
 | `--project_dir` | Root Scribble project directory. |
 | `--input` | Input AnnData object, typically the output from the `dbl` module. |
-| `--doublets` | Name of the doublet classification column in `adata.obs` (e.g. `doublet_outlier`). |
+| `--doublets` | Name of the doublet classification column in `adata.obs` (e.g. `doublet_outlier`) on which to filter doublet outliers. |
 
 ### QC Thresholds
 

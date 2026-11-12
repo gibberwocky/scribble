@@ -70,12 +70,12 @@ annotate
 |------------|-------------|
 | `--project_dir` | Root Scribble project directory. |
 | `--input` | Harmony-integrated AnnData object. |
-| `--embedding` | Embedding stored in `adata.obsm` used for neighbour graph construction and clustering (typically `X_pca_harmony`). |
 
 ### Leiden Clustering
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
+| `--embedding` | X_pca | Embedding stored in `adata.obsm` used for neighbour graph construction and clustering (typically `X_pca_harmony`). |
 | `--resolution` | 1.0 | Leiden clustering resolution. Ignored if `--auto_resolution` is enabled. |
 | `--neighbors` | 15 | Number of neighbours used when constructing the graph. |
 | `--min_cluster_size` | 50 | Clusters smaller than this threshold are merged into the most strongly connected neighbouring cluster. |
@@ -88,7 +88,7 @@ annotate
 | `--res_min` | 0.2 | Minimum resolution tested during optimisation. |
 | `--res_max` | 2.0 | Maximum resolution tested during optimisation. |
 | `--res_steps` | 10 | Number of resolution values evaluated in each optimisation pass. |
-| `--fine_width` | 0.2 | Width of the fine-resolution search around the best coarse resolution. |
+| `--fine_width` | 0.1 | Width of the fine-resolution search around the best coarse resolution. |
 | `--max_cells` | 20000 | Maximum cells used when calculating silhouette scores. |
 | `--max_dims` | 50 | Maximum dimensions retained from the embedding when performing optimisation. |
 

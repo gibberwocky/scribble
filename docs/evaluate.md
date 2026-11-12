@@ -10,7 +10,7 @@ Using cluster stability, sample mixing, cluster size, and reassignment behaviour
 - merge
 - subset
 - investigate as potential trajectories
-- flag for sample bias
+- flag for sample bias (low entropy)
 
 The output is a decision table that guides manual cluster refinement and curation.
 
@@ -50,21 +50,20 @@ annotate
 ## Outputs
 
 - Cluster curation decision table (`*_decisions.tsv`)
-- Optional clustering comparison table when multiple summaries are evaluated
+- Clustering comparison table when multiple summaries are evaluated
 - Suggested merge groups
 - Module manifest
 
 ## Main Functions
 
+- Compare multiple clustering runs
 - Evaluate cluster quality using stability and entropy metrics
-- Identify clusters that may require subclustering
+- Identify clusters that may require further refinment (subclustering)
 - Identify clusters that may represent continuous trajectories
+- Analyse graph connectivity between clusters
 - Detect clusters with strong reassignment behaviour
 - Suggest merge candidates
-- Analyse graph connectivity between clusters
-- Create merge groups
-- Produce a curator-facing decision report
-- Support comparison of multiple clustering runs
+- Produce a decisions support summary
 
 ## Parameters
 
@@ -108,6 +107,6 @@ annotate
 
 - Clusters can be classified as `keep`, `merge`, `subset`, `trajectory`, or `flag_bias`.
 - Merge suggestions are based on both reassignment statistics and graph connectivity.
-- Multiple clustering summaries can be supplied and automatically ranked.
 - Clustering quality is assessed using stability, entropy, reassignment burden, and cluster count.
-- The output is intended to guide manual cluster curation rather than perform automatic refinement.
+- Multiple clustering summaries can be supplied and ranked based on clustering quality.
+- The output is intended to cluster curation refinement.

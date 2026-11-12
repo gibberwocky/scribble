@@ -56,19 +56,19 @@ cluster
 |------------|-------------|
 | `--project_dir` | Root Scribble project directory. |
 | `--input` | Preintegration AnnData object containing PCA embeddings (`X_pca`). |
-| `--batch` | Metadata column used for Harmony batch correction. |
 
 ### Harmony Configuration
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
+| `--batch` | sample | Metadata column used for Harmony batch correction. |
 | `--theta` | 2 | Harmony diversity penalty controlling the strength of batch correction. Larger values increase batch mixing. |
 
 ### Neighbour Graph Construction
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
-| `--npcs` | 50 | Number of Harmony PCs used when constructing the neighbour graph. |
+| `--npcs` | 30 | Number of Harmony PCs used when constructing the neighbour graph. |
 | `--neighbors` | 15 | Number of neighbours used for KNN graph construction. |
 
 ### Visualisation

@@ -76,7 +76,7 @@ cluster
 
 | Parameter | Default | Description |
 |------------|----------|-------------|
-| `--npcs` | 50 | Number of principal components to compute and use for neighbour graph construction. |
+| `--npcs` | 30 | Number of principal components to compute and use for neighbour graph construction. |
 | `--neighbors` | 15 | Number of neighbours used when constructing the KNN graph. |
 
 ### Visualisation
