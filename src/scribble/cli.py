@@ -635,7 +635,7 @@ GitHub: https://github.com/gibberwocky/scribble
         "dotplot": ("scribble.dotplot", "run_dotplot"),
         "proteins": ("scribble.protein_expr", "run_protein_expr"),
         "similarity": ("scribble.similarity", "run_similarity"),
-        "pseudotime": ("scribble.pseudotime", "run_pseudotime")
+        "pseudotime": ("scribble.pseudotime", "run_pseudotime"),
         "cellxgene": ("scribble.cellxgene", "run_cellxgene")
     }
     module_path, func_name = COMMANDS[args.command]
