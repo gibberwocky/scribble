@@ -10,10 +10,8 @@ def run_cellxgene(args):
     input_file = Path(args.input)
     output_file = Path(args.output)
 
-    if Path(output_file).exists():
-        continue
-    else:
-        print(f"{input_file} not found")
+    if not Path(input_file).exists():
+        raise ValueError(f"{input_file} not found")
 
     if input_file == output_file:
         raise ValueError("Output file must be different to input file")
